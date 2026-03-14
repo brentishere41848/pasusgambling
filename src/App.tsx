@@ -11,7 +11,6 @@ import {
   CircleDot, 
   Dice5, 
   Wallet, 
-  Trophy, 
   Gamepad2,
   ChevronRight,
   Menu,
@@ -53,7 +52,6 @@ import { CrashGame } from './components/games/CrashGame';
 import { MinesGame } from './components/games/MinesGame';
 import { PlinkoGame } from './components/games/PlinkoGame';
 import { DiceGame } from './components/games/DiceGame';
-import { SlotsGame } from './components/games/SlotsGame';
 import { BlackjackGame } from './components/games/BlackjackGame';
 import { RouletteGame } from './components/games/RouletteGame';
 import { WheelGame } from './components/games/WheelGame';
@@ -69,18 +67,7 @@ const GAMES = [
     bg: 'bg-emerald-400/10',
     component: CrashGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-crash/800/600'
-  },
-  {
-    id: 'slots',
-    name: 'Slots',
-    description: 'Spin the reels and hit the jackpot with matching symbols.',
-    icon: Trophy,
-    color: 'text-yellow-400',
-    bg: 'bg-yellow-400/10',
-    component: SlotsGame,
-    featured: true,
-    image: 'https://picsum.photos/seed/casino-slots/800/600'
+    image: '/assets/crash-card.png'
   },
   {
     id: 'blackjack',
@@ -91,7 +78,7 @@ const GAMES = [
     bg: 'bg-blue-400/10',
     component: BlackjackGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-blackjack/800/600'
+    image: '/assets/blackjack-card.png'
   },
   {
     id: 'mines',
@@ -101,8 +88,8 @@ const GAMES = [
     color: 'text-blue-400',
     bg: 'bg-blue-400/10',
     component: MinesGame,
-    featured: false,
-    image: 'https://picsum.photos/seed/casino-mines/800/600'
+    featured: true,
+    image: '/assets/mines-card.png'
   },
   {
     id: 'plinko',
