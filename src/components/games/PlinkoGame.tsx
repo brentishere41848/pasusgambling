@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
@@ -6,34 +6,76 @@ import { Play, Settings2, Zap, RotateCcw, Timer } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
 
-const ROWS = 8;
-const MULTIPLIERS = [5.6, 2.1, 1.1, 1, 0.5, 1, 1.1, 2.1, 5.6];
+type RiskTier = 'easy' | 'medium' | 'hard';
+
+type Ball = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  row: number;
+  trail: { x: number; y: number }[];
+};
+
+const ROW_OPTIONS = [8, 10, 12, 14, 16] as const;
+
+const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
+  8: {
+    easy: [4.5, 2.2, 1.3, 1.1, 1, 1.1, 1.3, 2.2, 4.5],
+    medium: [5.6, 2.1, 1.1, 1, 0.5, 1, 1.1, 2.1, 5.6],
+    hard: [13, 3.8, 1.6, 0.7, 0.2, 0.7, 1.6, 3.8, 13],
+  },
+  10: {
+    easy: [6.2, 3.1, 1.7, 1.2, 1, 0.9, 1, 1.2, 1.7, 3.1, 6.2],
+    medium: [8.4, 3.2, 1.9, 1.1, 0.8, 0.5, 0.8, 1.1, 1.9, 3.2, 8.4],
+    hard: [18, 5.2, 2.4, 1, 0.5, 0.2, 0.5, 1, 2.4, 5.2, 18],
+  },
+  12: {
+    easy: [8, 3.6, 2.1, 1.5, 1.2, 1, 0.8, 1, 1.2, 1.5, 2.1, 3.6, 8],
+    medium: [10, 4.1, 2, 1.4, 1, 0.7, 0.5, 0.7, 1, 1.4, 2, 4.1, 10],
+    hard: [24, 8, 3.2, 1.6, 0.9, 0.5, 0.2, 0.5, 0.9, 1.6, 3.2, 8, 24],
+  },
+  14: {
+    easy: [11, 4.8, 2.8, 1.8, 1.4, 1.1, 1, 0.8, 1, 1.1, 1.4, 1.8, 2.8, 4.8, 11],
+    medium: [16, 5.5, 2.7, 1.6, 1.2, 0.9, 0.7, 0.4, 0.7, 0.9, 1.2, 1.6, 2.7, 5.5, 16],
+    hard: [41, 10, 4.2, 2.1, 1.1, 0.6, 0.3, 0.2, 0.3, 0.6, 1.1, 2.1, 4.2, 10, 41],
+  },
+  16: {
+    easy: [14, 6, 3.4, 2.2, 1.7, 1.3, 1.1, 1, 0.8, 1, 1.1, 1.3, 1.7, 2.2, 3.4, 6, 14],
+    medium: [24, 8, 3.9, 2, 1.4, 1.1, 0.8, 0.6, 0.3, 0.6, 0.8, 1.1, 1.4, 2, 3.9, 8, 24],
+    hard: [72, 15, 6, 3, 1.5, 0.9, 0.5, 0.3, 0.2, 0.3, 0.5, 0.9, 1.5, 3, 6, 15, 72],
+  },
+};
 
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const [bet, setBet] = useState(10);
+  const [risk, setRisk] = useState<RiskTier>('medium');
+  const [rows, setRows] = useState<(typeof ROW_OPTIONS)[number]>(8);
   const [isAuto, setIsAuto] = useState(false);
   const [isFast, setIsFast] = useState(false);
   const [autoRounds, setAutoRounds] = useState(10);
   const [remainingRounds, setRemainingRounds] = useState(0);
   const [lastBucket, setLastBucket] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const ballsRef = useRef<{ x: number; y: number; vx: number; vy: number; row: number; trail: { x: number; y: number }[] }[]>([]);
+  const ballsRef = useRef<Ball[]>([]);
+
+  const multipliers = useMemo(() => PAYOUTS[rows][risk], [rows, risk]);
 
   const dropBall = useCallback(() => {
     if (subtractBalance(bet)) {
-      const startX = 250; // Center of 500px canvas
+      const startX = 250;
       ballsRef.current.push({
-        x: startX + (Math.random() - 0.5) * 4, // Slight random offset to prevent stacking
-        y: 20,
+        x: startX + (Math.random() - 0.5) * 4,
+        y: 24,
         vx: 0,
         vy: 0,
         row: 0,
-        trail: []
+        trail: [],
       });
-      
+
       if (isAuto && remainingRounds > 1) {
-        setRemainingRounds(prev => prev - 1);
+        setRemainingRounds((prev) => prev - 1);
       } else if (isAuto) {
         setIsAuto(false);
         setRemainingRounds(0);
@@ -70,71 +112,72 @@ export const PlinkoGame: React.FC = () => {
 
     let animationFrameId: number;
 
+    const topOffset = 70;
+    const verticalGap = rows <= 10 ? 34 : rows <= 14 ? 28 : 24;
+    const pegGap = rows <= 10 ? 38 : rows <= 14 ? 32 : 28;
+    const pegRadius = rows <= 10 ? 4 : 3.5;
+    const bucketHeight = 28;
+    const lastRowY = topOffset + rows * verticalGap;
+    const bucketWidth = pegGap;
+    const totalBuckets = rows + 1;
+    const boardWidth = totalBuckets * bucketWidth;
+    const bucketStartX = (canvas.width - boardWidth) / 2;
+
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw Pegs
       ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      for (let row = 0; row < ROWS; row++) {
-        const rowY = 60 + row * 40;
+      for (let row = 0; row < rows; row++) {
+        const rowY = topOffset + row * verticalGap;
         const pegsInRow = row + 3;
-        const rowWidth = (pegsInRow - 1) * 40;
-        const startX = (canvas.width - rowWidth) / 2;
+        const rowWidth = (pegsInRow - 1) * pegGap;
+        const rowStartX = (canvas.width - rowWidth) / 2;
 
         for (let i = 0; i < pegsInRow; i++) {
           ctx.beginPath();
-          ctx.arc(startX + i * 40, rowY, 4, 0, Math.PI * 2);
+          ctx.arc(rowStartX + i * pegGap, rowY, pegRadius, 0, Math.PI * 2);
           ctx.fill();
         }
       }
 
-      // Draw Multipliers
-      const lastRowY = 60 + ROWS * 40;
-      const bucketWidth = 40;
-      const totalBuckets = ROWS + 1;
-      const startX = (canvas.width - totalBuckets * bucketWidth) / 2;
-
-      MULTIPLIERS.forEach((m, i) => {
-        const x = startX + i * bucketWidth;
-        const activeBucket = i === lastBucket;
+      multipliers.forEach((multiplierValue, index) => {
+        const x = bucketStartX + index * bucketWidth;
+        const activeBucket = index === lastBucket;
         ctx.fillStyle = activeBucket
           ? 'rgba(0, 255, 136, 0.22)'
-          : m >= 1 ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)';
-        ctx.fillRect(x + 2, lastRowY, bucketWidth - 4, 30);
-        ctx.fillStyle = activeBucket ? '#ffffff' : m >= 1 ? '#00FF88' : 'rgba(255, 255, 255, 0.4)';
+          : multiplierValue >= 1 ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)';
+        ctx.fillRect(x + 1, lastRowY, bucketWidth - 2, bucketHeight);
+        ctx.fillStyle = activeBucket ? '#ffffff' : multiplierValue >= 1 ? '#00FF88' : 'rgba(255, 255, 255, 0.4)';
         ctx.font = '10px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`${m}x`, x + bucketWidth / 2, lastRowY + 20);
+        ctx.fillText(`${multiplierValue}x`, x + bucketWidth / 2, lastRowY + 18);
       });
 
-      // Sub-stepping for physics accuracy at high speeds
       const steps = isFast ? 3 : 2;
-      for (let s = 0; s < steps; s++) {
-        ballsRef.current = ballsRef.current.filter(ball => {
+      for (let step = 0; step < steps; step++) {
+        ballsRef.current = ballsRef.current.filter((ball) => {
           ball.vy += 0.16 / steps;
           ball.vx *= 0.992;
           ball.vy *= 0.998;
           ball.x += ball.vx / steps;
           ball.y += ball.vy / steps;
 
-          // Collision with pegs
-          for (let row = 0; row < ROWS; row++) {
-            const rowY = 60 + row * 40;
-            if (Math.abs(ball.y - rowY) < 10 && ball.row === row) {
+          for (let row = 0; row < rows; row++) {
+            const rowY = topOffset + row * verticalGap;
+            if (Math.abs(ball.y - rowY) < pegGap * 0.25 && ball.row === row) {
               const pegsInRow = row + 3;
-              const rowWidth = (pegsInRow - 1) * 40;
+              const rowWidth = (pegsInRow - 1) * pegGap;
               const rowStartX = (canvas.width - rowWidth) / 2;
-              
-              const pegIndex = Math.round((ball.x - rowStartX) / 40);
-              const pegX = rowStartX + pegIndex * 40;
+              const pegIndex = Math.round((ball.x - rowStartX) / pegGap);
+              const pegX = rowStartX + pegIndex * pegGap;
               const dx = ball.x - pegX;
               const dy = ball.y - rowY;
               const distance = Math.sqrt(dx * dx + dy * dy);
 
-              if (distance < 14) {
+              if (distance < pegGap * 0.32) {
                 const direction = dx >= 0 ? 1 : -1;
-                ball.vx = direction * (1.8 + Math.random() * 0.8);
-                ball.vy = -0.8 - Math.random() * 0.4;
+                ball.vx = direction * (1.6 + Math.random() * 0.6);
+                ball.vy = -0.7 - Math.random() * 0.25;
                 ball.row++;
               }
             }
@@ -145,48 +188,48 @@ export const PlinkoGame: React.FC = () => {
             ball.x = Math.max(18, Math.min(canvas.width - 18, ball.x));
           }
 
-          // Collision with buckets
           if (ball.y >= lastRowY) {
-            const bucketIndex = Math.floor((ball.x - startX) / bucketWidth);
-            const safeIndex = Math.max(0, Math.min(MULTIPLIERS.length - 1, bucketIndex));
-            const mult = MULTIPLIERS[safeIndex];
+            const bucketIndex = Math.floor((ball.x - bucketStartX) / bucketWidth);
+            const safeIndex = Math.max(0, Math.min(multipliers.length - 1, bucketIndex));
+            const hitMultiplier = multipliers[safeIndex];
             setLastBucket(safeIndex);
-            const payout = bet * mult;
+
+            const payout = bet * hitMultiplier;
             addBalance(payout);
             logBetActivity({
               gameKey: 'plinko',
               wager: bet,
               payout,
-              multiplier: mult,
+              multiplier: hitMultiplier,
               outcome: payout > bet ? 'win' : payout === bet ? 'push' : 'loss',
-              detail: `Bucket ${safeIndex + 1}`,
+              detail: `${risk} risk, ${rows} rows, bucket ${safeIndex + 1}`,
             });
-            if (mult >= 2) {
+
+            if (hitMultiplier >= 2) {
               confetti({
                 particleCount: 30,
                 spread: 50,
                 origin: { x: ball.x / canvas.width, y: ball.y / canvas.height },
-                colors: ['#00FF88']
+                colors: ['#00FF88'],
               });
             }
             return false;
           }
 
-          // Update trail (only on last step for performance)
-          if (s === steps - 1) {
+          if (step === steps - 1) {
             ball.trail.push({ x: ball.x, y: ball.y });
-            if (ball.trail.length > 10) ball.trail.shift();
+            if (ball.trail.length > 10) {
+              ball.trail.shift();
+            }
           }
 
           return true;
         });
       }
 
-      // Draw Balls
-      ballsRef.current.forEach(ball => {
-        // Draw trail
-        ball.trail.forEach((pos, i) => {
-          const opacity = (i / ball.trail.length) * 0.5;
+      ballsRef.current.forEach((ball) => {
+        ball.trail.forEach((pos, index) => {
+          const opacity = (index / ball.trail.length) * 0.5;
           ctx.fillStyle = `rgba(0, 255, 136, ${opacity})`;
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
@@ -215,7 +258,7 @@ export const PlinkoGame: React.FC = () => {
 
     render();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [bet, isFast, addBalance, lastBucket]);
+  }, [addBalance, bet, isFast, lastBucket, multipliers, risk, rows]);
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
@@ -232,25 +275,63 @@ export const PlinkoGame: React.FC = () => {
             />
           </div>
 
+          <div>
+            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Risk</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['easy', 'medium', 'hard'] as RiskTier[]).map((tier) => (
+                <button
+                  key={tier}
+                  onClick={() => setRisk(tier)}
+                  disabled={isAuto}
+                  className={cn(
+                    'py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                    risk === tier ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/40 hover:text-white'
+                  )}
+                >
+                  {tier}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Rows</label>
+            <div className="grid grid-cols-3 gap-2">
+              {ROW_OPTIONS.map((rowCount) => (
+                <button
+                  key={rowCount}
+                  onClick={() => setRows(rowCount)}
+                  disabled={isAuto}
+                  className={cn(
+                    'py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                    rows === rowCount ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/40 hover:text-white'
+                  )}
+                >
+                  {rowCount}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <button
               onClick={() => setIsFast(!isFast)}
               className={cn(
-                "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all",
-                isFast ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/50" : "bg-white/5 text-white/20 border border-transparent"
+                'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
+                isFast ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50' : 'bg-white/5 text-white/20 border border-transparent'
               )}
             >
-              <Zap size={12} fill={isFast ? "currentColor" : "none"} />
+              <Zap size={12} fill={isFast ? 'currentColor' : 'none'} />
               FAST
             </button>
             <button
               onClick={startAuto}
               className={cn(
-                "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all",
-                isAuto ? "bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50" : "bg-white/5 text-white/20 border border-transparent"
+                'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
+                isAuto ? 'bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50' : 'bg-white/5 text-white/20 border border-transparent'
               )}
             >
-              <RotateCcw size={12} className={isAuto ? "animate-spin" : ""} />
+              <RotateCcw size={12} className={isAuto ? 'animate-spin' : ''} />
               AUTO
             </button>
           </div>
@@ -275,8 +356,8 @@ export const PlinkoGame: React.FC = () => {
             onClick={isAuto ? startAuto : dropBall}
             disabled={balance < bet && !isAuto}
             className={cn(
-              "w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50",
-              isAuto ? "bg-red-500 text-white" : "bg-[#00FF88] text-black"
+              'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
+              isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black'
             )}
           >
             {isAuto ? (
@@ -301,23 +382,22 @@ export const PlinkoGame: React.FC = () => {
           <div className="space-y-2">
             <div className="flex justify-between text-[10px]">
               <span className="text-white/20 uppercase">Risk</span>
-              <span className="text-white/60">MEDIUM</span>
+              <span className="text-white/60">{risk.toUpperCase()}</span>
             </div>
             <div className="flex justify-between text-[10px]">
               <span className="text-white/20 uppercase">Rows</span>
-              <span className="text-white/60">{ROWS}</span>
+              <span className="text-white/60">{rows}</span>
+            </div>
+            <div className="flex justify-between text-[10px]">
+              <span className="text-white/20 uppercase">Max Win</span>
+              <span className="text-[#00FF88]">{Math.max(...multipliers)}x</span>
             </div>
           </div>
         </div>
       </div>
 
       <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-4 flex items-center justify-center overflow-hidden">
-        <canvas
-          ref={canvasRef}
-          width={500}
-          height={500}
-          className="max-w-full h-auto"
-        />
+        <canvas ref={canvasRef} width={500} height={500} className="max-w-full h-auto" />
       </div>
     </div>
   );
