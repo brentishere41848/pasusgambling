@@ -43,6 +43,7 @@ type AuthUser = {
   email: string;
   currency: string;
   avatar?: string;
+  role: 'owner' | 'moderator' | 'user';
 };
 
 type Wallet = {
@@ -82,6 +83,7 @@ type ChatMessage = {
   username: string;
   text: string;
   tone: string;
+  role: 'owner' | 'moderator' | 'user';
   createdAt: string;
 };
 
@@ -113,6 +115,7 @@ function signToken(user: AuthUser) {
       email: user.email,
       currency: user.currency,
       avatar: user.avatar,
+      role: user.role,
     },
     jwtSecret,
     { expiresIn: '30d' }
@@ -130,7 +133,16 @@ function sanitizeUser(row: any): AuthUser {
     email: row.email,
     currency: row.currency || 'USD',
     avatar: row.avatar || undefined,
+    role: normalizeUserRole(row.role),
   };
+}
+
+function normalizeUserRole(value: unknown): 'owner' | 'moderator' | 'user' {
+  const role = String(value || 'user').trim().toLowerCase();
+  if (role === 'owner' || role === 'moderator') {
+    return role;
+  }
+  return 'user';
 }
 
 function sanitizeWallet(row: any): Wallet {
@@ -213,6 +225,7 @@ function mapChatMessage(row: any): ChatMessage {
     username: row.username,
     text: row.text,
     tone: row.tone || 'normal',
+    role: normalizeUserRole(row.role),
     createdAt: row.created_at,
   };
 }
@@ -230,11 +243,17 @@ function mapRainRound(row: any, joined = false): RainRoundState {
   };
 }
 
-async function insertSystemChatMessage(client: Pool | PoolClient, username: string, text: string, tone = 'normal') {
+async function insertSystemChatMessage(
+  client: Pool | PoolClient,
+  username: string,
+  text: string,
+  tone = 'normal',
+  role: 'owner' | 'moderator' | 'user' = 'owner'
+) {
   await client.query(
-    `INSERT INTO chat_messages (user_id, username, text, tone)
-     VALUES (NULL, $1, $2, $3)`,
-    [username, text, tone]
+    `INSERT INTO chat_messages (user_id, username, text, tone, role)
+     VALUES (NULL, $1, $2, $3, $4)`,
+    [username, text, tone, role]
   );
 }
 
@@ -422,9 +441,12 @@ async function initDb() {
       password_hash TEXT NOT NULL,
       currency TEXT NOT NULL DEFAULT 'USD',
       avatar TEXT,
+      role TEXT NOT NULL DEFAULT 'user',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS wallets (
@@ -504,9 +526,12 @@ async function initDb() {
       username TEXT NOT NULL,
       text TEXT NOT NULL,
       tone TEXT NOT NULL DEFAULT 'normal',
+      role TEXT NOT NULL DEFAULT 'user',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  await pool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS rain_rounds (
@@ -543,12 +568,12 @@ async function initDb() {
   const chatCount = await pool.query(`SELECT COUNT(*)::int AS count FROM chat_messages`);
   if (Number(chatCount.rows[0]?.count || 0) === 0) {
     await pool.query(`
-      INSERT INTO chat_messages (user_id, username, text, tone)
+      INSERT INTO chat_messages (user_id, username, text, tone, role)
       VALUES
-        (NULL, 'LuckyAce', 'Blackjack just paid 2.5x.', 'win'),
-        (NULL, 'MinesOnly', 'Anyone hitting hard mode plinko today?', 'normal'),
-        (NULL, 'CrashPilot', 'Crash loop feels smooth now.', 'normal'),
-        (NULL, 'HighRoller', 'Wheel dropped a clean 10x.', 'win')
+        (NULL, 'LuckyAce', 'Blackjack just paid 2.5x.', 'win', 'user'),
+        (NULL, 'MinesOnly', 'Anyone hitting hard mode plinko today?', 'normal', 'user'),
+        (NULL, 'CrashPilot', 'Crash loop feels smooth now.', 'normal', 'user'),
+        (NULL, 'HighRoller', 'Wheel dropped a clean 10x.', 'win', 'user')
     `);
   }
 }
@@ -566,7 +591,7 @@ async function requireAuth(req: AuthedRequest, res: express.Response, next: expr
     const tokenHash = hashToken(token);
 
     const result = await pool.query(
-      `SELECT u.id, u.username, u.email, u.currency, u.avatar
+      `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.role
        FROM user_sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.user_id = $1
@@ -634,7 +659,7 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
     }
 
     const messagesResult = await client.query(
-      `SELECT id, username, text, tone, created_at
+      `SELECT id, username, text, tone, role, created_at
        FROM chat_messages
        ORDER BY created_at DESC
        LIMIT 20`
@@ -667,10 +692,10 @@ app.post('/api/chat/messages', requireAuth, async (req: AuthedRequest, res) => {
     }
 
     const insertResult = await pool.query(
-      `INSERT INTO chat_messages (user_id, username, text, tone)
-       VALUES ($1, $2, $3, 'normal')
-       RETURNING id, username, text, tone, created_at`,
-      [req.auth!.user.id, req.auth!.user.username, text]
+      `INSERT INTO chat_messages (user_id, username, text, tone, role)
+       VALUES ($1, $2, $3, 'normal', $4)
+       RETURNING id, username, text, tone, role, created_at`,
+      [req.auth!.user.id, req.auth!.user.username, text, req.auth!.user.role]
     );
 
     return res.status(201).json({ message: mapChatMessage(insertResult.rows[0]) });
@@ -776,7 +801,7 @@ app.post('/api/auth/register', async (req, res) => {
     const userResult = await client.query(
       `INSERT INTO users (username, email, password_hash, avatar)
        VALUES ($1, $2, $3, $4)
-       RETURNING id, username, email, currency, avatar`,
+       RETURNING id, username, email, currency, avatar, role`,
       [username, email, passwordHash, avatar]
     );
 
@@ -867,7 +892,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const result = await client.query(
-      `SELECT id, username, email, currency, avatar, password_hash
+      `SELECT id, username, email, currency, avatar, role, password_hash
        FROM users
        WHERE username = $1
        LIMIT 1`,

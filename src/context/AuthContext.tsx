@@ -6,6 +6,7 @@ interface User {
   email: string;
   avatar?: string;
   currency: string;
+  role: 'owner' | 'moderator' | 'user';
 }
 
 interface AuthContextType {

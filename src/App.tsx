@@ -1183,7 +1183,19 @@ type ChatMessage = {
   user: string;
   text: string;
   tone: 'win' | 'normal';
+  role: 'owner' | 'moderator' | 'user';
   createdAt?: string;
+};
+
+const CHAT_ROLE_STYLES: Record<ChatMessage['role'], string> = {
+  owner: 'text-[#4EA8FF]',
+  moderator: 'text-[#00FF88]',
+  user: 'text-white',
+};
+
+const CHAT_ROLE_ICONS: Partial<Record<ChatMessage['role'], string>> = {
+  owner: '/assets/chat-owner.png',
+  moderator: '/assets/chat-moderator.png',
 };
 
 type RainState = {
@@ -1231,6 +1243,7 @@ const RightRail = () => {
             user: String(message.username || 'Guest'),
             text: String(message.text || ''),
             tone: message.tone === 'win' ? 'win' : 'normal',
+            role: message.role === 'owner' || message.role === 'moderator' ? message.role : 'user',
             createdAt: message.createdAt || message.created_at,
           }))
         : [];
@@ -1405,10 +1418,21 @@ const RightRail = () => {
               Loading chat room...
             </div>
           ) : null}
-          {messages.map((message) => (
+              {messages.map((message) => (
             <div key={message.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
               <div className="flex items-center justify-between mb-1">
-                <span className={cn('text-xs font-black', message.tone === 'win' ? 'text-[#00FF88]' : 'text-white/70')}>{message.user}</span>
+                <span className="flex items-center gap-2 min-w-0">
+                  {message.role !== 'user' ? (
+                    <img
+                      src={CHAT_ROLE_ICONS[message.role]}
+                      alt={message.role}
+                      className="w-4 h-4 rounded-full object-cover shrink-0"
+                    />
+                  ) : null}
+                  <span className={cn('text-xs font-black truncate', CHAT_ROLE_STYLES[message.role])}>
+                    {message.user}
+                  </span>
+                </span>
                 <span className="text-[10px] text-white/20">
                   {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
                 </span>
