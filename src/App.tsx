@@ -44,7 +44,9 @@ import {
   UserPlus,
   LogOut,
   Mail,
-  Lock
+  Lock,
+  Gift,
+  SendHorizontal
 } from 'lucide-react';
 import { BalanceProvider, useBalance } from './context/BalanceContext';
 import { useAuth } from './context/AuthContext';
@@ -864,7 +866,7 @@ const FeaturedGame = ({ game, onClick }: { game: any, onClick: () => void, key?:
     <motion.button
       whileHover={{ y: -4 }}
       onClick={onClick}
-      className="relative h-64 rounded-3xl overflow-hidden group border border-white/5"
+      className="relative aspect-[4/3] rounded-3xl overflow-hidden group border border-white/5"
     >
       <img 
         src={game.image} 
@@ -1176,6 +1178,275 @@ const SettingsView = () => {
   );
 };
 
+type ChatMessage = {
+  id: number;
+  user: string;
+  text: string;
+  tone: 'win' | 'normal';
+  createdAt?: string;
+};
+
+type RainState = {
+  id: number;
+  poolAmount: number;
+  startsAt: string;
+  joinOpensAt: string;
+  endsAt: string;
+  participantCount: number;
+  joined: boolean;
+  hasEnded: boolean;
+};
+
+const RightRail = () => {
+  const { isAuthenticated, user } = useAuth();
+  const { refreshWallet } = useBalance();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [rain, setRain] = useState<RainState | null>(null);
+  const [draft, setDraft] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isJoiningRain, setIsJoiningRain] = useState(false);
+  const [roomError, setRoomError] = useState('');
+  const [lastSeenRainId, setLastSeenRainId] = useState<number | null>(null);
+
+  const loadRoom = async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
+
+    try {
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch('/api/chat/room', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load room.');
+      }
+
+      const nextMessages = Array.isArray(data.messages)
+        ? data.messages.map((message: any) => ({
+            id: Number(message.id),
+            user: String(message.username || 'Guest'),
+            text: String(message.text || ''),
+            tone: message.tone === 'win' ? 'win' : 'normal',
+            createdAt: message.createdAt || message.created_at,
+          }))
+        : [];
+
+      const nextRain = data.rain
+        ? {
+            id: Number(data.rain.id),
+            poolAmount: Number(data.rain.poolAmount ?? data.rain.pool_amount ?? 0),
+            startsAt: String(data.rain.startsAt || data.rain.starts_at || ''),
+            joinOpensAt: String(data.rain.joinOpensAt || data.rain.join_opens_at || ''),
+            endsAt: String(data.rain.endsAt || data.rain.ends_at || ''),
+            participantCount: Number(data.rain.participantCount ?? data.rain.participant_count ?? 0),
+            joined: Boolean(data.rain.joined),
+            hasEnded: Boolean(data.rain.hasEnded),
+          }
+        : null;
+
+      if (lastSeenRainId && nextRain && nextRain.id !== lastSeenRainId) {
+        refreshWallet().catch(() => undefined);
+      }
+
+      setMessages(nextMessages);
+      setRain(nextRain);
+      setLastSeenRainId((prev) => prev ?? nextRain?.id ?? null);
+      if (nextRain) {
+        setLastSeenRainId(nextRain.id);
+      }
+      setRoomError('');
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : 'Failed to load room.');
+    } finally {
+      if (!silent) {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadRoom().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadRoom(true).catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isAuthenticated, lastSeenRainId]);
+
+  const submitMessage = async () => {
+    if (!draft.trim() || !isAuthenticated) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: draft.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send message.');
+      }
+
+      setDraft('');
+      await loadRoom(true);
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : 'Failed to send message.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const joinRain = async () => {
+    if (!isAuthenticated || !rain || rain.joined || rain.hasEnded) {
+      return;
+    }
+
+    try {
+      setIsJoiningRain(true);
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch('/api/rain/join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to join rain.');
+      }
+
+      await loadRoom(true);
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : 'Failed to join rain.');
+    } finally {
+      setIsJoiningRain(false);
+    }
+  };
+
+  const now = Date.now();
+  const joinOpensAt = rain ? new Date(rain.joinOpensAt).getTime() : 0;
+  const endsAt = rain ? new Date(rain.endsAt).getTime() : 0;
+  const joinWindowOpen = Boolean(rain && now >= joinOpensAt && now < endsAt && !rain.hasEnded);
+  const secondsUntilJoin = rain ? Math.max(0, Math.floor((joinOpensAt - now) / 1000)) : 0;
+  const secondsUntilEnd = rain ? Math.max(0, Math.floor((endsAt - now) / 1000)) : 0;
+  const countdownSource = joinWindowOpen ? secondsUntilEnd : secondsUntilJoin;
+  const countdownLabel = `${Math.floor(countdownSource / 60)}:${String(countdownSource % 60).padStart(2, '0')}`;
+  const rainButtonLabel = !isAuthenticated
+    ? 'Sign In To Join'
+    : !rain
+      ? 'Loading Rain'
+      : rain.joined
+        ? 'Joined'
+        : joinWindowOpen
+          ? 'Join Rain'
+          : 'Join Opens Soon';
+
+  return (
+    <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[#0f1115] flex-col">
+      <div className="p-5 border-b border-white/5">
+        <div className="rounded-3xl border border-[#00FF88]/15 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Rain Drop</div>
+              <div className="text-2xl font-black italic tracking-tight">{rain?.poolAmount.toLocaleString() || '0'} Coins</div>
+            </div>
+            <Gift className="text-[#00FF88]" size={22} />
+          </div>
+          <div className="flex items-center justify-between text-xs text-white/50 mb-4">
+            <span>{rain?.participantCount || 0} joined</span>
+            <span>{joinWindowOpen ? `Ends in ${countdownLabel}` : `Join opens in ${countdownLabel}`}</span>
+          </div>
+          <button
+            onClick={joinRain}
+            disabled={!isAuthenticated || !rain || rain.joined || !joinWindowOpen || isJoiningRain}
+            className="w-full rounded-2xl bg-[#00FF88] text-black py-3 text-xs font-black uppercase tracking-[0.2em] disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isJoiningRain ? 'Joining...' : rainButtonLabel}
+          </button>
+          <div className="mt-3 text-[11px] text-white/40 leading-relaxed">
+            One rain round runs every hour. Players can join only during the final 2 minutes, then the full pot is split evenly across everyone who joined.
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <div className="text-sm font-black uppercase tracking-[0.18em]">Chat</div>
+            <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">Live room</div>
+          </div>
+          <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">{Math.max(24, (rain?.participantCount || 0) + 21)} online</div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-3">
+          {roomError ? (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-200">
+              {roomError}
+            </div>
+          ) : null}
+          {isLoading && messages.length === 0 ? (
+            <div className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-xs text-white/40">
+              Loading chat room...
+            </div>
+          ) : null}
+          {messages.map((message) => (
+            <div key={message.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className={cn('text-xs font-black', message.tone === 'win' ? 'text-[#00FF88]' : 'text-white/70')}>{message.user}</span>
+                <span className="text-[10px] text-white/20">
+                  {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
+                </span>
+              </div>
+              <div className="text-xs text-white/55 leading-relaxed">{message.text}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-4 border-t border-white/5">
+          <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-black/30 px-3 py-2">
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  submitMessage();
+                }
+              }}
+              placeholder={isAuthenticated ? 'Send a message...' : 'Sign in to chat'}
+              disabled={!isAuthenticated}
+              className="flex-1 bg-transparent text-sm text-white/70 placeholder:text-white/20 focus:outline-none disabled:cursor-not-allowed"
+            />
+            <button
+              onClick={submitMessage}
+              disabled={!isAuthenticated || !draft.trim() || isSubmitting}
+              className="w-10 h-10 rounded-xl bg-[#00FF88] text-black flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <SendHorizontal size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
 const AppContent = () => {
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [isWalletOpen, setIsWalletOpen] = useState(false);
@@ -1315,6 +1586,8 @@ const AppContent = () => {
           </footer>
         </main>
       </div>
+
+      <RightRail />
 
       <AnimatePresence>
         {isWalletOpen && (

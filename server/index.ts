@@ -77,6 +77,25 @@ type BetActivity = {
   createdAt: string;
 };
 
+type ChatMessage = {
+  id: number;
+  username: string;
+  text: string;
+  tone: string;
+  createdAt: string;
+};
+
+type RainRoundState = {
+  id: number;
+  poolAmount: number;
+  startsAt: string;
+  joinOpensAt: string;
+  endsAt: string;
+  participantCount: number;
+  joined: boolean;
+  hasEnded: boolean;
+};
+
 type RawBodyRequest = express.Request & { rawBody?: string };
 
 type AuthedRequest = RawBodyRequest & {
@@ -186,6 +205,141 @@ function mapBetActivity(row: any): BetActivity {
     outcome: row.outcome,
     createdAt: row.created_at,
   };
+}
+
+function mapChatMessage(row: any): ChatMessage {
+  return {
+    id: Number(row.id),
+    username: row.username,
+    text: row.text,
+    tone: row.tone || 'normal',
+    createdAt: row.created_at,
+  };
+}
+
+function mapRainRound(row: any, joined = false): RainRoundState {
+  return {
+    id: Number(row.id),
+    poolAmount: Number(row.pool_amount || 0),
+    startsAt: row.starts_at,
+    joinOpensAt: row.join_opens_at,
+    endsAt: row.ends_at,
+    participantCount: Number(row.participant_count || 0),
+    joined,
+    hasEnded: new Date(row.ends_at).getTime() <= Date.now(),
+  };
+}
+
+async function insertSystemChatMessage(client: Pool | PoolClient, username: string, text: string, tone = 'normal') {
+  await client.query(
+    `INSERT INTO chat_messages (user_id, username, text, tone)
+     VALUES (NULL, $1, $2, $3)`,
+    [username, text, tone]
+  );
+}
+
+async function settleFinishedRainRounds(client: Pool | PoolClient) {
+  const rounds = await client.query(
+    `SELECT r.id, r.pool_amount
+     FROM rain_rounds r
+     WHERE r.status = 'active'
+       AND r.ends_at <= NOW()
+     ORDER BY r.ends_at ASC
+     FOR UPDATE`
+  );
+
+  for (const round of rounds.rows) {
+    const participants = await client.query(
+      `SELECT user_id
+       FROM rain_round_participants
+       WHERE round_id = $1`,
+      [round.id]
+    );
+
+    const count = participants.rowCount || 0;
+    const totalPool = Number(round.pool_amount || 0);
+
+    if (count > 0 && totalPool > 0) {
+      const share = Math.max(1, Math.floor(totalPool / count));
+
+      for (const participant of participants.rows) {
+        await client.query(
+          `UPDATE wallets
+           SET balance = balance + $1,
+               updated_at = NOW()
+           WHERE user_id = $2`,
+          [share, participant.user_id]
+        );
+      }
+
+      await insertSystemChatMessage(
+        client,
+        'PasusRain',
+        `Rain ${round.id} finished. ${count} players received ${share} coins each.`,
+        'win'
+      );
+    } else {
+      await insertSystemChatMessage(
+        client,
+        'PasusRain',
+        `Rain ${round.id} ended with no joined players.`,
+        'normal'
+      );
+    }
+
+    await client.query(
+      `UPDATE rain_rounds
+       SET status = 'settled', updated_at = NOW()
+       WHERE id = $1`,
+      [round.id]
+    );
+  }
+}
+
+async function ensureCurrentRainRound(client: Pool | PoolClient) {
+  await settleFinishedRainRounds(client);
+
+  const existing = await client.query(
+    `SELECT r.id, r.pool_amount, r.starts_at, r.join_opens_at, r.ends_at, r.status,
+            COUNT(p.id)::int AS participant_count
+     FROM rain_rounds r
+     LEFT JOIN rain_round_participants p ON p.round_id = r.id
+     WHERE r.status = 'active'
+     GROUP BY r.id
+     ORDER BY r.starts_at DESC
+     LIMIT 1`
+  );
+
+  if (existing.rowCount) {
+    return existing.rows[0];
+  }
+
+  const now = new Date();
+  const startsAt = new Date(now);
+  startsAt.setMinutes(0, 0, 0);
+
+  if (startsAt.getTime() > now.getTime()) {
+    startsAt.setHours(startsAt.getHours() - 1);
+  }
+
+  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+  const joinOpensAt = new Date(endsAt.getTime() - 2 * 60 * 1000);
+
+  const insertResult = await client.query(
+    `INSERT INTO rain_rounds (pool_amount, starts_at, join_opens_at, ends_at, status)
+     VALUES ($1, $2, $3, $4, 'active')
+     RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, 0::int AS participant_count`,
+    [800 + Math.floor(Math.random() * 1701), startsAt, joinOpensAt, endsAt]
+  );
+
+  await insertSystemChatMessage(
+    client,
+    'PasusRain',
+    `Rain ${insertResult.rows[0].id} is live. Join opens in the final 2 minutes.`,
+    'normal'
+  );
+
+  return insertResult.rows[0];
 }
 
 async function getWallet(client: Pool | PoolClient, userId: number) {
@@ -344,6 +498,40 @@ async function initDb() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      username TEXT NOT NULL,
+      text TEXT NOT NULL,
+      tone TEXT NOT NULL DEFAULT 'normal',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rain_rounds (
+      id BIGSERIAL PRIMARY KEY,
+      pool_amount BIGINT NOT NULL,
+      starts_at TIMESTAMPTZ NOT NULL,
+      join_opens_at TIMESTAMPTZ NOT NULL,
+      ends_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rain_round_participants (
+      id BIGSERIAL PRIMARY KEY,
+      round_id BIGINT NOT NULL REFERENCES rain_rounds(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (round_id, user_id)
+    )
+  `);
+
+  await pool.query(`
     INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn)
     SELECT id, 50, 50, 0
     FROM users
@@ -351,6 +539,18 @@ async function initDb() {
       SELECT 1 FROM wallets WHERE wallets.user_id = users.id
     )
   `);
+
+  const chatCount = await pool.query(`SELECT COUNT(*)::int AS count FROM chat_messages`);
+  if (Number(chatCount.rows[0]?.count || 0) === 0) {
+    await pool.query(`
+      INSERT INTO chat_messages (user_id, username, text, tone)
+      VALUES
+        (NULL, 'LuckyAce', 'Blackjack just paid 2.5x.', 'win'),
+        (NULL, 'MinesOnly', 'Anyone hitting hard mode plinko today?', 'normal'),
+        (NULL, 'CrashPilot', 'Crash loop feels smooth now.', 'normal'),
+        (NULL, 'HighRoller', 'Wheel dropped a clean 10x.', 'win')
+    `);
+  }
 }
 
 async function requireAuth(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
@@ -390,6 +590,158 @@ async function requireAuth(req: AuthedRequest, res: express.Response, next: expr
     return res.status(401).json({ error: 'Unauthorized.' });
   }
 }
+
+app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    let joined = false;
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    let authedUserId: number | null = null;
+
+    if (token) {
+      try {
+        const payload = jwt.verify(token, jwtSecret) as { id: number };
+        const tokenHash = hashToken(token);
+        const sessionResult = await client.query(
+          `SELECT s.user_id
+           FROM user_sessions s
+           WHERE s.user_id = $1
+             AND s.token_hash = $2
+             AND (s.expires_at IS NULL OR s.expires_at > NOW())
+           LIMIT 1`,
+          [payload.id, tokenHash]
+        );
+        authedUserId = sessionResult.rowCount ? Number(sessionResult.rows[0].user_id) : null;
+      } catch {
+        authedUserId = null;
+      }
+    }
+
+    await client.query('BEGIN');
+    const roundRow = await ensureCurrentRainRound(client);
+
+    if (authedUserId) {
+      const joinedResult = await client.query(
+        `SELECT 1
+         FROM rain_round_participants
+         WHERE round_id = $1 AND user_id = $2
+         LIMIT 1`,
+        [roundRow.id, authedUserId]
+      );
+      joined = Boolean(joinedResult.rowCount);
+    }
+
+    const messagesResult = await client.query(
+      `SELECT id, username, text, tone, created_at
+       FROM chat_messages
+       ORDER BY created_at DESC
+       LIMIT 20`
+    );
+
+    await client.query('COMMIT');
+    return res.json({
+      messages: messagesResult.rows.reverse().map(mapChatMessage),
+      rain: mapRainRound(roundRow, joined),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load chat room.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/chat/messages', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const text = String(req.body.text || '').trim();
+
+    if (!text) {
+      return res.status(400).json({ error: 'Message is required.' });
+    }
+
+    if (text.length > 280) {
+      return res.status(400).json({ error: 'Message must be 280 characters or fewer.' });
+    }
+
+    const insertResult = await pool.query(
+      `INSERT INTO chat_messages (user_id, username, text, tone)
+       VALUES ($1, $2, $3, 'normal')
+       RETURNING id, username, text, tone, created_at`,
+      [req.auth!.user.id, req.auth!.user.username, text]
+    );
+
+    return res.status(201).json({ message: mapChatMessage(insertResult.rows[0]) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to send message.' });
+  }
+});
+
+app.post('/api/rain/join', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const roundRow = await ensureCurrentRainRound(client);
+    const now = Date.now();
+    const joinOpensAt = new Date(roundRow.join_opens_at).getTime();
+    const endsAt = new Date(roundRow.ends_at).getTime();
+
+    if (now < joinOpensAt || now >= endsAt) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Rain join is only open during the final 2 minutes.' });
+    }
+
+    const existing = await client.query(
+      `SELECT 1
+       FROM rain_round_participants
+       WHERE round_id = $1 AND user_id = $2
+       LIMIT 1`,
+      [roundRow.id, req.auth!.user.id]
+    );
+
+    if (existing.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'You already joined this rain.' });
+    }
+
+    await client.query(
+      `INSERT INTO rain_round_participants (round_id, user_id)
+       VALUES ($1, $2)`,
+      [roundRow.id, req.auth!.user.id]
+    );
+
+    await insertSystemChatMessage(
+      client,
+      'PasusRain',
+      `${req.auth!.user.username} joined rain ${roundRow.id}.`,
+      'win'
+    );
+
+    const refreshedRound = await client.query(
+      `SELECT r.id, r.pool_amount, r.starts_at, r.join_opens_at, r.ends_at, r.status,
+              COUNT(p.id)::int AS participant_count
+       FROM rain_rounds r
+       LEFT JOIN rain_round_participants p ON p.round_id = r.id
+       WHERE r.id = $1
+       GROUP BY r.id
+       LIMIT 1`,
+      [roundRow.id]
+    );
+
+    await client.query('COMMIT');
+    return res.status(201).json({ rain: mapRainRound(refreshedRound.rows[0], true) });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to join rain.' });
+  } finally {
+    client.release();
+  }
+});
 
 app.post('/api/auth/register', async (req, res) => {
   const client = await pool.connect();
