@@ -679,7 +679,21 @@ app.post('/api/payments/nowpayments/create', requireAuth, async (req: AuthedRequ
 
     const payload = await nowResponse.json().catch(() => ({}));
     if (!nowResponse.ok) {
-      return res.status(400).json({ error: payload.message || payload.error || 'Failed to create payment.' });
+      console.error('NOWPayments create payment failed:', {
+        status: nowResponse.status,
+        payload,
+        request: {
+          priceAmount,
+          priceCurrency,
+          payCurrency,
+          callbackUrl,
+          orderId,
+        },
+      });
+      return res.status(400).json({
+        error: payload.message || payload.error || payload.msg || `NOWPayments rejected the payment request (${nowResponse.status}).`,
+        details: payload,
+      });
     }
 
     const insertResult = await client.query(
