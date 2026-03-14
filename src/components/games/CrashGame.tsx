@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { TrendingUp, Play, Square, Timer } from 'lucide-react';
+import { logBetActivity } from '../../lib/activity';
 
 const PREP_TIME_MS = 5000;
 
@@ -77,10 +78,14 @@ export const CrashGame: React.FC = () => {
         const currentMult = Number(Math.pow(Math.E, 0.06 * elapsed).toFixed(2));
 
         if (currentMult >= point) {
+          const activeBet = pendingBetRef.current;
           setMultiplier(Number(point.toFixed(2)));
           setGameState('crashed');
           setHistory((prev) => [Number(point.toFixed(2)), ...prev].slice(0, 5));
           setStatusText(`Crashed at ${point.toFixed(2)}x`);
+          if (activeBet !== null) {
+            logBetActivity({ gameKey: 'crash', wager: activeBet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Crashed at ${point.toFixed(2)}x` });
+          }
           pendingBetRef.current = null;
           setBetLocked(false);
           clearLoopTimers();
@@ -119,6 +124,7 @@ export const CrashGame: React.FC = () => {
 
     const winAmount = pendingBetRef.current * multiplier;
     addBalance(winAmount);
+    logBetActivity({ gameKey: 'crash', wager: pendingBetRef.current, payout: winAmount, multiplier, outcome: 'win', detail: `Cashed out at ${multiplier.toFixed(2)}x` });
     pendingBetRef.current = null;
     setGameState('cashed_out');
     setStatusText(`Cashed out at ${multiplier.toFixed(2)}x`);

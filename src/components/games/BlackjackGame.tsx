@@ -4,6 +4,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, RotateCcw, Hand, Square, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { logBetActivity } from '../../lib/activity';
 
 type Card = {
   suit: string;
@@ -123,13 +124,20 @@ export const BlackjackGame: React.FC = () => {
     const dScore = calculateScore(dHand);
 
     if (msg === 'Blackjack!') {
-      addBalance(bet * 2.5);
+      const payout = bet * 2.5;
+      addBalance(payout);
+      logBetActivity({ gameKey: 'blackjack', wager: bet, payout, multiplier: 2.5, outcome: 'win', detail: msg });
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     } else if (msg === 'You Win!' || msg === 'Dealer Busts!') {
-      addBalance(bet * 2);
+      const payout = bet * 2;
+      addBalance(payout);
+      logBetActivity({ gameKey: 'blackjack', wager: bet, payout, multiplier: 2, outcome: 'win', detail: msg });
       confetti({ particleCount: 100, spread: 50, origin: { y: 0.6 } });
     } else if (msg === 'Push') {
       addBalance(bet);
+      logBetActivity({ gameKey: 'blackjack', wager: bet, payout: bet, multiplier: 1, outcome: 'push', detail: msg });
+    } else {
+      logBetActivity({ gameKey: 'blackjack', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: msg });
     }
   };
 

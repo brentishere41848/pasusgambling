@@ -4,6 +4,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Bomb, Gem, Play, RotateCcw } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { logBetActivity } from '../../lib/activity';
 
 export const MinesGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -56,6 +57,7 @@ export const MinesGame: React.FC = () => {
       });
       setGrid(newGrid);
       setGameState('ended');
+      logBetActivity({ gameKey: 'mines', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Hit bomb after ${revealedCount} gems` });
     } else {
       // Hit a gem
       const newGrid = [...grid];
@@ -70,6 +72,7 @@ export const MinesGame: React.FC = () => {
       const multiplier = calculateMultiplier(revealedCount);
       const winAmount = bet * multiplier;
       addBalance(winAmount);
+      logBetActivity({ gameKey: 'mines', wager: bet, payout: winAmount, multiplier, outcome: 'win', detail: `${revealedCount} gems revealed` });
       setGameState('ended');
       confetti({
         particleCount: 100,

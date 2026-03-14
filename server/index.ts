@@ -61,6 +61,17 @@ type PaymentTransaction = {
   invoiceUrl: string | null;
 };
 
+type BetActivity = {
+  id: number;
+  gameKey: string;
+  username: string;
+  wager: number;
+  payout: number;
+  multiplier: number;
+  outcome: string;
+  createdAt: string;
+};
+
 type RawBodyRequest = express.Request & { rawBody?: string };
 
 type AuthedRequest = RawBodyRequest & {
@@ -156,6 +167,19 @@ function mapTransaction(row: any): PaymentTransaction {
     outcomeAmount: Number(row.outcome_amount || 0),
     outcomeCurrency: row.outcome_currency,
     invoiceUrl: row.invoice_url,
+  };
+}
+
+function mapBetActivity(row: any): BetActivity {
+  return {
+    id: Number(row.id),
+    gameKey: row.game_key,
+    username: row.username,
+    wager: Number(row.wager || 0),
+    payout: Number(row.payout || 0),
+    multiplier: Number(row.multiplier || 0),
+    outcome: row.outcome,
+    createdAt: row.created_at,
   };
 }
 
@@ -301,6 +325,20 @@ async function initDb() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS bet_activities (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      game_key TEXT NOT NULL,
+      wager BIGINT NOT NULL,
+      payout BIGINT NOT NULL DEFAULT 0,
+      multiplier NUMERIC(12,4) NOT NULL DEFAULT 0,
+      outcome TEXT NOT NULL,
+      detail TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
     INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn)
     SELECT id, 50, 50, 0
     FROM users
@@ -404,6 +442,59 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(500).json({ error: 'Failed to register user.' });
   } finally {
     client.release();
+  }
+});
+
+app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const gameKey = String(req.body.gameKey || '').trim().toLowerCase();
+    const wager = normalizeCoins(req.body.wager);
+    const payout = normalizeCoins(req.body.payout);
+    const multiplier = Number(req.body.multiplier || 0);
+    const outcome = String(req.body.outcome || '').trim().toLowerCase();
+    const detail = String(req.body.detail || '').trim();
+
+    if (!gameKey || !wager || !outcome) {
+      return res.status(400).json({ error: 'Missing bet activity fields.' });
+    }
+
+    await pool.query(
+      `INSERT INTO bet_activities (user_id, game_key, wager, payout, multiplier, outcome, detail)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [req.auth!.user.id, gameKey, wager, payout, multiplier || 0, outcome, detail || null]
+    );
+
+    return res.status(201).json({ ok: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to record bet activity.' });
+  }
+});
+
+app.get('/api/activity/bets', async (req, res) => {
+  try {
+    const tab = String(req.query.tab || 'all').trim().toLowerCase();
+    const limit = Math.min(20, Math.max(1, Number(req.query.limit || 5)));
+
+    let query = `
+      SELECT b.id, b.game_key, u.username, b.wager, b.payout, b.multiplier, b.outcome, b.created_at
+      FROM bet_activities b
+      JOIN users u ON u.id = b.user_id
+    `;
+
+    if (tab === 'high') {
+      query += ` WHERE b.outcome = 'win' ORDER BY b.payout DESC, b.created_at DESC LIMIT $1`;
+    } else if (tab === 'lucky') {
+      query += ` WHERE b.outcome = 'win' AND b.multiplier >= 5 ORDER BY b.created_at DESC LIMIT $1`;
+    } else {
+      query += ` ORDER BY b.created_at DESC LIMIT $1`;
+    }
+
+    const result = await pool.query(query, [limit]);
+    return res.json({ activities: result.rows.map(mapBetActivity) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load activity feed.' });
   }
 });
 

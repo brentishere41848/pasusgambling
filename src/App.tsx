@@ -901,22 +901,83 @@ const FeaturedGame = ({ game, onClick }: { game: any, onClick: () => void, key?:
   );
 };
 
+type ActivityFeedItem = {
+  id: number;
+  gameKey: string;
+  username: string;
+  wager: number;
+  payout: number;
+  multiplier: number;
+  outcome: string;
+  createdAt: string;
+};
+
 const RecentActivity = () => {
-  const activities = [
-    { id: 1, game: 'Crash', user: 'LuckyPlayer', amount: 45.50, multiplier: '2.5x', time: '2m ago', win: true },
-    { id: 2, game: 'Mines', user: 'CryptoKing', amount: 10.00, multiplier: '1.2x', time: '5m ago', win: true },
-    { id: 3, game: 'Dice', user: 'HighRoller', amount: 100.00, multiplier: '0.0x', time: '8m ago', win: false },
-    { id: 4, game: 'Plinko', user: 'PlinkoFan', amount: 5.00, multiplier: '5.6x', time: '12m ago', win: true },
-    { id: 5, game: 'Wheel', user: 'Spinner', amount: 20.00, multiplier: '1.5x', time: '15m ago', win: true },
-  ];
+  const [activeTab, setActiveTab] = useState<'all' | 'high' | 'lucky'>('all');
+  const [activities, setActivities] = useState<ActivityFeedItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadActivity = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/activity/bets?tab=${activeTab}&limit=5`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !isMounted) {
+          return;
+        }
+        setActivities(data.activities || []);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadActivity();
+    const interval = window.setInterval(loadActivity, 10000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, [activeTab]);
+
+  const formatTimeAgo = (value: string) => {
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+  };
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-4">
         <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3">
           <TrendingUp className="text-[#00FF88]" size={20} />
           Recent Activity
         </h2>
+        <div className="flex p-1 bg-black/40 rounded-full border border-white/5">
+          {[
+            { id: 'all', label: 'All Bets' },
+            { id: 'high', label: 'High Wins' },
+            { id: 'lucky', label: 'Lucky Wins' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as 'all' | 'high' | 'lucky')}
+              className={cn(
+                'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all',
+                activeTab === tab.id ? 'bg-[#00FF88] text-black' : 'text-white/40 hover:text-white'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="bg-[#1a1d23] border border-white/5 rounded-3xl overflow-hidden">
         <div className="overflow-x-auto">
@@ -926,33 +987,43 @@ const RecentActivity = () => {
                 <th className="px-6 py-4">Game</th>
                 <th className="px-6 py-4">User</th>
                 <th className="px-6 py-4">Time</th>
-                <th className="px-6 py-4">Amount</th>
+                <th className="px-6 py-4">Wager</th>
                 <th className="px-6 py-4">Multiplier</th>
                 <th className="px-6 py-4 text-right">Payout</th>
               </tr>
             </thead>
             <tbody className="text-xs font-bold">
-              {activities.map((activity) => (
-                <tr key={activity.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                  <td className="px-6 py-4 text-white/60">{activity.game}</td>
-                  <td className="px-6 py-4">{activity.user}</td>
-                  <td className="px-6 py-4 text-white/20">{activity.time}</td>
-                  <td className="px-6 py-4 font-mono">${activity.amount.toFixed(2)}</td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "px-2 py-1 rounded-lg",
-                      activity.win ? "bg-[#00FF88]/10 text-[#00FF88]" : "bg-red-500/10 text-red-500"
-                    )}>
-                      {activity.multiplier}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono">
-                    <span className={activity.win ? "text-[#00FF88]" : "text-white/20"}>
-                      ${activity.win ? (activity.amount * parseFloat(activity.multiplier)).toFixed(2) : '0.00'}
-                    </span>
-                  </td>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-white/30">Loading activity...</td>
                 </tr>
-              ))}
+              ) : activities.length ? (
+                activities.map((activity) => (
+                  <tr key={activity.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                    <td className="px-6 py-4 text-white/60 capitalize">{activity.gameKey}</td>
+                    <td className="px-6 py-4">{activity.username}</td>
+                    <td className="px-6 py-4 text-white/20">{formatTimeAgo(activity.createdAt)}</td>
+                    <td className="px-6 py-4 font-mono">{activity.wager.toLocaleString()}</td>
+                    <td className="px-6 py-4">
+                      <span className={cn(
+                        'px-2 py-1 rounded-lg',
+                        activity.outcome === 'win' ? 'bg-[#00FF88]/10 text-[#00FF88]' : activity.outcome === 'push' ? 'bg-blue-500/10 text-blue-400' : 'bg-red-500/10 text-red-500'
+                      )}>
+                        {activity.multiplier ? `${activity.multiplier.toFixed(2)}x` : '0.00x'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono">
+                      <span className={activity.payout > 0 ? 'text-[#00FF88]' : 'text-white/20'}>
+                        {activity.payout.toLocaleString()}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-white/30">No bet activity yet.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

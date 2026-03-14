@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, Zap, RotateCcw, Timer } from 'lucide-react';
+import { logBetActivity } from '../../lib/activity';
 
 export const DiceGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -36,7 +37,11 @@ export const DiceGame: React.FC = () => {
         const won = isOver ? result > target : result < target;
         setDidWin(won);
         if (won) {
-          addBalance(bet * Number(multiplier));
+          const payout = bet * Number(multiplier);
+          addBalance(payout);
+          logBetActivity({ gameKey: 'dice', wager: bet, payout, multiplier: Number(multiplier), outcome: 'win', detail: `Rolled ${result}` });
+        } else {
+          logBetActivity({ gameKey: 'dice', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Rolled ${result}` });
         }
         
         setIsRolling(false);

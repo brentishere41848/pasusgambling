@@ -4,6 +4,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, RotateCcw } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { logBetActivity } from '../../lib/activity';
 
 const SEGMENTS = [
   { mult: 0, color: 'bg-white/5', text: '0x' },
@@ -50,8 +51,12 @@ export const WheelGame: React.FC = () => {
       const winMult = SEGMENTS[resolvedIndex].mult;
       setResultIndex(resolvedIndex);
       if (winMult > 0) {
-        addBalance(bet * winMult);
+        const payout = bet * winMult;
+        addBalance(payout);
+        logBetActivity({ gameKey: 'wheel', wager: bet, payout, multiplier: winMult, outcome: 'win', detail: `Segment ${SEGMENTS[resolvedIndex].text}` });
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      } else {
+        logBetActivity({ gameKey: 'wheel', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Segment ${SEGMENTS[resolvedIndex].text}` });
       }
 
       setIsSpinning(false);

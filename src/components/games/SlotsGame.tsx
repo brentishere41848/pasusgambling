@@ -4,6 +4,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, RotateCcw, Trophy } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { logBetActivity } from '../../lib/activity';
 
 const SYMBOLS = ['💎', '🍋', '🍒', '🔔', '7️⃣', '⭐'];
 const REEL_COUNT = 3;
@@ -39,6 +40,7 @@ export const SlotsGame: React.FC = () => {
           // Jackpot!
           const winAmount = bet * 10;
           addBalance(winAmount);
+          logBetActivity({ gameKey: 'slots', wager: bet, payout: winAmount, multiplier: 10, outcome: 'win', detail: 'Jackpot' });
           setWinMessage(`JACKPOT! +$${winAmount}`);
           confetti({
             particleCount: 150,
@@ -49,7 +51,10 @@ export const SlotsGame: React.FC = () => {
           // Small win
           const winAmount = bet * 2;
           addBalance(winAmount);
+          logBetActivity({ gameKey: 'slots', wager: bet, payout: winAmount, multiplier: 2, outcome: 'win', detail: 'Two matching symbols' });
           setWinMessage(`WIN! +$${winAmount}`);
+        } else {
+          logBetActivity({ gameKey: 'slots', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: 'No match' });
         }
       }, spinDuration);
     }

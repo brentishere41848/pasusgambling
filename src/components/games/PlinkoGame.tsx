@@ -4,6 +4,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, Settings2, Zap, RotateCcw, Timer } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { logBetActivity } from '../../lib/activity';
 
 const ROWS = 8;
 const MULTIPLIERS = [5.6, 2.1, 1.1, 1, 0.5, 1, 1.1, 2.1, 5.6];
@@ -150,7 +151,16 @@ export const PlinkoGame: React.FC = () => {
             const safeIndex = Math.max(0, Math.min(MULTIPLIERS.length - 1, bucketIndex));
             const mult = MULTIPLIERS[safeIndex];
             setLastBucket(safeIndex);
-            addBalance(bet * mult);
+            const payout = bet * mult;
+            addBalance(payout);
+            logBetActivity({
+              gameKey: 'plinko',
+              wager: bet,
+              payout,
+              multiplier: mult,
+              outcome: payout > bet ? 'win' : payout === bet ? 'push' : 'loss',
+              detail: `Bucket ${safeIndex + 1}`,
+            });
             if (mult >= 2) {
               confetti({
                 particleCount: 30,
