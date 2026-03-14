@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Pool, PoolClient } from 'pg';
 
 dotenv.config({ path: '.env.local' });
@@ -16,6 +18,9 @@ const nowPaymentsApiKey = process.env.NOWPAYMENTS_API_KEY;
 const nowPaymentsIpnSecret = process.env.NOWPAYMENTS_IPN_SECRET;
 const nowPaymentsBaseUrl = process.env.NOWPAYMENTS_BASE_URL || 'https://api.nowpayments.io/v1';
 const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.resolve(__dirname, '../dist');
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required');
@@ -910,6 +915,16 @@ app.post('/api/payments/nowpayments/ipn', async (req: RawBodyRequest, res) => {
   } finally {
     client.release();
   }
+});
+
+app.use(express.static(distPath));
+
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  return res.sendFile(path.join(distPath, 'index.html'));
 });
 
 initDb()
