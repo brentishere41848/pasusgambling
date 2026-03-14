@@ -67,7 +67,7 @@ const GAMES = [
     bg: 'bg-emerald-400/10',
     component: CrashGame,
     featured: true,
-    image: '/assets/crash-card.png'
+    image: '/assets/crash.png'
   },
   {
     id: 'blackjack',
@@ -78,7 +78,7 @@ const GAMES = [
     bg: 'bg-blue-400/10',
     component: BlackjackGame,
     featured: true,
-    image: '/assets/blackjack-card.png'
+    image: '/assets/blackjack.png'
   },
   {
     id: 'mines',
@@ -89,7 +89,7 @@ const GAMES = [
     bg: 'bg-blue-400/10',
     component: MinesGame,
     featured: true,
-    image: '/assets/mines-card.png'
+    image: '/assets/mines.png'
   },
   {
     id: 'plinko',
