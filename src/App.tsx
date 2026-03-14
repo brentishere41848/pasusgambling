@@ -1188,7 +1188,7 @@ type ChatMessage = {
 };
 
 const CHAT_ROLE_STYLES: Record<ChatMessage['role'], string> = {
-  owner: 'text-[#4EA8FF]',
+  owner: 'text-[#FF9F1C]',
   moderator: 'text-[#00FF88]',
   user: 'text-white',
 };
@@ -1220,6 +1220,7 @@ const RightRail = () => {
   const [isJoiningRain, setIsJoiningRain] = useState(false);
   const [roomError, setRoomError] = useState('');
   const [lastSeenRainId, setLastSeenRainId] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const loadRoom = async (silent = false) => {
     if (!silent) {
@@ -1283,6 +1284,14 @@ const RightRail = () => {
 
   useEffect(() => {
     loadRoom().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -1352,7 +1361,7 @@ const RightRail = () => {
     }
   };
 
-  const now = Date.now();
+  const now = nowMs;
   const joinOpensAt = rain ? new Date(rain.joinOpensAt).getTime() : 0;
   const endsAt = rain ? new Date(rain.endsAt).getTime() : 0;
   const joinWindowOpen = Boolean(rain && now >= joinOpensAt && now < endsAt && !rain.hasEnded);
