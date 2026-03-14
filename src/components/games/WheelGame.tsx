@@ -28,22 +28,27 @@ export const WheelGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const [bet, setBet] = useState(10);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [resultIndex, setResultIndex] = useState<number | null>(null);
   const controls = useAnimation();
 
   const spin = async () => {
     if (subtractBalance(bet)) {
       setIsSpinning(true);
-      const resultIndex = Math.floor(Math.random() * SEGMENTS.length);
-      const rotations = 8;
+      setResultIndex(null);
+      const landedIndex = Math.floor(Math.random() * SEGMENTS.length);
+      const rotations = 10;
       const anglePerSegment = 360 / SEGMENTS.length;
-      const targetAngle = rotations * 360 + (resultIndex * anglePerSegment);
+      const targetAngle = rotations * 360 + (landedIndex * anglePerSegment) + anglePerSegment / 2;
 
       await controls.start({
         rotate: targetAngle,
-        transition: { duration: 5, ease: [0.15, 0, 0.05, 1] }
+        scale: [1, 1.015, 1],
+        transition: { duration: 6.2, ease: [0.08, 0.78, 0.16, 1] }
       });
 
-      const winMult = SEGMENTS[(SEGMENTS.length - resultIndex) % SEGMENTS.length].mult;
+      const resolvedIndex = (SEGMENTS.length - landedIndex) % SEGMENTS.length;
+      const winMult = SEGMENTS[resolvedIndex].mult;
+      setResultIndex(resolvedIndex);
       if (winMult > 0) {
         addBalance(bet * winMult);
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
@@ -100,11 +105,15 @@ export const WheelGame: React.FC = () => {
       <div className="lg:col-span-3 bg-[#0f1115] border border-white/5 rounded-2xl p-8 flex items-center justify-center relative overflow-hidden min-h-[500px]">
         <div className="relative w-[400px] h-[400px]">
           {/* Pointer */}
-          <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
+          <motion.div
+            animate={isSpinning ? { y: [0, -8, 0, -4, 0] } : { y: 0 }}
+            transition={{ duration: 0.9, repeat: isSpinning ? Infinity : 0, ease: 'easeInOut' }}
+            className="absolute -top-4 left-1/2 -translate-x-1/2 z-20"
+          >
             <div className="w-8 h-12 bg-white rounded-b-full shadow-2xl flex items-center justify-center">
               <div className="w-1 h-6 bg-black/20 rounded-full" />
             </div>
-          </div>
+          </motion.div>
 
           {/* Wheel */}
           <motion.div
@@ -117,8 +126,9 @@ export const WheelGame: React.FC = () => {
                 <div
                   key={i}
                   className={cn(
-                    "absolute top-0 left-1/2 -translate-x-1/2 h-1/2 origin-bottom flex flex-col items-center pt-4",
-                    seg.color
+                    "absolute top-0 left-1/2 -translate-x-1/2 h-1/2 origin-bottom flex flex-col items-center pt-4 transition-all duration-300",
+                    seg.color,
+                    resultIndex === i && "brightness-125 ring-2 ring-white/70"
                   )}
                   style={{ 
                     transform: `rotate(${angle}deg)`,
@@ -138,6 +148,11 @@ export const WheelGame: React.FC = () => {
             </div>
           </motion.div>
         </div>
+        {resultIndex !== null && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-white/70">
+            Result: {SEGMENTS[resultIndex].text}
+          </div>
+        )}
       </div>
     </div>
   );

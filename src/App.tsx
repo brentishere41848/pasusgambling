@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
@@ -232,88 +232,190 @@ const Sidebar = ({ activeGame, onSelectGame, onHome }: { activeGame: string | nu
 };
 
 const SUPPORTED_CRYPTO = [
-  { id: 'btc', name: 'Bitcoin', symbol: 'BTC', color: 'text-[#F7931A]', bg: 'bg-[#F7931A]/10', address: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh' },
-  { id: 'eth', name: 'Ethereum', symbol: 'ETH', color: 'text-[#627EEA]', bg: 'bg-[#627EEA]/10', address: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F' },
-  { id: 'ltc', name: 'Litecoin', symbol: 'LTC', color: 'text-[#345D9D]', bg: 'bg-[#345D9D]/10', address: 'Lajy6n4S4BAecCaiVYYoJX7rrzjk2GWv6S' },
-  { id: 'doge', name: 'Dogecoin', symbol: 'DOGE', color: 'text-[#C2A633]', bg: 'bg-[#C2A633]/10', address: 'D8vF9y7B6S7S6S7S6S7S6S7S6S7S6S7S6S' },
-  { id: 'sol', name: 'Solana', symbol: 'SOL', color: 'text-[#14F195]', bg: 'bg-[#14F195]/10', address: '7xKXv2bdRQFvS5zZ9nS5zZ9nS5zZ9nS5zZ9n' },
+  { id: 'btc', name: 'Bitcoin', symbol: 'BTC', color: 'text-[#F7931A]', bg: 'bg-[#F7931A]/10', nowCurrency: 'btc' },
+  { id: 'eth', name: 'Ethereum', symbol: 'ETH', color: 'text-[#627EEA]', bg: 'bg-[#627EEA]/10', nowCurrency: 'eth' },
+  { id: 'ltc', name: 'Litecoin', symbol: 'LTC', color: 'text-[#345D9D]', bg: 'bg-[#345D9D]/10', nowCurrency: 'ltc' },
+  { id: 'doge', name: 'Dogecoin', symbol: 'DOGE', color: 'text-[#C2A633]', bg: 'bg-[#C2A633]/10', nowCurrency: 'doge' },
+  { id: 'sol', name: 'Solana', symbol: 'SOL', color: 'text-[#14F195]', bg: 'bg-[#14F195]/10', nowCurrency: 'sol' },
 ];
 
+type DepositTransaction = {
+  id: number;
+  paymentId: string | null;
+  orderId: string;
+  paymentStatus: string;
+  payAddress: string | null;
+  payAmount: string | null;
+  payCurrency: string | null;
+  priceAmount: number;
+  priceCurrency: string;
+  outcomeAmount: number;
+  outcomeCurrency: string | null;
+  invoiceUrl: string | null;
+};
+
 const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
-  const { balance, totalDeposited, addBalance, subtractBalance, coinsToUsd } = useBalance();
-  const [amount, setAmount] = useState('50');
+  const { balance, totalDeposited, refreshWallet, coinsToUsd } = useBalance();
+  const [amount, setAmount] = useState('25');
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [selectedCrypto, setSelectedCrypto] = useState(SUPPORTED_CRYPTO[0]);
   const [withdrawAddress, setWithdrawAddress] = useState('');
   const [copied, setCopied] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [depositTransaction, setDepositTransaction] = useState<DepositTransaction | null>(null);
+
+  useEffect(() => {
+    if (!depositTransaction || ['finished', 'confirmed', 'sending', 'failed', 'expired'].includes(depositTransaction.paymentStatus)) {
+      return;
+    }
+
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    const poller = window.setInterval(async () => {
+      try {
+        const response = await fetch(`/api/payments/transactions/${depositTransaction.id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          return;
+        }
+
+        setDepositTransaction(data.transaction as DepositTransaction);
+        if (['finished', 'confirmed', 'sending'].includes(data.transaction.paymentStatus)) {
+          await refreshWallet();
+          setSuccess('Deposit confirmed and wallet credited.');
+          window.clearInterval(poller);
+        }
+      } catch {
+        return;
+      }
+    }, 10000);
+
+    return () => window.clearInterval(poller);
+  }, [depositTransaction, refreshWallet]);
 
   if (!isOpen) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(selectedCrypto.address);
+    const value = depositTransaction?.payAddress || withdrawAddress;
+    if (!value) {
+      return;
+    }
+    navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleAction = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
     const val = parseFloat(amount);
-    if (isNaN(val) || val <= 0) return;
+    setError('');
+    setSuccess('');
+
+    if (!token) {
+      setError('You need to be signed in.');
+      return;
+    }
+
+    if (Number.isNaN(val) || val <= 0) {
+      setError('Enter a valid amount.');
+      return;
+    }
 
     if (activeTab === 'withdraw') {
       if (!withdrawAddress.trim()) {
-        alert('Please enter a withdrawal address');
+        setError('Please enter a withdrawal address.');
         return;
       }
-      
-      // Min deposit check (10 euros = 500 coins)
+
       if (totalDeposited < 500) {
-        alert('You must deposit at least 10 euros (500 coins) before you can withdraw.');
+        setError('You must deposit at least 500 coins before withdrawing.');
         return;
       }
 
-      // Min withdraw check (5 euros = 250 coins)
       if (val < 250) {
-        alert('Minimum withdrawal is 5 euros (250 coins).');
-        return;
-      }
-
-      // Max withdraw check (5000 euros = 250,000 coins)
-      if (val > 250000) {
-        alert('Maximum withdrawal is 5000 euros (250,000 coins).');
+        setError('Minimum withdrawal is 250 coins.');
         return;
       }
     }
 
     setIsProcessing(true);
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
 
-    if (activeTab === 'deposit') {
-      addBalance(val, true);
-      setIsProcessing(false);
-      onClose();
-    } else {
-      if (subtractBalance(val)) {
-        setIsProcessing(false);
-        onClose();
+    try {
+      if (activeTab === 'deposit') {
+        const response = await fetch('/api/payments/nowpayments/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            priceAmount: val,
+            priceCurrency: 'usd',
+            payCurrency: selectedCrypto.nowCurrency,
+          }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create deposit.');
+        }
+
+        setDepositTransaction(data.transaction as DepositTransaction);
+        setSuccess('Deposit invoice created. Send the exact amount to the address below.');
       } else {
-        setIsProcessing(false);
-        alert('Insufficient balance');
+        const response = await fetch('/api/payments/withdrawals/request', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            amount: Math.round(val),
+            currency: selectedCrypto.nowCurrency,
+            address: withdrawAddress.trim(),
+          }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to submit withdrawal request.');
+        }
+
+        await refreshWallet();
+        setSuccess('Withdrawal request submitted. It is now pending manual processing.');
+        setWithdrawAddress('');
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Request failed.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
+  const depositQrValue = depositTransaction?.payAddress
+    ? `${selectedCrypto.symbol}:${depositTransaction.payAddress}${depositTransaction.payAmount ? `?amount=${depositTransaction.payAmount}` : ''}`
+    : '';
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
       />
-      <motion.div 
+      <motion.div
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         className="relative w-full max-w-md bg-[#1a1d23] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
@@ -330,25 +432,42 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 
         <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
           <div className="flex p-1 bg-black/40 rounded-2xl">
-            <button 
-              onClick={() => setActiveTab('deposit')}
+            <button
+              onClick={() => {
+                setActiveTab('deposit');
+                setError('');
+                setSuccess('');
+              }}
               className={cn(
-                "flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-                activeTab === 'deposit' ? "bg-[#00FF88] text-black" : "text-white/40 hover:text-white"
+                'flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2',
+                activeTab === 'deposit' ? 'bg-[#00FF88] text-black' : 'text-white/40 hover:text-white'
               )}
             >
               <ArrowDownLeft size={14} /> Deposit
             </button>
-            <button 
-              onClick={() => setActiveTab('withdraw')}
+            <button
+              onClick={() => {
+                setActiveTab('withdraw');
+                setError('');
+                setSuccess('');
+              }}
               className={cn(
-                "flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-                activeTab === 'withdraw' ? "bg-red-500 text-white" : "text-white/40 hover:text-white"
+                'flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2',
+                activeTab === 'withdraw' ? 'bg-red-500 text-white' : 'text-white/40 hover:text-white'
               )}
             >
               <ArrowUpRight size={14} /> Withdraw
             </button>
           </div>
+
+          {(error || success) && (
+            <div className={cn(
+              'rounded-2xl px-4 py-3 text-xs font-bold border',
+              error ? 'border-red-500/20 bg-red-500/10 text-red-300' : 'border-[#00FF88]/20 bg-[#00FF88]/10 text-[#9dffca]'
+            )}>
+              {error || success}
+            </div>
+          )}
 
           <div className="space-y-4">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Select Currency</label>
@@ -358,13 +477,11 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
                   key={crypto.id}
                   onClick={() => setSelectedCrypto(crypto)}
                   className={cn(
-                    "flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all",
-                    selectedCrypto.id === crypto.id 
-                      ? "bg-white/10 border-[#00FF88]/50" 
-                      : "bg-black/20 border-white/5 hover:border-white/10"
+                    'flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all',
+                    selectedCrypto.id === crypto.id ? 'bg-white/10 border-[#00FF88]/50' : 'bg-black/20 border-white/5 hover:border-white/10'
                   )}
                 >
-                  <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", crypto.bg)}>
+                  <div className={cn('w-8 h-8 rounded-full flex items-center justify-center', crypto.bg)}>
                     {crypto.id === 'btc' ? <Bitcoin size={16} className={crypto.color} /> : <Coins size={16} className={crypto.color} />}
                   </div>
                   <span className="text-[10px] font-bold">{crypto.symbol}</span>
@@ -374,37 +491,51 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 
             {activeTab === 'deposit' ? (
               <div className="bg-black/40 border border-white/5 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center justify-center">
-                  <div className="w-32 h-32 bg-white p-2 rounded-xl">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${selectedCrypto.address}`} 
-                      alt="QR Code" 
-                      className="w-full h-full"
-                    />
+                {depositTransaction?.payAddress ? (
+                  <>
+                    <div className="flex items-center justify-center">
+                      <div className="w-32 h-32 bg-white p-2 rounded-xl">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(depositQrValue)}`}
+                          alt="QR Code"
+                          className="w-full h-full"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-white/20 text-center">Send {depositTransaction.payAmount} {depositTransaction.payCurrency?.toUpperCase()}</div>
+                      <div className="flex items-center gap-2 bg-black/60 rounded-xl p-3 border border-white/5">
+                        <code className="text-[10px] font-mono text-white/60 break-all flex-1">{depositTransaction.payAddress}</code>
+                        <button onClick={handleCopy} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-[#00FF88]">
+                          {copied ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-white/30 text-center">
+                        Status: <span className="text-white/60">{depositTransaction.paymentStatus}</span>
+                      </div>
+                    </div>
+                    {depositTransaction.invoiceUrl && (
+                      <a
+                        href={depositTransaction.invoiceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-full text-center py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-xs font-black uppercase tracking-widest"
+                      >
+                        Open Hosted Invoice
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-sm text-white/50 leading-relaxed">
+                    Create a NOWPayments invoice in {selectedCrypto.symbol}. After blockchain confirmation, Pasus will credit your wallet automatically.
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-white/20 text-center">Your {selectedCrypto.name} Deposit Address</div>
-                  <div className="flex items-center gap-2 bg-black/60 rounded-xl p-3 border border-white/5">
-                    <code className="text-[10px] font-mono text-white/60 break-all flex-1">{selectedCrypto.address}</code>
-                    <button 
-                      onClick={handleCopy}
-                      className="p-2 hover:bg-white/5 rounded-lg transition-colors text-[#00FF88]"
-                    >
-                      {copied ? <Check size={14} /> : <Copy size={14} />}
-                    </button>
-                  </div>
-                </div>
-                <div className="text-[10px] text-white/20 text-center italic">
-                  Only send {selectedCrypto.symbol} to this address. 
-                  Sending any other coin may result in permanent loss.
-                </div>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Withdrawal Address</label>
-                  <input 
+                  <input
                     type="text"
                     value={withdrawAddress}
                     onChange={(e) => setWithdrawAddress(e.target.value)}
@@ -415,10 +546,10 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
                 <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl">
                   <div className="text-[10px] text-red-400 font-bold flex items-center gap-2">
                     <Shield size={12} />
-                    Security Notice
+                    Manual Review
                   </div>
                   <p className="text-[10px] text-white/40 mt-1">
-                    Please double-check your address. Withdrawals are irreversible and may take up to 24 hours to process.
+                    Withdrawal requests are stored in the database as pending and must be processed from your payout wallet manually.
                   </p>
                 </div>
               </div>
@@ -427,10 +558,10 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">
-              {activeTab === 'deposit' ? 'Amount to Credit (Coins)' : 'Withdraw Amount (Coins)'}
+              {activeTab === 'deposit' ? 'Deposit Amount (USD)' : 'Withdraw Amount (Coins)'}
             </label>
             <div className="relative">
-              <input 
+              <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -439,16 +570,16 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
               />
               <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <div className="text-[10px] font-bold text-white/20 mr-2">
-                  ≈ ${coinsToUsd(parseFloat(amount) || 0).toFixed(2)}
+                  {activeTab === 'deposit' ? `${Math.round((parseFloat(amount) || 0) * 50)} coins` : `$${coinsToUsd(parseFloat(amount) || 0).toFixed(2)}`}
                 </div>
-                <button 
-                  onClick={() => setAmount((Math.floor(parseFloat(amount) / 2)).toString())}
+                <button
+                  onClick={() => setAmount((Math.max(1, Math.floor((parseFloat(amount) || 0) / 2))).toString())}
                   className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-white/40 transition-colors"
                 >
                   1/2
                 </button>
-                <button 
-                  onClick={() => setAmount((parseFloat(amount) * 2).toString())}
+                <button
+                  onClick={() => setAmount(((parseFloat(amount) || 0) * 2 || 10).toString())}
                   className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-white/40 transition-colors"
                 >
                   2x
@@ -461,21 +592,21 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             <span className="text-xs font-bold text-white/40">Current Balance</span>
             <div className="text-right">
               <div className="font-mono font-bold text-[#00FF88]">{balance.toLocaleString()} COINS</div>
-              <div className="text-[10px] text-white/20 font-bold">≈ ${coinsToUsd(balance).toFixed(2)}</div>
+              <div className="text-[10px] text-white/20 font-bold">~ ${coinsToUsd(balance).toFixed(2)}</div>
             </div>
           </div>
 
-          <button 
+          <button
             onClick={handleAction}
             disabled={isProcessing}
             className={cn(
-              "w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3",
-              isProcessing ? "opacity-50 cursor-not-allowed" : "",
-              activeTab === 'deposit' ? "bg-[#00FF88] text-black hover:bg-[#00FF88]/90" : "bg-red-500 text-white hover:bg-red-600"
+              'w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3',
+              isProcessing ? 'opacity-50 cursor-not-allowed' : '',
+              activeTab === 'deposit' ? 'bg-[#00FF88] text-black hover:bg-[#00FF88]/90' : 'bg-red-500 text-white hover:bg-red-600'
             )}
           >
             {isProcessing && <RotateCcw className="animate-spin" size={16} />}
-            {isProcessing ? 'Processing...' : (activeTab === 'deposit' ? 'Confirm Deposit' : 'Confirm Withdrawal')}
+            {isProcessing ? 'Processing...' : activeTab === 'deposit' ? 'Create Deposit Invoice' : 'Submit Withdrawal Request'}
           </button>
         </div>
       </motion.div>
@@ -484,18 +615,37 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 };
 
 const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegister, setIsRegister] = useState(false);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username.trim()) {
-      login(username);
+    setError('');
+
+    if (!username.trim() || !password.trim() || (isRegister && !email.trim())) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      if (isRegister) {
+        await register(username.trim(), email.trim(), password);
+      } else {
+        await login(username.trim(), password);
+      }
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Authentication failed.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -524,6 +674,12 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-300">
+                {error}
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Username</label>
               <div className="relative">
@@ -546,8 +702,11 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
                   <input 
                     type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
                     placeholder="Enter email"
+                    required={isRegister}
                   />
                 </div>
               </div>
@@ -562,7 +721,7 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
-                  placeholder="••••••••"
+                  placeholder="Enter password"
                   required
                 />
               </div>
@@ -570,15 +729,19 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
 
             <button 
               type="submit"
-              className="w-full py-4 bg-[#00FF88] text-black rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/10"
+              disabled={isSubmitting}
+              className="w-full py-4 bg-[#00FF88] text-black rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isRegister ? 'Create Account' : 'Sign In'}
+              {isSubmitting ? 'Please wait...' : (isRegister ? 'Create Account' : 'Sign In')}
             </button>
           </form>
 
           <div className="text-center">
             <button 
-              onClick={() => setIsRegister(!isRegister)}
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError('');
+              }}
               className="text-xs font-bold text-white/40 hover:text-white transition-colors"
             >
               {isRegister ? 'Already have an account? Sign In' : "Don't have an account? Register"}

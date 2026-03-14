@@ -7,10 +7,10 @@ import { BalanceProvider } from './context/BalanceContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BalanceProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <BalanceProvider>
         <App />
-      </AuthProvider>
-    </BalanceProvider>
+      </BalanceProvider>
+    </AuthProvider>
   </StrictMode>,
 );

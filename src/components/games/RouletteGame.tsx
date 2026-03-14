@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, useAnimation } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
@@ -6,7 +6,7 @@ import { Play, RotateCcw, Zap, Timer } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const NUMBERS = [
-  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
 ];
 
 const getColor = (num: number) => {
@@ -25,6 +25,7 @@ export const RouletteGame: React.FC = () => {
   const [autoRounds, setAutoRounds] = useState(10);
   const [remainingRounds, setRemainingRounds] = useState(0);
   const [lastResult, setLastResult] = useState<number | null>(null);
+  const [history, setHistory] = useState<number[]>([]);
   const controls = useAnimation();
 
   const spin = useCallback(async () => {
@@ -32,20 +33,21 @@ export const RouletteGame: React.FC = () => {
       setIsSpinning(true);
       const resultIndex = Math.floor(Math.random() * NUMBERS.length);
       const result = NUMBERS[resultIndex];
-      
+
       const rotations = isFast ? 2 : 5;
       const anglePerItem = 360 / NUMBERS.length;
-      const targetAngle = rotations * 360 + (resultIndex * anglePerItem);
+      const targetAngle = rotations * 360 + resultIndex * anglePerItem;
 
       await controls.start({
         rotate: -targetAngle,
-        transition: { 
-          duration: isFast ? 1 : 4, 
-          ease: isFast ? "linear" : [0.2, 0, 0.1, 1] 
-        }
+        transition: {
+          duration: isFast ? 1 : 4,
+          ease: isFast ? 'linear' : [0.2, 0, 0.1, 1],
+        },
       });
 
       setLastResult(result);
+      setHistory((prev) => [result, ...prev].slice(0, 5));
       setIsSpinning(false);
 
       let won = false;
@@ -73,13 +75,15 @@ export const RouletteGame: React.FC = () => {
 
       if (won) {
         addBalance(bet * multiplier);
-        if (!isFast) confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        if (!isFast) {
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
       }
 
       controls.set({ rotate: -(resultIndex * anglePerItem) });
 
       if (isAuto && remainingRounds > 1) {
-        setRemainingRounds(prev => prev - 1);
+        setRemainingRounds((prev) => prev - 1);
       } else if (isAuto) {
         setIsAuto(false);
         setRemainingRounds(0);
@@ -126,28 +130,28 @@ export const RouletteGame: React.FC = () => {
             <button
               onClick={() => setSelectedType('red')}
               disabled={isSpinning || isAuto}
-              className={cn("py-3 rounded-xl text-xs font-bold border-2 transition-all", selectedType === 'red' ? "bg-red-500 border-white" : "bg-red-500/20 border-transparent text-red-500")}
+              className={cn('py-3 rounded-xl text-xs font-bold border-2 transition-all', selectedType === 'red' ? 'bg-red-500 border-white' : 'bg-red-500/20 border-transparent text-red-500')}
             >
               RED (2x)
             </button>
             <button
               onClick={() => setSelectedType('black')}
               disabled={isSpinning || isAuto}
-              className={cn("py-3 rounded-xl text-xs font-bold border-2 transition-all", selectedType === 'black' ? "bg-white text-black border-white" : "bg-white/5 border-transparent text-white/40")}
+              className={cn('py-3 rounded-xl text-xs font-bold border-2 transition-all', selectedType === 'black' ? 'bg-white text-black border-white' : 'bg-white/5 border-transparent text-white/40')}
             >
               BLACK (2x)
             </button>
             <button
               onClick={() => setSelectedType('even')}
               disabled={isSpinning || isAuto}
-              className={cn("py-3 rounded-xl text-xs font-bold border-2 transition-all", selectedType === 'even' ? "bg-blue-500 border-white" : "bg-blue-500/20 border-transparent text-blue-500")}
+              className={cn('py-3 rounded-xl text-xs font-bold border-2 transition-all', selectedType === 'even' ? 'bg-blue-500 border-white' : 'bg-blue-500/20 border-transparent text-blue-500')}
             >
               EVEN (2x)
             </button>
             <button
               onClick={() => setSelectedType('odd')}
               disabled={isSpinning || isAuto}
-              className={cn("py-3 rounded-xl text-xs font-bold border-2 transition-all", selectedType === 'odd' ? "bg-orange-500 border-white" : "bg-orange-500/20 border-transparent text-orange-500")}
+              className={cn('py-3 rounded-xl text-xs font-bold border-2 transition-all', selectedType === 'odd' ? 'bg-orange-500 border-white' : 'bg-orange-500/20 border-transparent text-orange-500')}
             >
               ODD (2x)
             </button>
@@ -157,21 +161,21 @@ export const RouletteGame: React.FC = () => {
             <button
               onClick={() => setIsFast(!isFast)}
               className={cn(
-                "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all",
-                isFast ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/50" : "bg-white/5 text-white/20 border border-transparent"
+                'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
+                isFast ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50' : 'bg-white/5 text-white/20 border border-transparent'
               )}
             >
-              <Zap size={12} fill={isFast ? "currentColor" : "none"} />
+              <Zap size={12} fill={isFast ? 'currentColor' : 'none'} />
               FAST
             </button>
             <button
               onClick={startAuto}
               className={cn(
-                "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all",
-                isAuto ? "bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50" : "bg-white/5 text-white/20 border border-transparent"
+                'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
+                isAuto ? 'bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50' : 'bg-white/5 text-white/20 border border-transparent'
               )}
             >
-              <RotateCcw size={12} className={isAuto ? "animate-spin" : ""} />
+              <RotateCcw size={12} className={isAuto ? 'animate-spin' : ''} />
               AUTO
             </button>
           </div>
@@ -196,8 +200,8 @@ export const RouletteGame: React.FC = () => {
             onClick={isAuto ? startAuto : spin}
             disabled={(balance < bet && !isAuto) || (isSpinning && !isAuto)}
             className={cn(
-              "w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50",
-              isAuto ? "bg-red-500 text-white" : "bg-[#00FF88] text-black"
+              'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
+              isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black'
             )}
           >
             {isAuto ? (
@@ -217,11 +221,24 @@ export const RouletteGame: React.FC = () => {
         <div className="mt-auto">
           <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">History</div>
           <div className="flex flex-wrap gap-1">
-            {lastResult !== null && (
-              <div className={cn(
-                "w-8 h-8 rounded flex items-center justify-center text-xs font-bold",
-                getColor(lastResult) === 'red' ? "bg-red-500" : getColor(lastResult) === 'green' ? "bg-[#00FF88] text-black" : "bg-white text-black"
-              )}>
+            {history.map((value, index) => (
+              <div
+                key={`${value}-${index}`}
+                className={cn(
+                  'w-8 h-8 rounded flex items-center justify-center text-xs font-bold',
+                  getColor(value) === 'red' ? 'bg-red-500' : getColor(value) === 'green' ? 'bg-[#00FF88] text-black' : 'bg-white text-black'
+                )}
+              >
+                {value}
+              </div>
+            ))}
+            {!history.length && lastResult !== null && (
+              <div
+                className={cn(
+                  'w-8 h-8 rounded flex items-center justify-center text-xs font-bold',
+                  getColor(lastResult) === 'red' ? 'bg-red-500' : getColor(lastResult) === 'green' ? 'bg-[#00FF88] text-black' : 'bg-white text-black'
+                )}
+              >
                 {lastResult}
               </div>
             )}
@@ -238,8 +255,8 @@ export const RouletteGame: React.FC = () => {
           <motion.div
             animate={controls}
             className={cn(
-              "w-full h-full rounded-full border-8 border-[#1a1d23] relative shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-all duration-300",
-              isSpinning ? "blur-[1px]" : "blur-0"
+              'w-full h-full rounded-full border-8 border-[#1a1d23] relative shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-all duration-300',
+              isSpinning ? 'blur-[1px]' : 'blur-0'
             )}
             style={{ transformOrigin: 'center' }}
           >
@@ -251,10 +268,12 @@ export const RouletteGame: React.FC = () => {
                   className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 origin-bottom flex flex-col items-center"
                   style={{ transform: `rotate(${angle}deg)` }}
                 >
-                  <div className={cn(
-                    "w-6 h-12 rounded-t-sm flex items-center justify-center text-[10px] font-bold text-white shadow-inner",
-                    getColor(num) === 'red' ? "bg-red-600" : getColor(num) === 'green' ? "bg-[#00FF88] text-black" : "bg-black"
-                  )}>
+                  <div
+                    className={cn(
+                      'w-6 h-12 rounded-t-sm flex items-center justify-center text-[10px] font-bold text-white shadow-inner',
+                      getColor(num) === 'red' ? 'bg-red-600' : getColor(num) === 'green' ? 'bg-[#00FF88] text-black' : 'bg-black'
+                    )}
+                  >
                     {num}
                   </div>
                 </div>
@@ -262,10 +281,12 @@ export const RouletteGame: React.FC = () => {
             })}
             <div className="absolute inset-0 m-auto w-24 h-24 bg-[#1a1d23] rounded-full border-4 border-white/10 flex items-center justify-center shadow-inner z-10">
               <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center">
-                <div className={cn(
-                  "w-4 h-4 rounded-full transition-all duration-500",
-                  isSpinning ? "bg-[#00FF88] animate-ping" : "bg-white/20"
-                )} />
+                <div
+                  className={cn(
+                    'w-4 h-4 rounded-full transition-all duration-500',
+                    isSpinning ? 'bg-[#00FF88] animate-ping' : 'bg-white/20'
+                  )}
+                />
               </div>
             </div>
           </motion.div>

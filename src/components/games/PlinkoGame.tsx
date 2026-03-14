@@ -15,6 +15,7 @@ export const PlinkoGame: React.FC = () => {
   const [isFast, setIsFast] = useState(false);
   const [autoRounds, setAutoRounds] = useState(10);
   const [remainingRounds, setRemainingRounds] = useState(0);
+  const [lastBucket, setLastBucket] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ballsRef = useRef<{ x: number; y: number; vx: number; vy: number; row: number; trail: { x: number; y: number }[] }[]>([]);
 
@@ -94,43 +95,53 @@ export const PlinkoGame: React.FC = () => {
 
       MULTIPLIERS.forEach((m, i) => {
         const x = startX + i * bucketWidth;
-        ctx.fillStyle = m >= 1 ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)';
+        const activeBucket = i === lastBucket;
+        ctx.fillStyle = activeBucket
+          ? 'rgba(0, 255, 136, 0.22)'
+          : m >= 1 ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)';
         ctx.fillRect(x + 2, lastRowY, bucketWidth - 4, 30);
-        ctx.fillStyle = m >= 1 ? '#00FF88' : 'rgba(255, 255, 255, 0.4)';
+        ctx.fillStyle = activeBucket ? '#ffffff' : m >= 1 ? '#00FF88' : 'rgba(255, 255, 255, 0.4)';
         ctx.font = '10px monospace';
         ctx.textAlign = 'center';
         ctx.fillText(`${m}x`, x + bucketWidth / 2, lastRowY + 20);
       });
 
-      // Update and Draw Balls
-      const speedMultiplier = isFast ? 2 : 1;
-      
       // Sub-stepping for physics accuracy at high speeds
-      const steps = isFast ? 2 : 1;
+      const steps = isFast ? 3 : 2;
       for (let s = 0; s < steps; s++) {
         ballsRef.current = ballsRef.current.filter(ball => {
-          ball.vy += 0.2 / steps; // Gravity
+          ball.vy += 0.16 / steps;
+          ball.vx *= 0.992;
+          ball.vy *= 0.998;
           ball.x += ball.vx / steps;
           ball.y += ball.vy / steps;
 
           // Collision with pegs
           for (let row = 0; row < ROWS; row++) {
             const rowY = 60 + row * 40;
-            if (Math.abs(ball.y - rowY) < 5 && ball.row === row) {
+            if (Math.abs(ball.y - rowY) < 10 && ball.row === row) {
               const pegsInRow = row + 3;
               const rowWidth = (pegsInRow - 1) * 40;
               const rowStartX = (canvas.width - rowWidth) / 2;
               
               const pegIndex = Math.round((ball.x - rowStartX) / 40);
               const pegX = rowStartX + pegIndex * 40;
+              const dx = ball.x - pegX;
+              const dy = ball.y - rowY;
+              const distance = Math.sqrt(dx * dx + dy * dy);
 
-              if (Math.abs(ball.x - pegX) < 15) {
-                const direction = Math.random() > 0.5 ? 1 : -1;
-                ball.vx = direction * (2 + Math.random());
-                ball.vy = -1;
+              if (distance < 14) {
+                const direction = dx >= 0 ? 1 : -1;
+                ball.vx = direction * (1.8 + Math.random() * 0.8);
+                ball.vy = -0.8 - Math.random() * 0.4;
                 ball.row++;
               }
             }
+          }
+
+          if (ball.x < 18 || ball.x > canvas.width - 18) {
+            ball.vx *= -0.82;
+            ball.x = Math.max(18, Math.min(canvas.width - 18, ball.x));
           }
 
           // Collision with buckets
@@ -138,6 +149,7 @@ export const PlinkoGame: React.FC = () => {
             const bucketIndex = Math.floor((ball.x - startX) / bucketWidth);
             const safeIndex = Math.max(0, Math.min(MULTIPLIERS.length - 1, bucketIndex));
             const mult = MULTIPLIERS[safeIndex];
+            setLastBucket(safeIndex);
             addBalance(bet * mult);
             if (mult >= 2) {
               confetti({
@@ -171,8 +183,16 @@ export const PlinkoGame: React.FC = () => {
           ctx.fill();
         });
 
+        const glow = ctx.createRadialGradient(ball.x, ball.y, 2, ball.x, ball.y, 12);
+        glow.addColorStop(0, '#d6ffea');
+        glow.addColorStop(1, 'rgba(0, 255, 136, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, 12, 0, Math.PI * 2);
+        ctx.fill();
+
         ctx.fillStyle = '#00FF88';
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 18;
         ctx.shadowColor = '#00FF88';
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2);
@@ -185,7 +205,7 @@ export const PlinkoGame: React.FC = () => {
 
     render();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [bet, isFast, addBalance]);
+  }, [bet, isFast, addBalance, lastBucket]);
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
