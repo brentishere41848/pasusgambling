@@ -348,7 +348,7 @@ async function ensureCurrentRainRound(client: Pool | PoolClient) {
     `INSERT INTO rain_rounds (pool_amount, starts_at, join_opens_at, ends_at, status)
      VALUES ($1, $2, $3, $4, 'active')
      RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, 0::int AS participant_count`,
-    [800 + Math.floor(Math.random() * 1701), startsAt, joinOpensAt, endsAt]
+    [200, startsAt, joinOpensAt, endsAt]
   );
 
   await insertSystemChatMessage(
@@ -359,6 +359,30 @@ async function ensureCurrentRainRound(client: Pool | PoolClient) {
   );
 
   return insertResult.rows[0];
+}
+
+async function addRainContributionFromWager(client: Pool | PoolClient, wager: number) {
+  const normalizedWager = normalizeCoins(wager);
+  if (normalizedWager <= 0) {
+    return null;
+  }
+
+  const roundRow = await ensureCurrentRainRound(client);
+  const contribution = Math.max(1, Math.floor(normalizedWager * 0.1));
+
+  const updated = await client.query(
+    `UPDATE rain_rounds
+     SET pool_amount = pool_amount + $1,
+         updated_at = NOW()
+     WHERE id = $2
+     RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, status`,
+    [contribution, roundRow.id]
+  );
+
+  return {
+    contribution,
+    round: updated.rows[0],
+  };
 }
 
 async function getWallet(client: Pool | PoolClient, userId: number) {
@@ -828,6 +852,8 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
   try {
     const gameKey = String(req.body.gameKey || '').trim().toLowerCase();
     const wager = normalizeCoins(req.body.wager);
@@ -840,16 +866,28 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Missing bet activity fields.' });
     }
 
-    await pool.query(
+    await client.query('BEGIN');
+
+    await client.query(
       `INSERT INTO bet_activities (user_id, game_key, wager, payout, multiplier, outcome, detail)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [req.auth!.user.id, gameKey, wager, payout, multiplier || 0, outcome, detail || null]
     );
 
-    return res.status(201).json({ ok: true });
+    const rainUpdate = await addRainContributionFromWager(client, wager);
+    await client.query('COMMIT');
+
+    return res.status(201).json({
+      ok: true,
+      rainContribution: rainUpdate?.contribution || 0,
+      rainPoolAmount: Number(rainUpdate?.round?.pool_amount || 0),
+    });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error(error);
     return res.status(500).json({ error: 'Failed to record bet activity.' });
+  } finally {
+    client.release();
   }
 });
 
