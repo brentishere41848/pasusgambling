@@ -243,20 +243,6 @@ function mapRainRound(row: any, joined = false): RainRoundState {
   };
 }
 
-async function insertSystemChatMessage(
-  client: Pool | PoolClient,
-  username: string,
-  text: string,
-  tone = 'normal',
-  role: 'owner' | 'moderator' | 'user' = 'owner'
-) {
-  await client.query(
-    `INSERT INTO chat_messages (user_id, username, text, tone, role)
-     VALUES (NULL, $1, $2, $3, $4)`,
-    [username, text, tone, role]
-  );
-}
-
 async function settleFinishedRainRounds(client: Pool | PoolClient) {
   const rounds = await client.query(
     `SELECT r.id, r.pool_amount
@@ -291,19 +277,6 @@ async function settleFinishedRainRounds(client: Pool | PoolClient) {
         );
       }
 
-      await insertSystemChatMessage(
-        client,
-        'PasusRain',
-        `Rain ${round.id} finished. ${count} players received ${share} coins each.`,
-        'win'
-      );
-    } else {
-      await insertSystemChatMessage(
-        client,
-        'PasusRain',
-        `Rain ${round.id} ended with no joined players.`,
-        'normal'
-      );
     }
 
     await client.query(
@@ -349,13 +322,6 @@ async function ensureCurrentRainRound(client: Pool | PoolClient) {
      VALUES ($1, $2, $3, $4, 'active')
      RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, 0::int AS participant_count`,
     [200, startsAt, joinOpensAt, endsAt]
-  );
-
-  await insertSystemChatMessage(
-    client,
-    'PasusRain',
-    `Rain ${insertResult.rows[0].id} is live. Join opens in the final 2 minutes.`,
-    'normal'
   );
 
   return insertResult.rows[0];
@@ -556,6 +522,11 @@ async function initDb() {
   `);
 
   await pool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
+  await pool.query(
+    `DELETE FROM chat_messages
+     WHERE user_id IS NULL
+       AND username IN ('PasusRain', 'LuckyAce', 'MinesOnly', 'CrashPilot', 'HighRoller')`
+  );
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS rain_rounds (
@@ -589,17 +560,6 @@ async function initDb() {
     )
   `);
 
-  const chatCount = await pool.query(`SELECT COUNT(*)::int AS count FROM chat_messages`);
-  if (Number(chatCount.rows[0]?.count || 0) === 0) {
-    await pool.query(`
-      INSERT INTO chat_messages (user_id, username, text, tone, role)
-      VALUES
-        (NULL, 'LuckyAce', 'Blackjack just paid 2.5x.', 'win', 'user'),
-        (NULL, 'MinesOnly', 'Anyone hitting hard mode plinko today?', 'normal', 'user'),
-        (NULL, 'CrashPilot', 'Crash loop feels smooth now.', 'normal', 'user'),
-        (NULL, 'HighRoller', 'Wheel dropped a clean 10x.', 'win', 'user')
-    `);
-  }
 }
 
 async function requireAuth(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
@@ -761,13 +721,6 @@ app.post('/api/rain/join', requireAuth, async (req: AuthedRequest, res) => {
       `INSERT INTO rain_round_participants (round_id, user_id)
        VALUES ($1, $2)`,
       [roundRow.id, req.auth!.user.id]
-    );
-
-    await insertSystemChatMessage(
-      client,
-      'PasusRain',
-      `${req.auth!.user.username} joined rain ${roundRow.id}.`,
-      'win'
     );
 
     const refreshedRound = await client.query(

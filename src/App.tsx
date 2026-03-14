@@ -1380,7 +1380,7 @@ const RightRail = () => {
           : 'Join Opens Soon';
 
   return (
-    <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[#0f1115] flex-col">
+    <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[#0f1115] flex-col h-screen sticky top-0">
       <div className="p-5 border-b border-white/5">
         <div className="rounded-3xl border border-[#00FF88]/15 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-5">
           <div className="flex items-center justify-between mb-3">
@@ -1407,7 +1407,7 @@ const RightRail = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
           <div>
             <div className="text-sm font-black uppercase tracking-[0.18em]">Chat</div>
@@ -1425,6 +1425,11 @@ const RightRail = () => {
           {isLoading && messages.length === 0 ? (
             <div className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-xs text-white/40">
               Loading chat room...
+            </div>
+          ) : null}
+          {!isLoading && messages.length === 0 && !roomError ? (
+            <div className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-xs text-white/40">
+              No chat messages yet.
             </div>
           ) : null}
               {messages.map((message) => (
