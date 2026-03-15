@@ -51,6 +51,7 @@ import { BalanceProvider, useBalance } from './context/BalanceContext';
 import { useAuth } from './context/AuthContext';
 import { CrashGame } from './components/games/CrashGame';
 import { MinesGame } from './components/games/MinesGame';
+import { CoinflipGame } from './components/games/CoinflipGame';
 import { DiceGame } from './components/games/DiceGame';
 import { BlackjackGame } from './components/games/BlackjackGame';
 import { RouletteGame } from './components/games/RouletteGame';
@@ -90,6 +91,17 @@ const GAMES = [
     component: MinesGame,
     featured: true,
     image: '/assets/mines.png'
+  },
+  {
+    id: 'coinflip',
+    name: 'Coinflip',
+    description: 'Call heads or tails and double up on the flip.',
+    icon: Coins,
+    color: 'text-amber-300',
+    bg: 'bg-amber-300/10',
+    component: CoinflipGame,
+    featured: false,
+    image: 'https://picsum.photos/seed/casino-coinflip/800/600'
   },
   {
     id: 'dice',
