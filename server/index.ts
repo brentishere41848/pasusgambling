@@ -197,6 +197,13 @@ type ChatMessage = {
   createdAt: string;
 };
 
+type TipNotification = {
+  id: number;
+  senderUsername: string;
+  amount: number;
+  createdAt: string;
+};
+
 type RainRoundState = {
   id: number;
   poolAmount: number;
@@ -462,6 +469,15 @@ function mapRainRound(row: any, joined = false): RainRoundState {
   };
 }
 
+function mapTipNotification(row: any): TipNotification {
+  return {
+    id: Number(row.id),
+    senderUsername: String(row.sender_username || ''),
+    amount: Number(row.amount || 0),
+    createdAt: row.created_at,
+  };
+}
+
 function buildRobloxVerificationPhrase() {
   const wordsA = ['amber', 'atlas', 'cinder', 'comet', 'delta', 'ember', 'falcon', 'harbor', 'jungle', 'lunar'];
   const wordsB = ['apple', 'bridge', 'cloud', 'forest', 'garden', 'meadow', 'ocean', 'rocket', 'shadow', 'valley'];
@@ -615,7 +631,6 @@ async function settleFinishedRainRounds(client: Pool | PoolClient) {
           [share, participant.user_id]
         );
       }
-
     }
 
     await client.query(
@@ -623,6 +638,17 @@ async function settleFinishedRainRounds(client: Pool | PoolClient) {
        SET status = 'settled', updated_at = NOW()
        WHERE id = $1`,
       [round.id]
+    );
+
+    await client.query(
+      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
+       VALUES (NULL, $1, $2, 'win', 'moderator', NULL)`,
+      [
+        'PasusRain',
+        count > 0
+          ? `rain ended with $${totalPool.toFixed(2)} claimed by ${count} ${count === 1 ? 'person' : 'people'}`
+          : `rain ended with $${totalPool.toFixed(2)} and nobody claimed it`,
+      ]
     );
   }
 }
@@ -661,7 +687,7 @@ async function ensureCurrentRainRound(client: Pool | PoolClient) {
     `INSERT INTO rain_rounds (pool_amount, starts_at, join_opens_at, ends_at, status)
      VALUES ($1, $2, $3, $4, 'active')
      RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, 0::int AS participant_count`,
-    [500, startsAt, joinOpensAt, endsAt]
+    [50, startsAt, joinOpensAt, endsAt]
   );
 
   return insertResult.rows[0];
@@ -1130,6 +1156,18 @@ async function initDb() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS tip_notifications (
+      id BIGSERIAL PRIMARY KEY,
+      recipient_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      sender_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      sender_username TEXT NOT NULL,
+      amount NUMERIC(12,2) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      read_at TIMESTAMPTZ
+    )
+  `);
+
+  await pool.query(`
     INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn)
     SELECT id, 50, 50, 0
     FROM users
@@ -1229,10 +1267,35 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
        LIMIT 20`
     );
 
+    let tipNotifications: TipNotification[] = [];
+    if (authedUserId) {
+      const tipNotificationsResult = await client.query(
+        `SELECT id, sender_username, amount, created_at
+         FROM tip_notifications
+         WHERE recipient_user_id = $1
+           AND read_at IS NULL
+         ORDER BY created_at ASC
+         LIMIT 10`,
+        [authedUserId]
+      );
+
+      tipNotifications = tipNotificationsResult.rows.map(mapTipNotification);
+
+      if (tipNotifications.length > 0) {
+        await client.query(
+          `UPDATE tip_notifications
+           SET read_at = NOW()
+           WHERE id = ANY($1::bigint[])`,
+          [tipNotifications.map((notification) => notification.id)]
+        );
+      }
+    }
+
     await client.query('COMMIT');
     return res.json({
       messages: messagesResult.rows.reverse().map(mapChatMessage),
       rain: mapRainRound(roundRow, joined),
+      tipNotifications,
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1369,7 +1432,7 @@ app.post('/api/rain/contribute', requireAuth, async (req: AuthedRequest, res) =>
       [
         req.auth!.user.id,
         req.auth!.user.username,
-        `started a rain with ${amount.toLocaleString()} coins`,
+        `started a rain with $${amount.toFixed(2)}`,
         req.auth!.user.role,
         req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
       ]
@@ -2322,12 +2385,18 @@ app.post('/api/chat/tip', requireAuth, async (req: AuthedRequest, res) => {
     );
 
     await client.query(
+      `INSERT INTO tip_notifications (recipient_user_id, sender_user_id, sender_username, amount)
+       VALUES ($1, $2, $3, $4)`,
+      [recipient.id, req.auth!.user.id, req.auth!.user.username, amount]
+    );
+
+    await client.query(
       `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
        VALUES ($1, $2, $3, 'win', $4, $5)`,
       [
         req.auth!.user.id,
         req.auth!.user.username,
-        `tipped ${recipient.username} ${amount.toLocaleString()} coins`,
+        `tipped ${recipient.username} $${amount.toFixed(2)}`,
         req.auth!.user.role,
         req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
       ]

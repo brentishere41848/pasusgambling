@@ -2828,6 +2828,13 @@ type RainDraft = {
   amount: string;
 };
 
+type TipNotification = {
+  id: number;
+  senderUsername: string;
+  amount: number;
+  createdAt: string;
+};
+
 const CHAT_ROLE_STYLES: Record<ChatMessage['role'], string> = {
   owner: 'text-[#FF9F1C]',
   moderator: 'text-[#00FF88]',
@@ -2866,6 +2873,7 @@ const RightRail = () => {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [tipDraft, setTipDraft] = useState<TipDraft | null>(null);
   const [rainDraft, setRainDraft] = useState<RainDraft | null>(null);
+  const [tipNotifications, setTipNotifications] = useState<TipNotification[]>([]);
 
   const loadRoom = async (silent = false) => {
     if (!silent) {
@@ -2908,12 +2916,31 @@ const RightRail = () => {
           }
         : null;
 
+      const nextTipNotifications = Array.isArray(data.tipNotifications)
+        ? data.tipNotifications.map((notification: any) => ({
+            id: Number(notification.id),
+            senderUsername: String(notification.senderUsername || notification.sender_username || ''),
+            amount: Number(notification.amount || 0),
+            createdAt: String(notification.createdAt || notification.created_at || ''),
+          }))
+        : [];
+
       if (lastSeenRainId && nextRain && nextRain.id !== lastSeenRainId) {
         refreshWallet().catch(() => undefined);
       }
 
       setMessages(nextMessages);
       setRain(nextRain);
+      if (nextTipNotifications.length > 0) {
+        setTipNotifications((current) => {
+          const existingIds = new Set(current.map((notification) => notification.id));
+          const fresh = nextTipNotifications.filter((notification) => !existingIds.has(notification.id));
+          if (fresh.length === 0) {
+            return current;
+          }
+          return [...current, ...fresh];
+        });
+      }
       setLastSeenRainId((prev) => prev ?? nextRain?.id ?? null);
       if (nextRain) {
         setLastSeenRainId(nextRain.id);
@@ -2946,6 +2973,18 @@ const RightRail = () => {
     }, 3000);
     return () => window.clearInterval(timer);
   }, [isAuthenticated, lastSeenRainId]);
+
+  useEffect(() => {
+    if (tipNotifications.length === 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setTipNotifications((current) => current.slice(1));
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [tipNotifications]);
 
   useEffect(() => {
     const container = chatScrollRef.current;
@@ -3114,6 +3153,24 @@ const RightRail = () => {
 
   return (
     <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[#0f1115] flex-col h-screen sticky top-0 relative">
+      <AnimatePresence>
+        {tipNotifications.map((notification) => (
+          <motion.div
+            key={notification.id}
+            initial={{ opacity: 0, x: 24, y: -8 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, x: 24, y: -8 }}
+            className="absolute top-4 left-4 right-4 z-40 rounded-3xl border border-[#00FF88]/20 bg-[#111a15]/95 px-5 py-4 shadow-2xl backdrop-blur-xl"
+          >
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Tip Received</div>
+            <div className="mt-2 text-sm text-white/75">
+              <span className="font-black text-white">{notification.senderUsername}</span> tipped you{' '}
+              <span className="font-black text-[#00FF88]">{formatMoney(notification.amount)}</span>
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+
       <div className="p-5 border-b border-white/5">
         <div className="rounded-3xl border border-[#00FF88]/15 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-5">
           <div className="flex items-center justify-between mb-3">
