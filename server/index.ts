@@ -254,7 +254,12 @@ function mapRainRound(row: any, joined = false): RainRoundState {
 }
 
 function buildRobloxVerificationPhrase() {
-  return `PASUS VERIFICATION ${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+  const wordsA = ['amber', 'atlas', 'cinder', 'comet', 'delta', 'ember', 'falcon', 'harbor', 'jungle', 'lunar'];
+  const wordsB = ['apple', 'bridge', 'cloud', 'forest', 'garden', 'meadow', 'ocean', 'rocket', 'shadow', 'valley'];
+  const wordA = wordsA[Math.floor(Math.random() * wordsA.length)];
+  const wordB = wordsB[Math.floor(Math.random() * wordsB.length)];
+  const code = 1000 + Math.floor(Math.random() * 9000);
+  return `pasus ${wordA} ${wordB} ${code}`;
 }
 
 async function fetchRobloxUserByUsername(username: string) {
