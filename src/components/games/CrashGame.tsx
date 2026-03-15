@@ -68,7 +68,7 @@ export const CrashGame: React.FC = () => {
       setStatusText('Crash round live');
       startTimeRef.current = Date.now();
 
-      const houseEdge = 0.03;
+      const houseEdge = 0.14;
       const r = Math.random();
       const point = Math.max(1.01, Math.floor(100 / (1 - r)) / 100) * (1 - houseEdge);
       setCrashPoint(point);

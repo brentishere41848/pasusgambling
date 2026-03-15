@@ -20,7 +20,7 @@ export const DiceGame: React.FC = () => {
   const [didWin, setDidWin] = useState<boolean | null>(null);
 
   const winChance = isOver ? 100 - target : target;
-  const multiplier = (98 / winChance).toFixed(4); // 2% house edge
+  const multiplier = (90 / winChance).toFixed(4); // 10% house edge
 
   const roll = useCallback(() => {
     if (subtractBalance(bet)) {

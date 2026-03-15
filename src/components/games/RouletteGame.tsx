@@ -56,22 +56,22 @@ export const RouletteGame: React.FC = () => {
 
       if (typeof selectedType === 'number') {
         won = result === selectedType;
-        multiplier = 36;
+        multiplier = 30;
       } else if (selectedType === 'red') {
         won = getColor(result) === 'red';
-        multiplier = 2;
+        multiplier = 1.8;
       } else if (selectedType === 'black') {
         won = getColor(result) === 'black';
-        multiplier = 2;
+        multiplier = 1.8;
       } else if (selectedType === 'green') {
         won = result === 0;
-        multiplier = 36;
+        multiplier = 30;
       } else if (selectedType === 'even') {
         won = result !== 0 && result % 2 === 0;
-        multiplier = 2;
+        multiplier = 1.8;
       } else if (selectedType === 'odd') {
         won = result !== 0 && result % 2 !== 0;
-        multiplier = 2;
+        multiplier = 1.8;
       }
 
       if (won) {
@@ -137,28 +137,28 @@ export const RouletteGame: React.FC = () => {
               disabled={isSpinning || isAuto}
               className={cn('py-3 rounded-xl text-xs font-bold border-2 transition-all', selectedType === 'red' ? 'bg-red-500 border-white' : 'bg-red-500/20 border-transparent text-red-500')}
             >
-              RED (2x)
+              RED (1.8x)
             </button>
             <button
               onClick={() => setSelectedType('black')}
               disabled={isSpinning || isAuto}
               className={cn('py-3 rounded-xl text-xs font-bold border-2 transition-all', selectedType === 'black' ? 'bg-white text-black border-white' : 'bg-white/5 border-transparent text-white/40')}
             >
-              BLACK (2x)
+              BLACK (1.8x)
             </button>
             <button
               onClick={() => setSelectedType('even')}
               disabled={isSpinning || isAuto}
               className={cn('py-3 rounded-xl text-xs font-bold border-2 transition-all', selectedType === 'even' ? 'bg-blue-500 border-white' : 'bg-blue-500/20 border-transparent text-blue-500')}
             >
-              EVEN (2x)
+              EVEN (1.8x)
             </button>
             <button
               onClick={() => setSelectedType('odd')}
               disabled={isSpinning || isAuto}
               className={cn('py-3 rounded-xl text-xs font-bold border-2 transition-all', selectedType === 'odd' ? 'bg-orange-500 border-white' : 'bg-orange-500/20 border-transparent text-orange-500')}
             >
-              ODD (2x)
+              ODD (1.8x)
             </button>
           </div>
 

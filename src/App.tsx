@@ -2439,7 +2439,7 @@ const RightRail = () => {
     }
 
     if (/^\.rain$/i.test(draft.trim())) {
-      setRainDraft({ amount: '' });
+      setRainDraft({ amount: '10' });
       setDraft('');
       return;
     }

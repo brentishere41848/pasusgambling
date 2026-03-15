@@ -8,21 +8,21 @@ import { logBetActivity } from '../../lib/activity';
 
 const SEGMENTS = [
   { mult: 0, color: 'bg-white/5', text: '0x' },
-  { mult: 2, color: 'bg-[#00FF88]', text: '2x' },
+  { mult: 1.2, color: 'bg-[#00FF88]', text: '1.2x' },
   { mult: 0, color: 'bg-white/5', text: '0x' },
-  { mult: 1.5, color: 'bg-blue-500', text: '1.5x' },
+  { mult: 0, color: 'bg-white/5', text: '0x' },
+  { mult: 0, color: 'bg-white/5', text: '0x' },
+  { mult: 2, color: 'bg-blue-500', text: '2x' },
+  { mult: 0, color: 'bg-white/5', text: '0x' },
+  { mult: 0, color: 'bg-white/5', text: '0x' },
+  { mult: 0, color: 'bg-white/5', text: '0x' },
+  { mult: 1.2, color: 'bg-[#00FF88]', text: '1.2x' },
   { mult: 0, color: 'bg-white/5', text: '0x' },
   { mult: 5, color: 'bg-orange-500', text: '5x' },
   { mult: 0, color: 'bg-white/5', text: '0x' },
-  { mult: 2, color: 'bg-[#00FF88]', text: '2x' },
+  { mult: 2, color: 'bg-blue-500', text: '2x' },
   { mult: 0, color: 'bg-white/5', text: '0x' },
-  { mult: 1.5, color: 'bg-blue-500', text: '1.5x' },
-  { mult: 0, color: 'bg-white/5', text: '0x' },
-  { mult: 10, color: 'bg-red-500', text: '10x' },
-  { mult: 0, color: 'bg-white/5', text: '0x' },
-  { mult: 2, color: 'bg-[#00FF88]', text: '2x' },
-  { mult: 0, color: 'bg-white/5', text: '0x' },
-  { mult: 1.5, color: 'bg-blue-500', text: '1.5x' },
+  { mult: 1.2, color: 'bg-[#00FF88]', text: '1.2x' },
 ];
 
 export const WheelGame: React.FC = () => {
@@ -92,16 +92,16 @@ export const WheelGame: React.FC = () => {
           <div className="text-[10px] text-white/40 uppercase tracking-widest mb-3">Multipliers</div>
           <div className="grid grid-cols-2 gap-2">
             <div className="flex items-center gap-2 text-[10px] text-white/60">
-              <div className="w-2 h-2 rounded-full bg-[#00FF88]" /> 2x (3/16)
+              <div className="w-2 h-2 rounded-full bg-[#00FF88]" /> 1.2x (3/16)
             </div>
             <div className="flex items-center gap-2 text-[10px] text-white/60">
-              <div className="w-2 h-2 rounded-full bg-blue-500" /> 1.5x (3/16)
+              <div className="w-2 h-2 rounded-full bg-blue-500" /> 2x (2/16)
             </div>
             <div className="flex items-center gap-2 text-[10px] text-white/60">
               <div className="w-2 h-2 rounded-full bg-orange-500" /> 5x (1/16)
             </div>
             <div className="flex items-center gap-2 text-[10px] text-white/60">
-              <div className="w-2 h-2 rounded-full bg-red-500" /> 10x (1/16)
+              <div className="w-2 h-2 rounded-full bg-white/40" /> 0x (10/16)
             </div>
           </div>
         </div>

@@ -518,6 +518,16 @@ async function settleFinishedRainRounds(client: Pool | PoolClient) {
   }
 }
 
+function getCurrentRainWindow(now = new Date()) {
+  const startsAt = new Date(now);
+  startsAt.setMinutes(0, 0, 0);
+
+  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+  const joinOpensAt = new Date(endsAt.getTime() - 2 * 60 * 1000);
+
+  return { startsAt, joinOpensAt, endsAt };
+}
+
 async function ensureCurrentRainRound(client: Pool | PoolClient) {
   await settleFinishedRainRounds(client);
 
@@ -536,22 +546,13 @@ async function ensureCurrentRainRound(client: Pool | PoolClient) {
     return existing.rows[0];
   }
 
-  const now = new Date();
-  const startsAt = new Date(now);
-  startsAt.setMinutes(0, 0, 0);
-
-  if (startsAt.getTime() > now.getTime()) {
-    startsAt.setHours(startsAt.getHours() - 1);
-  }
-
-  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
-  const joinOpensAt = new Date(endsAt.getTime() - 2 * 60 * 1000);
+  const { startsAt, joinOpensAt, endsAt } = getCurrentRainWindow();
 
   const insertResult = await client.query(
     `INSERT INTO rain_rounds (pool_amount, starts_at, join_opens_at, ends_at, status)
      VALUES ($1, $2, $3, $4, 'active')
      RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, 0::int AS participant_count`,
-    [200, startsAt, joinOpensAt, endsAt]
+    [500, startsAt, joinOpensAt, endsAt]
   );
 
   return insertResult.rows[0];

@@ -9,7 +9,7 @@ import { logBetActivity } from '../../lib/activity';
 export const MinesGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const [bet, setBet] = useState(10);
-  const [minesCount, setMinesCount] = useState(3);
+  const [minesCount, setMinesCount] = useState(5);
   const [grid, setGrid] = useState<(null | 'gem' | 'bomb')[]>(Array(25).fill(null));
   const [gameState, setGameState] = useState<'idle' | 'playing' | 'ended'>('idle');
   const [revealedCount, setRevealedCount] = useState(0);
@@ -42,7 +42,7 @@ export const MinesGame: React.FC = () => {
       prob *= (n - m - i) / (n - i);
     }
     
-    const houseEdge = 0.05;
+    const houseEdge = 0.18;
     return (1 / prob) * (1 - houseEdge);
   };
 
@@ -109,7 +109,7 @@ export const MinesGame: React.FC = () => {
             disabled={gameState === 'playing'}
             className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
           >
-            {[1, 3, 5, 10, 15, 20, 24].map(n => (
+            {[3, 5, 7, 10, 15, 20, 24].map(n => (
               <option key={n} value={n}>{n}</option>
             ))}
           </select>

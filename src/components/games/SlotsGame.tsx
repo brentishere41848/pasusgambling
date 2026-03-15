@@ -38,20 +38,20 @@ export const SlotsGame: React.FC = () => {
         const uniqueSymbols = new Set(finalReels);
         if (uniqueSymbols.size === 1) {
           // Jackpot!
-          const winAmount = bet * 10;
+          const winAmount = bet * 7;
           addBalance(winAmount);
-          logBetActivity({ gameKey: 'slots', wager: bet, payout: winAmount, multiplier: 10, outcome: 'win', detail: 'Jackpot' });
+          logBetActivity({ gameKey: 'slots', wager: bet, payout: winAmount, multiplier: 7, outcome: 'win', detail: 'Jackpot' });
           setWinMessage(`JACKPOT! +$${winAmount}`);
           confetti({
             particleCount: 150,
             spread: 70,
             origin: { y: 0.6 }
           });
-        } else if (uniqueSymbols.size === 2) {
-          // Small win
-          const winAmount = bet * 2;
+        } else if (finalReels[0] === finalReels[1] || finalReels[1] === finalReels[2]) {
+          // Small win only for an adjacent pair
+          const winAmount = bet * 1.25;
           addBalance(winAmount);
-          logBetActivity({ gameKey: 'slots', wager: bet, payout: winAmount, multiplier: 2, outcome: 'win', detail: 'Two matching symbols' });
+          logBetActivity({ gameKey: 'slots', wager: bet, payout: winAmount, multiplier: 1.25, outcome: 'win', detail: 'Adjacent pair' });
           setWinMessage(`WIN! +$${winAmount}`);
         } else {
           logBetActivity({ gameKey: 'slots', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: 'No match' });
@@ -88,11 +88,11 @@ export const SlotsGame: React.FC = () => {
           <div className="space-y-2 text-[10px]">
             <div className="flex justify-between">
               <span className="text-white/60">3 Symbols</span>
-              <span className="text-[#00FF88]">10x</span>
+              <span className="text-[#00FF88]">7x</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-white/60">2 Symbols</span>
-              <span className="text-[#00FF88]">2x</span>
+              <span className="text-white/60">Adjacent Pair</span>
+              <span className="text-[#00FF88]">1.25x</span>
             </div>
           </div>
         </div>
