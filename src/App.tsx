@@ -45,10 +45,11 @@ import {
   Mail,
   Lock,
   Gift,
-  SendHorizontal
+  SendHorizontal,
+  LoaderCircle
 } from 'lucide-react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { BalanceProvider, useBalance } from './context/BalanceContext';
-import { useAuth } from './context/AuthContext';
 import { CrashGame } from './components/games/CrashGame';
 import { MinesGame } from './components/games/MinesGame';
 import { CoinflipGame } from './components/games/CoinflipGame';
@@ -200,6 +201,173 @@ function resolveRoute(pathname: string): { gameId: string | null; view: MainView
   const matchedView = (Object.entries(VIEW_PATHS) as Array<[MainView, string]>).find(([, path]) => path === normalized)?.[0];
   return { gameId: null, view: matchedView || 'dashboard' };
 }
+
+const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isChecking, setIsChecking] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const response = await fetch('/api/site-access/status', {
+          credentials: 'include',
+        });
+        const data = await response.json().catch(() => ({}));
+        setHasAccess(Boolean(data.authenticated));
+      } catch {
+        setError('Unable to verify early access right now.');
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    checkStatus();
+  }, []);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSubmitting) {
+      return;
+    }
+
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/site-access/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Access denied.');
+      }
+
+      setHasAccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Access denied.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (hasAccess) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#090b10] text-white overflow-hidden relative">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(0,255,136,0.14),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(17,112,255,0.18),_transparent_34%),linear-gradient(135deg,_rgba(255,255,255,0.02),_transparent)]" />
+      <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+
+      <div className="relative min-h-screen flex items-center justify-center px-4 py-10">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-5xl grid lg:grid-cols-[1.2fr_0.9fr] rounded-[36px] overflow-hidden border border-white/10 bg-[#0f131a]/95 shadow-[0_32px_120px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+        >
+          <div className="p-8 md:p-12 border-b lg:border-b-0 lg:border-r border-white/10 bg-[linear-gradient(160deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#00FF88]/20 bg-[#00FF88]/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#7cffc2]">
+              <Lock size={14} />
+              Early Access
+            </div>
+            <h1 className="mt-6 text-4xl md:text-6xl font-black uppercase tracking-tight leading-none">
+              Pasus
+              <span className="block text-white/35">Private Entry</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-sm md:text-base text-white/60 leading-relaxed">
+              This build is locked behind a private launch screen. Enter the early access credentials to load the casino, wallet systems, and game dashboard.
+            </p>
+
+            <div className="mt-10 grid gap-4 md:grid-cols-3">
+              <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Games</div>
+                <div className="mt-3 text-3xl font-black text-[#00FF88]">8</div>
+                <div className="mt-2 text-xs text-white/45">Crash, blackjack, mines, HiLo, baccarat, wheel, and more.</div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Mode</div>
+                <div className="mt-3 text-3xl font-black text-white">Private</div>
+                <div className="mt-2 text-xs text-white/45">Only approved early users can enter this build.</div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Stack</div>
+                <div className="mt-3 text-3xl font-black text-white">Live</div>
+                <div className="mt-2 text-xs text-white/45">Server-verified gate with a custom frontend access screen.</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8 md:p-12 flex items-center">
+            <div className="w-full">
+              <div className="text-[10px] uppercase tracking-[0.24em] text-white/25 font-black">Access Panel</div>
+              <h2 className="mt-4 text-3xl font-black uppercase tracking-tight">Sign In To Enter</h2>
+              <p className="mt-3 text-sm text-white/50">
+                Nothing inside the app loads until this access gate is cleared.
+              </p>
+
+              <form onSubmit={submit} className="mt-8 space-y-4">
+                <label className="block">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-white/25 font-black">Username</div>
+                  <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 py-4">
+                    <User size={18} className="text-white/30" />
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter username"
+                      className="w-full bg-transparent text-sm text-white placeholder:text-white/20 focus:outline-none"
+                      autoComplete="username"
+                    />
+                  </div>
+                </label>
+
+                <label className="block">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-white/25 font-black">Password</div>
+                  <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 py-4">
+                    <Lock size={18} className="text-white/30" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter password"
+                      className="w-full bg-transparent text-sm text-white placeholder:text-white/20 focus:outline-none"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                </label>
+
+                {error ? (
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                    {error}
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isChecking}
+                  className="w-full rounded-2xl bg-[#00FF88] px-5 py-4 text-sm font-black uppercase tracking-[0.22em] text-black transition-all hover:bg-[#5fffb0] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isChecking || isSubmitting ? <LoaderCircle size={18} className="animate-spin" /> : <LogIn size={18} />}
+                  {isChecking ? 'Checking Access' : isSubmitting ? 'Unlocking' : 'Enter Pasus'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
 
 const Sidebar = ({
   activeGame,
@@ -3420,6 +3588,12 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <AppContent />
+    <SiteAccessGate>
+      <AuthProvider>
+        <BalanceProvider>
+          <AppContent />
+        </BalanceProvider>
+      </AuthProvider>
+    </SiteAccessGate>
   );
 }

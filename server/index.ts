@@ -23,6 +23,11 @@ const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
 const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/api/discord/connect/callback`;
 const siteAccessUsername = 'PASUSEARLY';
 const siteAccessPassword = 'password123';
+const siteAccessCookieName = 'pasus_site_access';
+const siteAccessToken = crypto
+  .createHash('sha256')
+  .update(`${siteAccessUsername}:${siteAccessPassword}:${jwtSecret}`)
+  .digest('hex');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../dist');
@@ -36,48 +41,77 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-function parseBasicAuth(header: string | undefined) {
-  if (!header || !header.startsWith('Basic ')) {
-    return null;
+function parseCookies(header: string | undefined) {
+  const cookies: Record<string, string> = {};
+  if (!header) {
+    return cookies;
   }
 
-  try {
-    const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
-    const separatorIndex = decoded.indexOf(':');
-    if (separatorIndex === -1) {
-      return null;
+  for (const part of header.split(';')) {
+    const [name, ...valueParts] = part.trim().split('=');
+    if (!name) {
+      continue;
     }
-
-    return {
-      username: decoded.slice(0, separatorIndex),
-      password: decoded.slice(separatorIndex + 1),
-    };
-  } catch {
-    return null;
+    const rawValue = valueParts.join('=') || '';
+    try {
+      cookies[name] = decodeURIComponent(rawValue);
+    } catch {
+      cookies[name] = rawValue;
+    }
   }
+
+  return cookies;
 }
 
-app.use((req, res, next) => {
-  if (req.path === '/api/payments/nowpayments/ipn') {
-    next();
-    return;
-  }
-
-  const credentials = parseBasicAuth(req.headers.authorization);
-  if (credentials?.username === siteAccessUsername && credentials.password === siteAccessPassword) {
-    next();
-    return;
-  }
-
-  res.setHeader('WWW-Authenticate', 'Basic realm="Pasus Early Access"');
-  res.status(401).send('Authentication required');
-});
+function hasSiteAccess(req: express.Request) {
+  const cookies = parseCookies(req.headers.cookie);
+  return cookies[siteAccessCookieName] === siteAccessToken;
+}
 
 app.use(express.json({
   verify: (req, _res, buf) => {
     (req as express.Request & { rawBody?: string }).rawBody = buf.toString('utf8');
   },
 }));
+
+app.get('/api/site-access/status', (req, res) => {
+  res.json({ authenticated: hasSiteAccess(req) });
+});
+
+app.post('/api/site-access/login', (req, res) => {
+  const username = String(req.body?.username || '');
+  const password = String(req.body?.password || '');
+
+  if (username !== siteAccessUsername || password !== siteAccessPassword) {
+    res.status(401).json({ error: 'Invalid early access credentials.' });
+    return;
+  }
+
+  res.setHeader(
+    'Set-Cookie',
+    `${siteAccessCookieName}=${siteAccessToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`
+  );
+  res.json({ authenticated: true });
+});
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) {
+    next();
+    return;
+  }
+
+  if (req.path === '/api/site-access/status' || req.path === '/api/site-access/login' || req.path === '/api/payments/nowpayments/ipn') {
+    next();
+    return;
+  }
+
+  if (hasSiteAccess(req)) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: 'Early access authentication required.' });
+});
 
 type AuthUser = {
   id: number;
