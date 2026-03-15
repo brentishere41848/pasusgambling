@@ -1774,6 +1774,8 @@ const RightRail = () => {
   const [roomError, setRoomError] = useState('');
   const [lastSeenRainId, setLastSeenRainId] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
   const loadRoom = async (silent = false) => {
     if (!silent) {
@@ -1854,6 +1856,15 @@ const RightRail = () => {
     }, 10000);
     return () => window.clearInterval(timer);
   }, [isAuthenticated, lastSeenRainId]);
+
+  useEffect(() => {
+    const container = chatScrollRef.current;
+    if (!container || !shouldAutoScroll) {
+      return;
+    }
+
+    container.scrollTop = container.scrollHeight;
+  }, [messages, shouldAutoScroll]);
 
   const submitMessage = async () => {
     if (!draft.trim() || !isAuthenticated) {
@@ -1970,7 +1981,15 @@ const RightRail = () => {
           <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">{Math.max(24, (rain?.participantCount || 0) + 21)} online</div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-3">
+        <div
+          ref={chatScrollRef}
+          onScroll={(e) => {
+            const target = e.currentTarget;
+            const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+            setShouldAutoScroll(distanceFromBottom < 32);
+          }}
+          className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-3"
+        >
           {roomError ? (
             <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-200">
               {roomError}
