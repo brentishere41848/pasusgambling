@@ -964,12 +964,35 @@ async function createSession(client: Pool | PoolClient, user: AuthUser) {
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   await client.query(
-    `INSERT INTO user_sessions (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
+    `INSERT INTO user_sessions (user_id, token_hash, expires_at, updated_at)
+     VALUES ($1, $2, $3, NOW())`,
     [user.id, tokenHash, expiresAt]
   );
 
   return token;
+}
+
+async function touchSessionActivity(client: Pool | PoolClient, userId: number, tokenHash: string) {
+  await client.query(
+    `UPDATE user_sessions
+     SET updated_at = NOW()
+     WHERE user_id = $1
+       AND token_hash = $2
+       AND (expires_at IS NULL OR expires_at > NOW())`,
+    [userId, tokenHash]
+  );
+}
+
+async function getOnlineUserCount(client: Pool | PoolClient, windowMinutes = 5) {
+  const result = await client.query(
+    `SELECT COUNT(DISTINCT user_id)::int AS count
+     FROM user_sessions
+     WHERE (expires_at IS NULL OR expires_at > NOW())
+       AND updated_at >= NOW() - ($1::int * INTERVAL '1 minute')`,
+    [windowMinutes]
+  );
+
+  return Number(result.rows[0]?.count || 0);
 }
 
 async function creditDepositIfNeeded(client: PoolClient, transactionId: number) {
@@ -1140,9 +1163,11 @@ async function initDb() {
       user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       token_hash TEXT NOT NULL,
       expires_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payment_transactions (
@@ -1293,6 +1318,8 @@ async function requireAuth(req: AuthedRequest, res: express.Response, next: expr
       return res.status(401).json({ error: 'Unauthorized.' });
     }
 
+    await touchSessionActivity(pool, payload.id, tokenHash);
+
     req.auth = {
       token,
       user: sanitizeUser(result.rows[0]),
@@ -1327,6 +1354,9 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
           [payload.id, tokenHash]
         );
         authedUserId = sessionResult.rowCount ? Number(sessionResult.rows[0].user_id) : null;
+        if (authedUserId) {
+          await touchSessionActivity(client, authedUserId, tokenHash);
+        }
       } catch {
         authedUserId = null;
       }
@@ -1377,11 +1407,14 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
       }
     }
 
+    const onlineCount = await getOnlineUserCount(client);
+
     await client.query('COMMIT');
     return res.json({
       messages: messagesResult.rows.reverse().map(mapChatMessage),
       rain: mapRainRound(roundRow, joined),
       tipNotifications,
+      onlineCount,
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -2944,7 +2977,7 @@ app.get('/api/admin/overview', requireAuth, requireOwner, async (_req: AuthedReq
          LIMIT 12`
       ),
       pool.query(
-        `SELECT wr.id, wr.user_id, u.username, wr.currency, wr.amount, wr.status, wr.created_at
+        `SELECT wr.id, wr.user_id, u.username, wr.currency, wr.address, wr.amount, wr.fee_amount, wr.net_amount, wr.status, wr.created_at
          FROM withdrawal_requests wr
          JOIN users u ON u.id = wr.user_id
          ORDER BY wr.created_at DESC
@@ -2972,7 +3005,10 @@ app.get('/api/admin/overview', requireAuth, requireOwner, async (_req: AuthedReq
         userId: Number(row.user_id),
         username: row.username,
         currency: row.currency,
+        address: row.address,
         amount: Number(row.amount || 0),
+        feeAmount: Number(row.fee_amount || 0),
+        netAmount: Number(row.net_amount || 0),
         status: row.status,
         createdAt: row.created_at,
       })),
@@ -2980,6 +3016,124 @@ app.get('/api/admin/overview', requireAuth, requireOwner, async (_req: AuthedReq
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load admin overview.' });
+  }
+});
+
+app.post('/api/admin/withdrawals/:id/status', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const withdrawalId = Number(req.params.id || 0);
+    const nextStatus = String(req.body.status || '').trim().toLowerCase();
+
+    if (!withdrawalId || !['pending', 'processing', 'completed', 'declined'].includes(nextStatus)) {
+      return res.status(400).json({ error: 'Valid withdrawal and status are required.' });
+    }
+
+    await client.query('BEGIN');
+
+    const requestResult = await client.query(
+      `SELECT id, user_id, currency, address, amount, fee_amount, net_amount, status, created_at
+       FROM withdrawal_requests
+       WHERE id = $1
+       FOR UPDATE`,
+      [withdrawalId]
+    );
+
+    if (!requestResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Withdrawal request not found.' });
+    }
+
+    const request = requestResult.rows[0];
+    const currentStatus = String(request.status || 'pending').toLowerCase();
+
+    if (currentStatus === nextStatus) {
+      await client.query('COMMIT');
+      return res.json({
+        request: {
+          id: Number(request.id),
+          userId: Number(request.user_id),
+          currency: request.currency,
+          address: request.address,
+          amount: Number(request.amount || 0),
+          feeAmount: Number(request.fee_amount || 0),
+          netAmount: Number(request.net_amount || 0),
+          status: currentStatus,
+          createdAt: request.created_at,
+        },
+      });
+    }
+
+    if (currentStatus === 'declined') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Declined withdrawals cannot be changed.' });
+    }
+
+    if (currentStatus === 'completed' && nextStatus !== 'completed') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Completed withdrawals cannot be changed.' });
+    }
+
+    if (nextStatus === 'declined') {
+      await ensureWallet(client, Number(request.user_id));
+      await client.query(
+        `UPDATE wallets
+         SET balance = balance + $1,
+             total_withdrawn = GREATEST(total_withdrawn - $1, 0),
+             updated_at = NOW()
+         WHERE user_id = $2`,
+        [Number(request.amount || 0), Number(request.user_id)]
+      );
+
+      const feeAmount = Number(request.fee_amount || 0);
+      const ownerUserId = await getPrimaryOwnerId(client);
+      if (ownerUserId && feeAmount > 0) {
+        await ensureWallet(client, ownerUserId);
+        const ownerResult = await client.query(
+          `UPDATE wallets
+           SET balance = balance - $1,
+               updated_at = NOW()
+           WHERE user_id = $2
+             AND balance >= $1`,
+          [feeAmount, ownerUserId]
+        );
+
+        if (!ownerResult.rowCount) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'Owner wallet cannot cover the fee reversal for this refund.' });
+        }
+      }
+    }
+
+    const updatedResult = await client.query(
+      `UPDATE withdrawal_requests
+       SET status = $1
+       WHERE id = $2
+       RETURNING id, user_id, currency, address, amount, fee_amount, net_amount, status, created_at`,
+      [nextStatus, withdrawalId]
+    );
+
+    await client.query('COMMIT');
+    return res.json({
+      request: {
+        id: Number(updatedResult.rows[0].id),
+        userId: Number(updatedResult.rows[0].user_id),
+        currency: updatedResult.rows[0].currency,
+        address: updatedResult.rows[0].address,
+        amount: Number(updatedResult.rows[0].amount || 0),
+        feeAmount: Number(updatedResult.rows[0].fee_amount || 0),
+        netAmount: Number(updatedResult.rows[0].net_amount || 0),
+        status: updatedResult.rows[0].status,
+        createdAt: updatedResult.rows[0].created_at,
+      },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to update withdrawal.' });
+  } finally {
+    client.release();
   }
 });
 

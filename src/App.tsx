@@ -2169,10 +2169,13 @@ const SettingsView = () => {
 const AdminView = () => {
   const { user } = useAuth();
   const { refreshWallet } = useBalance();
+  const [selectedWithdrawalId, setSelectedWithdrawalId] = useState<number | null>(null);
+  const [withdrawalStatusDraft, setWithdrawalStatusDraft] = useState<'pending' | 'processing' | 'completed'>('pending');
+  const [isUpdatingWithdrawal, setIsUpdatingWithdrawal] = useState(false);
   const [overview, setOverview] = useState<{
     stats: { totalUsers: number; totalBalance: number; totalWagered: number; pendingWithdrawals: number };
     users: Array<{ id: number; username: string; email: string; role: string; balance: number; createdAt: string }>;
-    withdrawals: Array<{ id: number; userId: number; username: string; currency: string; amount: number; status: string; createdAt: string }>;
+    withdrawals: Array<{ id: number; userId: number; username: string; currency: string; address: string; amount: number; feeAmount: number; netAmount: number; status: string; createdAt: string }>;
   } | null>(null);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [adjustAmount, setAdjustAmount] = useState('');
@@ -2263,6 +2266,7 @@ const AdminView = () => {
   };
 
   const selectedSupportTicket = supportTickets.find((ticket) => ticket.id === selectedSupportTicketId) || null;
+  const selectedWithdrawal = overview?.withdrawals.find((entry) => entry.id === selectedWithdrawalId) || null;
 
   const submitSupportReply = async () => {
     if (!selectedSupportTicket || !supportReply.trim()) {
@@ -2292,6 +2296,56 @@ const AdminView = () => {
       setStatus(error instanceof Error ? error.message : 'Failed to send support reply.');
     } finally {
       setIsReplyingToSupport(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedWithdrawal) {
+      return;
+    }
+
+    if (selectedWithdrawal.status === 'processing') {
+      setWithdrawalStatusDraft('processing');
+      return;
+    }
+
+    if (selectedWithdrawal.status === 'completed') {
+      setWithdrawalStatusDraft('completed');
+      return;
+    }
+
+    setWithdrawalStatusDraft('pending');
+  }, [selectedWithdrawal]);
+
+  const updateWithdrawalStatus = async (nextStatus: 'pending' | 'processing' | 'completed' | 'declined') => {
+    if (!selectedWithdrawal) {
+      return;
+    }
+
+    try {
+      setIsUpdatingWithdrawal(true);
+      setStatus('');
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update withdrawal.');
+      }
+
+      setStatus(nextStatus === 'declined' ? 'Withdrawal declined and refunded.' : `Withdrawal marked ${nextStatus}.`);
+      await loadOverview();
+      await refreshWallet();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to update withdrawal.');
+    } finally {
+      setIsUpdatingWithdrawal(false);
     }
   };
 
@@ -2354,14 +2408,18 @@ const AdminView = () => {
         <div className="text-lg font-black uppercase tracking-tight">Recent Withdrawals</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {(overview?.withdrawals || []).map((entry) => (
-            <div key={entry.id} className="rounded-2xl border border-white/5 bg-black/25 px-4 py-4">
+            <button
+              key={entry.id}
+              onClick={() => setSelectedWithdrawalId(entry.id)}
+              className="rounded-2xl border border-white/5 bg-black/25 px-4 py-4 text-left transition-all hover:border-[#00FF88]/35 hover:bg-black/35"
+            >
               <div className="flex items-center justify-between gap-4">
                 <div className="text-sm font-black">{entry.username}</div>
                 <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{entry.status}</div>
               </div>
               <div className="mt-2 text-sm text-white/55">{formatMoney(entry.amount)} {entry.currency.toUpperCase()}</div>
               <div className="mt-1 text-[11px] text-white/30">{new Date(entry.createdAt).toLocaleString()}</div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -2431,6 +2489,103 @@ const AdminView = () => {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedWithdrawal ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedWithdrawalId(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0, y: 24 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.98, opacity: 0, y: 12 }}
+              className="relative w-full max-w-xl rounded-[32px] border border-white/10 bg-[#141821] shadow-2xl"
+            >
+              <div className="flex items-center justify-between gap-4 border-b border-white/5 px-6 py-5">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#00FF88]">Withdrawal Detail</div>
+                  <div className="mt-1 text-xl font-black uppercase tracking-tight">{selectedWithdrawal.username}</div>
+                </div>
+                <button onClick={() => setSelectedWithdrawalId(null)} className="rounded-full p-2 transition-colors hover:bg-white/5">
+                  <X size={18} className="text-white/45" />
+                </button>
+              </div>
+
+              <div className="max-h-[80vh] space-y-6 overflow-y-auto p-6 custom-scrollbar">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Status</div>
+                    <div className="mt-2 text-lg font-black text-[#00FF88]">{selectedWithdrawal.status}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Requested At</div>
+                    <div className="mt-2 text-sm font-medium text-white/80">{new Date(selectedWithdrawal.createdAt).toLocaleString()}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Requested Amount</div>
+                    <div className="mt-2 text-lg font-black">{formatMoney(selectedWithdrawal.amount)}</div>
+                    <div className="mt-1 text-[11px] text-white/35">Payout currency: {selectedWithdrawal.currency.toUpperCase()}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Net After Fee</div>
+                    <div className="mt-2 text-lg font-black">{formatMoney(selectedWithdrawal.netAmount)}</div>
+                    <div className="mt-1 text-[11px] text-white/35">Fee kept by platform: {formatMoney(selectedWithdrawal.feeAmount)}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Wallet Address</div>
+                  <div className="mt-3 break-all font-mono text-sm text-white/85">{selectedWithdrawal.address}</div>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-black/25 p-4 space-y-4">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Change Status</div>
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                      <select
+                        value={withdrawalStatusDraft}
+                        onChange={(e) => setWithdrawalStatusDraft(e.target.value as 'pending' | 'processing' | 'completed')}
+                        disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
+                        className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none disabled:opacity-50"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                      <button
+                        onClick={() => updateWithdrawalStatus(withdrawalStatusDraft)}
+                        disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
+                        className="rounded-2xl bg-[#00FF88] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-black disabled:opacity-40"
+                      >
+                        {isUpdatingWithdrawal ? 'Saving...' : 'Save Status'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-red-500/15 bg-red-500/8 p-4">
+                    <div className="text-sm font-black uppercase tracking-tight text-red-200">Decline And Refund</div>
+                    <div className="mt-2 text-xs leading-relaxed text-red-100/70">
+                      This returns the full requested amount to the user wallet and reverses the platform fee from the owner wallet.
+                    </div>
+                    <button
+                      onClick={() => updateWithdrawalStatus('declined')}
+                      disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
+                      className="mt-4 rounded-2xl border border-red-400/20 bg-red-500 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white disabled:opacity-40"
+                    >
+                      {isUpdatingWithdrawal ? 'Updating...' : 'Decline Withdrawal'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 };
@@ -3116,6 +3271,7 @@ const RightRail = () => {
   const [roomError, setRoomError] = useState('');
   const [lastSeenRainId, setLastSeenRainId] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [onlineCount, setOnlineCount] = useState(0);
   const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [tipDraft, setTipDraft] = useState<TipDraft | null>(null);
@@ -3171,6 +3327,7 @@ const RightRail = () => {
             createdAt: String(notification.createdAt || notification.created_at || ''),
           }))
         : [];
+      const nextOnlineCount = Number(data.onlineCount || 0);
 
       if (lastSeenRainId && nextRain && nextRain.id !== lastSeenRainId) {
         refreshWallet().catch(() => undefined);
@@ -3192,6 +3349,7 @@ const RightRail = () => {
       if (nextRain) {
         setLastSeenRainId(nextRain.id);
       }
+      setOnlineCount(nextOnlineCount);
       setRoomError('');
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : 'Failed to load room.');
@@ -3470,7 +3628,7 @@ const RightRail = () => {
             <div className="text-sm font-black uppercase tracking-[0.18em]">Chat</div>
             <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">Live room</div>
           </div>
-          <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">{Math.max(24, (rain?.participantCount || 0) + 21)} online</div>
+          <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">{onlineCount} online</div>
         </div>
 
         <div
