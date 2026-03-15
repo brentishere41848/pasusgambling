@@ -22,7 +22,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string, affiliateCode?: string) => Promise<void>;
   logout: () => void;
   updateCurrency: (currency: string) => void;
   setUser: (user: User | null) => void;
@@ -121,7 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     applyAuthenticatedUser(data.user as User, data.token as string);
   };
 
-  const register = async (username: string, email: string, password: string) => {
+  const register = async (username: string, email: string, password: string, affiliateCode?: string) => {
     const data = await parseApiResponse(
       await fetch('/api/auth/register', {
         method: 'POST',
@@ -132,6 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           username,
           email,
           password,
+          affiliateCode,
         }),
       })
     );

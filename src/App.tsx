@@ -652,11 +652,25 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [affiliateCode, setAffiliateCode] = useState('');
   const [isRegister, setIsRegister] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      setIsRegister(true);
+      setAffiliateCode(ref);
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -670,7 +684,7 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
     try {
       setIsSubmitting(true);
       if (isRegister) {
-        await register(username.trim(), email.trim(), password);
+        await register(username.trim(), email.trim(), password, affiliateCode.trim());
       } else {
         await login(username.trim(), password);
       }
@@ -740,6 +754,22 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
                     className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
                     placeholder="Enter email"
                     required={isRegister}
+                  />
+                </div>
+              </div>
+            )}
+
+            {isRegister && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Affiliate Code</label>
+                <div className="relative">
+                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+                  <input
+                    type="text"
+                    value={affiliateCode}
+                    onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
+                    placeholder="Optional affiliate code"
                   />
                 </div>
               </div>
@@ -1730,6 +1760,339 @@ const InfoView = ({
   );
 };
 
+const AffiliateView = () => {
+  const { isAuthenticated } = useAuth();
+  const [overview, setOverview] = useState<any | null>(null);
+  const [customCode, setCustomCode] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const loadOverview = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/affiliate/overview', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load affiliate overview.');
+      }
+      setOverview(data.overview);
+      setCustomCode(data.overview?.code || '');
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load affiliate overview.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOverview().catch(() => undefined);
+  }, []);
+
+  const saveCode = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/affiliate/code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ code: customCode }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save affiliate code.');
+      }
+      setOverview(data.overview);
+      setSuccess('Affiliate code saved.');
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save affiliate code.');
+      setSuccess('');
+    }
+  };
+
+  const copyLink = async () => {
+    if (!overview?.referralLink) {
+      return;
+    }
+    await navigator.clipboard.writeText(overview.referralLink);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  if (!isAuthenticated) {
+    return <InfoView eyebrow="Growth" title="Affiliate" description="Sign in to create your affiliate code and track referral earnings." cards={[{ title: 'Referral Commission', body: 'Earn 5% of referred players deposits and wagers once they register using your code.', icon: Users }, { title: 'Shareable Link', body: 'Every affiliate gets a direct referral link and a custom code.', icon: ArrowUpRight }]} />;
+  }
+
+  return (
+    <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8">
+      <div className="space-y-2">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Growth</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Affiliate</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Create your affiliate code, share your referral link, and earn 5% of the deposits and wagers generated by players who signed up through you.</p>
+      </div>
+
+      {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div> : null}
+      {success ? <div className="rounded-2xl border border-[#00FF88]/20 bg-[#00FF88]/10 px-4 py-3 text-sm text-[#00FF88]">{success}</div> : null}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Referred Users', value: overview?.referredUsers ?? 0 },
+          { label: 'Total Commission', value: `${(overview?.totalCommission ?? 0).toLocaleString()} Coins` },
+          { label: 'Deposit Commission', value: `${(overview?.depositCommission ?? 0).toLocaleString()} Coins` },
+          { label: 'Wager Commission', value: `${(overview?.wagerCommission ?? 0).toLocaleString()} Coins` },
+        ].map((card) => (
+          <div key={card.label} className="rounded-3xl border border-white/10 bg-[#141821] p-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">{card.label}</div>
+            <div className="mt-3 text-2xl font-black italic tracking-tight">{card.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Your Code</div>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={customCode}
+              onChange={(e) => setCustomCode(e.target.value.toUpperCase())}
+              className="flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-black tracking-[0.14em] focus:outline-none"
+              placeholder="CREATECODE"
+            />
+            <button onClick={saveCode} disabled={isLoading || !customCode.trim()} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+              Save
+            </button>
+          </div>
+          <div className="text-xs text-white/40">Codes must be unique. Referred users keep your link permanently once they register.</div>
+          <div className="rounded-2xl border border-white/10 bg-black/30 p-4 space-y-3">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Referral Link</div>
+            <div className="text-xs text-white/60 break-all">{overview?.referralLink || `${window.location.origin}?ref=${customCode || 'YOURCODE'}`}</div>
+            <button onClick={copyLink} className="rounded-2xl bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em]">
+              {copied ? 'Copied' : 'Copy Link'}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Recent Commission</div>
+          <div className="space-y-3">
+            {(overview?.recentCommissions || []).length ? overview.recentCommissions.map((item: any) => (
+              <div key={item.id} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-black">{item.username}</div>
+                  <div className="text-[11px] text-white/35 uppercase tracking-[0.16em]">{item.sourceType}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-black text-[#00FF88]">+{Number(item.commissionAmount || 0).toLocaleString()} Coins</div>
+                  <div className="text-[11px] text-white/35">from {Number(item.baseAmount || 0).toLocaleString()} coins</div>
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">No affiliate commission yet.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const VipView = () => {
+  const [stats, setStats] = useState({ wagered: 0, bets: 0 });
+
+  useEffect(() => {
+    fetch('/api/activity/bets?tab=all&limit=50')
+      .then((response) => response.json().catch(() => ({})))
+      .then((data) => {
+        const activities = Array.isArray(data.activities) ? data.activities : [];
+        setStats({
+          wagered: activities.reduce((sum: number, item: any) => sum + Number(item.wager || 0), 0),
+          bets: activities.length,
+        });
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const vipTier = stats.wagered >= 100000 ? 'Diamond' : stats.wagered >= 25000 ? 'Gold' : stats.wagered >= 5000 ? 'Silver' : 'Bronze';
+
+  return (
+    <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8">
+      <div className="space-y-2">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Loyalty</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">VIP Club</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">This view now tracks a basic loyalty tier off recent wager history so the section feels like an actual product surface instead of filler.</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Current Tier</div><div className="mt-3 text-3xl font-black italic">{vipTier}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Wager</div><div className="mt-3 text-3xl font-black italic">{stats.wagered.toLocaleString()}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Bets</div><div className="mt-3 text-3xl font-black italic">{stats.bets}</div></div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Tier Ladder</div>
+          {[
+            'Bronze: 0+ wagered',
+            'Silver: 5,000+ wagered',
+            'Gold: 25,000+ wagered',
+            'Diamond: 100,000+ wagered',
+          ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
+        </div>
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Planned Perks</div>
+          {[
+            'Rakeback and weekly cashback',
+            'Higher rain priority and exclusive drops',
+            'VIP host and payout prioritization',
+            'Private tournaments and promo unlocks',
+          ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ProvablyFairView = () => {
+  const [seed, setSeed] = useState(() => crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
+  const [clientSeed, setClientSeed] = useState('PASUS-CLIENT');
+  const nonce = 1;
+
+  return (
+    <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8">
+      <div className="space-y-2">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Trust</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Provably Fair</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">This section now exposes the basic data shape you will need once each game is wired to real client seed, server seed hash, and nonce verification.</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Server Seed</div><div className="mt-3 text-xs break-all text-white/70 font-mono">{seed}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Client Seed</div><input value={clientSeed} onChange={(e) => setClientSeed(e.target.value)} className="mt-3 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none" /></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Nonce</div><div className="mt-3 text-3xl font-black italic">{nonce}</div></div>
+      </div>
+      <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+        <div className="text-lg font-black uppercase tracking-tight">How It Should Work</div>
+        {[
+          'Each game round should use a hidden server seed and a visible server seed hash before play starts.',
+          'The player supplies or edits a client seed that is combined with the server seed and nonce.',
+          'After the round, Pasus reveals the server seed so the player can reproduce the exact outcome locally.',
+        ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
+      </div>
+    </div>
+  );
+};
+
+const SupportView = () => {
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [status, setStatus] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadTickets = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+    const response = await fetch('/api/support/tickets', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) {
+      setTickets(Array.isArray(data.tickets) ? data.tickets : []);
+    }
+  };
+
+  useEffect(() => {
+    loadTickets().catch(() => undefined);
+  }, []);
+
+  const submitTicket = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const response = await fetch('/api/support/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ subject, message }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create support ticket.');
+      }
+      setStatus('Support ticket submitted.');
+      setSubject('');
+      setMessage('');
+      await loadTickets();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Failed to create support ticket.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8">
+      <div className="space-y-2">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Help</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Live Support</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Use this page to contact support and track your open tickets. The ticket feed is now backed by the database.</p>
+      </div>
+      {status ? <div className="rounded-2xl border border-white/10 bg-[#141821] px-4 py-3 text-sm text-white/70">{status}</div> : null}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Open Ticket</div>
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe the issue" rows={6} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none" />
+          <button onClick={submitTicket} disabled={isSubmitting || !subject.trim() || !message.trim()} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+            {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
+          </button>
+          <div className="text-xs text-white/35">For urgent cases, you can also direct users to your Discord server or Telegram from here.</div>
+        </div>
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Recent Tickets</div>
+          <div className="space-y-3">
+            {tickets.length ? tickets.map((ticket) => (
+              <div key={ticket.id} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-4 space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-sm font-black">{ticket.subject}</div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{ticket.status}</div>
+                </div>
+                <div className="text-sm text-white/55">{ticket.message}</div>
+                <div className="text-[11px] text-white/30">{new Date(ticket.created_at).toLocaleString()}</div>
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">No support tickets yet.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 type ChatMessage = {
   id: number;
   user: string;
@@ -2189,15 +2552,7 @@ const AppContent = () => {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
               >
-                <InfoView
-                  eyebrow="Loyalty"
-                  title="VIP Club"
-                  description="Track your level, unlock rakeback-style rewards, and surface premium benefits for active Pasus players."
-                  cards={[
-                    { title: 'Level Progression', body: 'Tiered rewards, weekly bonuses, and milestone drops can be surfaced here once you finalize your loyalty math.', icon: Star },
-                    { title: 'Exclusive Perks', body: 'VIP hosts, higher rain eligibility, private tournaments, and cashback campaigns can live in this section.', icon: Shield },
-                  ]}
-                />
+                <VipView />
               </motion.div>
             ) : currentView === 'affiliate' ? (
               <motion.div
@@ -2206,15 +2561,7 @@ const AppContent = () => {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
               >
-                <InfoView
-                  eyebrow="Growth"
-                  title="Affiliate"
-                  description="Use this page for referral links, commission tracking, and promoter analytics once you wire real affiliate data."
-                  cards={[
-                    { title: 'Referral Overview', body: 'Show clicks, signups, active players, and net gaming revenue contribution by campaign.', icon: Users },
-                    { title: 'Commission Payouts', body: 'Track pending affiliate earnings, payout thresholds, and historical commission withdrawals.', icon: Coins },
-                  ]}
-                />
+                <AffiliateView />
               </motion.div>
             ) : currentView === 'provably-fair' ? (
               <motion.div
@@ -2223,15 +2570,7 @@ const AppContent = () => {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
               >
-                <InfoView
-                  eyebrow="Trust"
-                  title="Provably Fair"
-                  description="This page is where you explain seeds, hashes, nonces, and post-round verification once each game exposes verifiable fairness data."
-                  cards={[
-                    { title: 'Seed Verification', body: 'Display server seed hash, client seed controls, and nonce progression so players can verify outcomes.', icon: ShieldCheck },
-                    { title: 'Round History', body: 'Let players inspect past rounds, compare generated results, and audit the fairness chain per game.', icon: Search },
-                  ]}
-                />
+                <ProvablyFairView />
               </motion.div>
             ) : currentView === 'support' ? (
               <motion.div
@@ -2240,15 +2579,7 @@ const AppContent = () => {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
               >
-                <InfoView
-                  eyebrow="Help"
-                  title="Live Support"
-                  description="Use this view for support entry points, account issue triage, payment escalation, and moderation contacts."
-                  cards={[
-                    { title: 'Support Channels', body: 'Embed live chat, Discord, Telegram, or ticketing links here so players can reach your team fast.', icon: MessageSquare },
-                    { title: 'Payment Help', body: 'Handle stuck deposits, withdrawal reviews, KYC document requests, and wallet troubleshooting in one place.', icon: Wallet },
-                  ]}
-                />
+                <SupportView />
               </motion.div>
             ) : (
               <motion.div

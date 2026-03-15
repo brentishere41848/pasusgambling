@@ -65,6 +65,23 @@ type Wallet = {
   totalWithdrawn: number;
 };
 
+type AffiliateOverview = {
+  code: string | null;
+  referralLink: string | null;
+  referredUsers: number;
+  totalCommission: number;
+  depositCommission: number;
+  wagerCommission: number;
+  recentCommissions: Array<{
+    id: number;
+    username: string;
+    sourceType: string;
+    baseAmount: number;
+    commissionAmount: number;
+    createdAt: string;
+  }>;
+};
+
 type PaymentTransaction = {
   id: number;
   paymentId: string | null;
@@ -188,6 +205,14 @@ function normalizeFiatAmount(value: unknown) {
     return 0;
   }
   return Math.round(amount * 100) / 100;
+}
+
+function normalizeAffiliateCode(value: unknown) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, '')
+    .slice(0, 24);
 }
 
 function nowPaymentsHeaders() {
@@ -496,6 +521,147 @@ async function addRainContributionFromWager(client: Pool | PoolClient, wager: nu
   };
 }
 
+async function ensureAffiliateCode(client: Pool | PoolClient, userId: number, username: string) {
+  const existing = await client.query(
+    `SELECT code
+     FROM affiliate_codes
+     WHERE user_id = $1
+     LIMIT 1`,
+    [userId]
+  );
+
+  if (existing.rowCount) {
+    return String(existing.rows[0].code);
+  }
+
+  let attempt = normalizeAffiliateCode(username) || `PASUS${userId}`;
+
+  for (let index = 0; index < 10; index += 1) {
+    const candidate = index === 0 ? attempt : `${attempt}${index}`;
+    try {
+      const inserted = await client.query(
+        `INSERT INTO affiliate_codes (user_id, code)
+         VALUES ($1, $2)
+         RETURNING code`,
+        [userId, candidate]
+      );
+      return String(inserted.rows[0].code);
+    } catch (error: any) {
+      if (error?.code !== '23505') {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Failed to create affiliate code.');
+}
+
+async function applyAffiliateCommission(
+  client: Pool | PoolClient,
+  referredUserId: number,
+  sourceType: 'deposit' | 'wager',
+  sourceRef: string,
+  baseAmount: number
+) {
+  const normalizedBase = normalizeCoins(baseAmount);
+  if (normalizedBase <= 0) {
+    return 0;
+  }
+
+  const referralResult = await client.query(
+    `SELECT referred_by_user_id
+     FROM users
+     WHERE id = $1
+       AND referred_by_user_id IS NOT NULL
+     LIMIT 1`,
+    [referredUserId]
+  );
+
+  if (!referralResult.rowCount) {
+    return 0;
+  }
+
+  const referrerUserId = Number(referralResult.rows[0].referred_by_user_id);
+  const commissionAmount = Math.max(1, Math.floor(normalizedBase * 0.05));
+
+  try {
+    await client.query(
+      `INSERT INTO affiliate_commissions (
+        referrer_user_id, referred_user_id, source_type, source_ref, base_amount, commission_amount
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)`,
+      [referrerUserId, referredUserId, sourceType, sourceRef, normalizedBase, commissionAmount]
+    );
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      return 0;
+    }
+    throw error;
+  }
+
+  await client.query(
+    `UPDATE wallets
+     SET balance = balance + $1,
+         updated_at = NOW()
+     WHERE user_id = $2`,
+    [commissionAmount, referrerUserId]
+  );
+
+  return commissionAmount;
+}
+
+async function getAffiliateOverview(client: Pool | PoolClient, userId: number): Promise<AffiliateOverview> {
+  const codeResult = await client.query(
+    `SELECT code
+     FROM affiliate_codes
+     WHERE user_id = $1
+     LIMIT 1`,
+    [userId]
+  );
+
+  const statsResult = await client.query(
+    `SELECT
+       COUNT(DISTINCT u.id)::int AS referred_users,
+       COALESCE(SUM(ac.commission_amount), 0)::bigint AS total_commission,
+       COALESCE(SUM(CASE WHEN ac.source_type = 'deposit' THEN ac.commission_amount ELSE 0 END), 0)::bigint AS deposit_commission,
+       COALESCE(SUM(CASE WHEN ac.source_type = 'wager' THEN ac.commission_amount ELSE 0 END), 0)::bigint AS wager_commission
+     FROM users u
+     LEFT JOIN affiliate_commissions ac ON ac.referrer_user_id = $1
+     WHERE u.referred_by_user_id = $1`,
+    [userId]
+  );
+
+  const recentResult = await client.query(
+    `SELECT ac.id, u.username, ac.source_type, ac.base_amount, ac.commission_amount, ac.created_at
+     FROM affiliate_commissions ac
+     JOIN users u ON u.id = ac.referred_user_id
+     WHERE ac.referrer_user_id = $1
+     ORDER BY ac.created_at DESC
+     LIMIT 12`,
+    [userId]
+  );
+
+  const code = codeResult.rowCount ? String(codeResult.rows[0].code) : null;
+  const stats = statsResult.rows[0] || {};
+
+  return {
+    code,
+    referralLink: code ? `${appBaseUrl}?ref=${encodeURIComponent(code)}` : null,
+    referredUsers: Number(stats.referred_users || 0),
+    totalCommission: Number(stats.total_commission || 0),
+    depositCommission: Number(stats.deposit_commission || 0),
+    wagerCommission: Number(stats.wager_commission || 0),
+    recentCommissions: recentResult.rows.map((row) => ({
+      id: Number(row.id),
+      username: row.username,
+      sourceType: row.source_type,
+      baseAmount: Number(row.base_amount || 0),
+      commissionAmount: Number(row.commission_amount || 0),
+      createdAt: row.created_at,
+    })),
+  };
+}
+
 async function getWallet(client: Pool | PoolClient, userId: number) {
   const result = await client.query(
     `SELECT balance, total_deposited, total_withdrawn
@@ -565,6 +731,8 @@ async function creditDepositIfNeeded(client: PoolClient, transactionId: number) 
      WHERE id = $1`,
     [transactionId]
   );
+
+  await applyAffiliateCommission(client, Number(tx.user_id), 'deposit', `payment:${transactionId}`, coins);
 }
 
 async function initDb() {
@@ -595,8 +763,44 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_avatar_url TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_verified_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_oauth_state TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS affiliate_code_used TEXT`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS affiliate_codes (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      code TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS affiliate_commissions (
+      id BIGSERIAL PRIMARY KEY,
+      referrer_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      referred_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_type TEXT NOT NULL,
+      source_ref TEXT NOT NULL,
+      base_amount BIGINT NOT NULL,
+      commission_amount BIGINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (source_type, source_ref)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS wallets (
@@ -917,6 +1121,7 @@ app.post('/api/auth/register', async (req, res) => {
     const username = String(req.body.username || '').trim();
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = String(req.body.password || '');
+    const affiliateCode = normalizeAffiliateCode(req.body.affiliateCode);
 
     if (!username || !email || !password) {
       return res.status(400).json({ error: 'Username, email, and password are required.' });
@@ -938,15 +1143,33 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(409).json({ error: 'Username or email already exists.' });
     }
 
+    let referredByUserId: number | null = null;
+    if (affiliateCode) {
+      const affiliateResult = await client.query(
+        `SELECT user_id
+         FROM affiliate_codes
+         WHERE code = $1
+         LIMIT 1`,
+        [affiliateCode]
+      );
+
+      if (!affiliateResult.rowCount) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Invalid affiliate code.' });
+      }
+
+      referredByUserId = Number(affiliateResult.rows[0].user_id);
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
     const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`;
     const userResult = await client.query(
-      `INSERT INTO users (username, email, password_hash, avatar)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (username, email, password_hash, avatar, referred_by_user_id, affiliate_code_used)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, username, email, currency, avatar, role,
                  roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
                  discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at`,
-      [username, email, passwordHash, avatar]
+      [username, email, passwordHash, avatar, referredByUserId, affiliateCode || null]
     );
 
     const user = sanitizeUser(userResult.rows[0]);
@@ -959,6 +1182,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const token = await createSession(client, user);
     const wallet = await getWallet(client, user.id);
+    await ensureAffiliateCode(client, user.id, user.username);
 
     await client.query('COMMIT');
     return res.status(201).json({ user, token, wallet });
@@ -988,13 +1212,15 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
 
     await client.query('BEGIN');
 
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO bet_activities (user_id, game_key, wager, payout, multiplier, outcome, detail)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id`,
       [req.auth!.user.id, gameKey, wager, payout, multiplier || 0, outcome, detail || null]
     );
 
     const rainUpdate = await addRainContributionFromWager(client, wager);
+    await applyAffiliateCommission(client, req.auth!.user.id, 'wager', `bet:${inserted.rows[0]?.id || Date.now()}`, wager);
     await client.query('COMMIT');
 
     return res.status(201).json({
@@ -1035,6 +1261,101 @@ app.get('/api/activity/bets', async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load activity feed.' });
+  }
+});
+
+app.get('/api/affiliate/overview', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const overview = await getAffiliateOverview(pool, req.auth!.user.id);
+    return res.json({ overview });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load affiliate overview.' });
+  }
+});
+
+app.post('/api/affiliate/code', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const code = normalizeAffiliateCode(req.body.code);
+    if (code.length < 4) {
+      return res.status(400).json({ error: 'Affiliate code must be at least 4 characters.' });
+    }
+
+    await client.query('BEGIN');
+    const existing = await client.query(
+      `SELECT id
+       FROM affiliate_codes
+       WHERE code = $1
+         AND user_id <> $2
+       LIMIT 1`,
+      [code, req.auth!.user.id]
+    );
+
+    if (existing.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Affiliate code is already taken.' });
+    }
+
+    await client.query(
+      `INSERT INTO affiliate_codes (user_id, code)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id)
+       DO UPDATE SET code = EXCLUDED.code`,
+      [req.auth!.user.id, code]
+    );
+
+    await client.query('COMMIT');
+    const overview = await getAffiliateOverview(pool, req.auth!.user.id);
+    return res.json({ overview });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to save affiliate code.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/support/tickets', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, subject, message, status, created_at
+       FROM support_tickets
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [req.auth!.user.id]
+    );
+
+    return res.json({ tickets: result.rows });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load support tickets.' });
+  }
+});
+
+app.post('/api/support/tickets', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const subject = String(req.body.subject || '').trim();
+    const message = String(req.body.message || '').trim();
+
+    if (!subject || !message) {
+      return res.status(400).json({ error: 'Subject and message are required.' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO support_tickets (user_id, subject, message)
+       VALUES ($1, $2, $3)
+       RETURNING id, subject, message, status, created_at`,
+      [req.auth!.user.id, subject, message]
+    );
+
+    return res.status(201).json({ ticket: result.rows[0] });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to create support ticket.' });
   }
 });
 
