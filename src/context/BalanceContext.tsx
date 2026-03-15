@@ -8,7 +8,7 @@ interface BalanceContextType {
   subtractBalance: (amount: number) => boolean;
   setBalance: (amount: number) => void;
   refreshWallet: () => Promise<void>;
-  coinsToUsd: (coins: number) => number;
+  coinsToUsd: (amount: number) => number;
 }
 
 interface WalletResponse {
@@ -33,17 +33,9 @@ async function parseApiResponse(response: Response) {
   return data as WalletResponse;
 }
 
-function normalizeCoins(value: number) {
+function normalizeAmount(value: number) {
   const amount = Math.round(value);
   return Number.isFinite(amount) ? amount : 0;
-}
-
-function usdToCoins(value: number) {
-  return normalizeCoins(value * 50);
-}
-
-function coinsToUsdValue(value: number) {
-  return Math.round((value / 50) * 100) / 100;
 }
 
 export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -81,8 +73,8 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         })
       );
 
-      updateBalance(coinsToUsdValue(data.wallet.balance));
-      updateTotalDeposited(coinsToUsdValue(data.wallet.totalDeposited));
+      updateBalance(Number(data.wallet.balance || 0));
+      updateTotalDeposited(Number(data.wallet.totalDeposited || 0));
     } catch {
       updateBalance(0);
       updateTotalDeposited(0);
@@ -104,8 +96,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [isAuthenticated, isLoading]);
 
   const addBalance = (amount: number, isDeposit: boolean = false) => {
-    const normalizedAmount = Math.max(0, Number(amount || 0));
-    const normalizedCoins = usdToCoins(normalizedAmount);
+    const normalizedAmount = Math.max(0, normalizeAmount(Number(amount || 0)));
     updateBalance(balanceRef.current + normalizedAmount);
     if (isDeposit) {
       updateTotalDeposited(totalDepositedRef.current + normalizedAmount);
@@ -117,7 +108,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     const url = isDeposit ? '/api/wallet/deposit' : '/api/wallet/adjust';
-    const body = isDeposit ? { amount: normalizedCoins } : { delta: normalizedCoins };
+    const body = isDeposit ? { amount: normalizedAmount } : { delta: normalizedAmount };
 
     fetch(url, {
       method: 'POST',
@@ -135,10 +126,9 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const subtractBalance = (amount: number) => {
-    const normalizedAmount = Math.max(0, Number(amount || 0));
-    const normalizedCoins = usdToCoins(normalizedAmount);
+    const normalizedAmount = Math.max(0, normalizeAmount(Number(amount || 0)));
 
-    if (balanceRef.current < normalizedAmount || normalizedCoins <= 0) {
+    if (balanceRef.current < normalizedAmount || normalizedAmount <= 0) {
       return false;
     }
 
@@ -155,7 +145,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ delta: -normalizedCoins }),
+      body: JSON.stringify({ delta: -normalizedAmount }),
     })
       .then(parseApiResponse)
       .then(() => undefined)
@@ -170,7 +160,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     updateBalance(amount);
   };
 
-  const coinsToUsd = (coins: number) => coins;
+  const coinsToUsd = (amount: number) => amount;
 
   return (
     <BalanceContext.Provider value={{ balance, totalDeposited, addBalance, subtractBalance, setBalance, refreshWallet: syncWallet, coinsToUsd }}>

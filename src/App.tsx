@@ -54,7 +54,8 @@ import { MinesGame } from './components/games/MinesGame';
 import { CoinflipGame } from './components/games/CoinflipGame';
 import { DiceGame } from './components/games/DiceGame';
 import { BlackjackGame } from './components/games/BlackjackGame';
-import { RouletteGame } from './components/games/RouletteGame';
+import { HiloGame } from './components/games/HiloGame';
+import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
 import { cn } from './lib/utils';
 
@@ -115,15 +116,26 @@ const GAMES = [
     image: 'https://picsum.photos/seed/casino-dice/800/600'
   },
   {
-    id: 'roulette',
-    name: 'Roulette',
-    description: 'Spin the wheel and bet on your lucky numbers.',
-    icon: Disc,
+    id: 'hilo',
+    name: 'HiLo',
+    description: 'Call higher or lower and build the streak.',
+    icon: ArrowUpRight,
     color: 'text-red-400',
     bg: 'bg-red-400/10',
-    component: RouletteGame,
+    component: HiloGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-roulette/800/600'
+    image: 'https://picsum.photos/seed/casino-hilo/800/600'
+  },
+  {
+    id: 'baccarat',
+    name: 'Baccarat',
+    description: 'Bet on player, banker, or tie in a fast table game.',
+    icon: Disc,
+    color: 'text-cyan-300',
+    bg: 'bg-cyan-300/10',
+    component: BaccaratGame,
+    featured: false,
+    image: 'https://picsum.photos/seed/casino-baccarat/800/600'
   },
   {
     id: 'wheel',
@@ -144,13 +156,14 @@ const getPreferredAvatar = (user?: {
   avatar?: string;
 } | null) => user?.discordAvatarUrl || user?.robloxAvatarUrl || user?.avatar || '';
 
-type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'vip' | 'affiliate' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
+type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
 const VIEW_PATHS: Partial<Record<MainView, string>> = {
   dashboard: '/',
   profile: '/profile',
   connections: '/connections',
   settings: '/settings',
+  admin: '/admin',
   vip: '/vip-club',
   affiliate: '/affiliate',
   'provably-fair': '/provably-fair',
@@ -170,11 +183,11 @@ function formatMoney(value: number) {
 }
 
 function formatMoneyFromCoins(value: number) {
-  return formatMoney(Number(value || 0) / 50);
+  return formatMoney(Number(value || 0));
 }
 
 function usdToCoins(value: number) {
-  return Math.round(Number(value || 0) * 50);
+  return Math.round(Number(value || 0));
 }
 
 function resolveRoute(pathname: string): { gameId: string | null; view: MainView } {
@@ -201,6 +214,7 @@ const Sidebar = ({
   onHome: () => void,
   onOpenView: (view: MainView) => void,
 }) => {
+  const { user } = useAuth();
   const [isOriginalsExpanded, setIsOriginalsExpanded] = useState(false);
 
   return (
@@ -288,6 +302,17 @@ const Sidebar = ({
         >
           <ShieldCheck size={18} /> Provably Fair
         </button>
+        {user?.role === 'owner' ? (
+          <button
+            onClick={() => onOpenView('admin')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+              currentView === 'admin' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <Shield size={18} /> Admin
+          </button>
+        ) : null}
       </nav>
 
       <div className="mt-auto pt-4 border-t border-white/5 shrink-0">
@@ -863,12 +888,14 @@ const Header = ({
   onOpenProfile,
   onOpenConnections,
   onOpenSettings,
+  onOpenAdmin,
 }: {
   onOpenWallet: () => void,
   onOpenLogin: () => void,
   onOpenProfile: () => void,
   onOpenConnections: () => void,
-  onOpenSettings: () => void
+  onOpenSettings: () => void,
+  onOpenAdmin: () => void
 }) => {
   const { balance } = useBalance();
   const { user, logout, isAuthenticated } = useAuth();
@@ -964,6 +991,17 @@ const Header = ({
                           >
                             <Settings size={14} /> Settings
                           </button>
+                          {user?.role === 'owner' ? (
+                            <button
+                              onClick={() => {
+                                onOpenAdmin();
+                                setShowUserMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all"
+                            >
+                              <Shield size={14} /> Admin
+                            </button>
+                          ) : null}
                           <button 
                             onClick={() => {
                               logout();
@@ -1092,7 +1130,7 @@ const RecentActivity = () => {
       <div className="flex items-center justify-between mb-6 gap-4">
         <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3">
           <TrendingUp className="text-[#00FF88]" size={20} />
-          Recent Activity
+          Live Bets
         </h2>
         <div className="flex p-1 bg-black/40 rounded-full border border-white/5">
           {[
@@ -1166,6 +1204,175 @@ const RecentActivity = () => {
   );
 };
 
+const DailyRewardsCard = () => {
+  const { isAuthenticated } = useAuth();
+  const { refreshWallet } = useBalance();
+  const [reward, setReward] = useState<{ streak: number; rewardAmount: number; canClaim: boolean; nextClaimAt: string | null } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [status, setStatus] = useState('');
+
+  const loadReward = useCallback(async () => {
+    if (!isAuthenticated) {
+      setReward(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      setReward(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const response = await fetch('/api/rewards/daily/status', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load reward.');
+    }
+    setReward(data.reward || null);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    loadReward()
+      .catch((error) => {
+        setStatus(error instanceof Error ? error.message : 'Failed to load reward.');
+      })
+      .finally(() => setIsLoading(false));
+  }, [loadReward]);
+
+  const claimReward = async () => {
+    try {
+      setIsClaiming(true);
+      setStatus('');
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch('/api/rewards/daily/claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to claim reward.');
+      }
+      setReward(data.reward || null);
+      setStatus(`Claimed ${formatMoney(Number(data.claimed || 0))}.`);
+      await refreshWallet();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to claim reward.');
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  const nextClaimLabel = reward?.nextClaimAt ? new Date(reward.nextClaimAt).toLocaleString() : 'Ready now';
+
+  return (
+    <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
+      <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Daily Rewards</div>
+            <div className="text-3xl font-black italic tracking-tight">{isLoading ? 'Loading...' : formatMoney(reward?.rewardAmount || 0)}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-right">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/30">Streak</div>
+            <div className="text-xl font-black text-[#00FF88]">{reward?.streak || 0} days</div>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-white/55">Claim once per day. Consecutive claims increase the reward until the streak resets.</div>
+        <div className="mt-5 flex items-center gap-3">
+          <button
+            onClick={claimReward}
+            disabled={isLoading || isClaiming || !reward?.canClaim}
+            className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
+          >
+            {isClaiming ? 'Claiming...' : reward?.canClaim ? 'Claim Daily Reward' : 'Already Claimed'}
+          </button>
+          <div className="text-xs text-white/35">Next claim: {nextClaimLabel}</div>
+        </div>
+        {status ? <div className="mt-4 text-xs text-white/60">{status}</div> : null}
+      </div>
+
+      <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-white/30 font-black">Reward Ladder</div>
+        <div className="mt-4 grid grid-cols-5 gap-2">
+          {[1, 2, 3, 4, 5].map((day) => (
+            <div key={day} className="rounded-2xl border border-white/10 bg-black/25 px-3 py-4 text-center">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-white/25">Day {day}</div>
+              <div className="mt-2 text-sm font-black">{formatMoney(Math.min(10, 2 + (day - 1)))}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const LiveBetsStrip = () => {
+  const [bets, setBets] = useState<ActivityFeedItem[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      const response = await fetch('/api/activity/bets?tab=all&limit=8');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !isMounted) {
+        return;
+      }
+      setBets(data.activities || []);
+    };
+
+    load().catch(() => undefined);
+    const timer = window.setInterval(() => load().catch(() => undefined), 2500);
+    return () => {
+      isMounted = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center gap-3">
+        <TrendingUp className="text-[#00FF88]" size={18} />
+        <h2 className="text-xl font-black italic uppercase tracking-tighter">Live Bets Feed</h2>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {bets.map((betItem) => (
+          <div key={betItem.id} className="rounded-[28px] border border-white/10 bg-[#141821] p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-white/25">{betItem.gameKey}</div>
+              <div className={cn('text-[10px] font-black uppercase tracking-[0.18em]', betItem.outcome === 'win' ? 'text-[#00FF88]' : betItem.outcome === 'push' ? 'text-blue-400' : 'text-red-400')}>
+                {betItem.outcome}
+              </div>
+            </div>
+            <div className="text-lg font-black">{betItem.username}</div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-white/35">Wager</span>
+              <span className="font-mono">{formatMoneyFromCoins(betItem.wager)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-white/35">Payout</span>
+              <span className={betItem.payout > 0 ? 'font-mono text-[#00FF88]' : 'font-mono text-white/25'}>{formatMoneyFromCoins(betItem.payout)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
 const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => {
   const featuredGames = GAMES.filter(g => g.featured).slice(0, 3);
   const originals = GAMES;
@@ -1187,7 +1394,8 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
         </div>
       </section>
 
-      {/* Recent Activity Section */}
+      <DailyRewardsCard />
+      <LiveBetsStrip />
       <RecentActivity />
     </div>
   );
@@ -1768,6 +1976,144 @@ const SettingsView = () => {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminView = () => {
+  const { user } = useAuth();
+  const { refreshWallet } = useBalance();
+  const [overview, setOverview] = useState<{
+    stats: { totalUsers: number; totalBalance: number; totalWagered: number; pendingWithdrawals: number };
+    users: Array<{ id: number; username: string; email: string; role: string; balance: number; createdAt: string }>;
+    withdrawals: Array<{ id: number; userId: number; username: string; currency: string; amount: number; status: string; createdAt: string }>;
+  } | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [adjustAmount, setAdjustAmount] = useState('');
+  const [status, setStatus] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadOverview = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    const response = await fetch('/api/admin/overview', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load admin overview.');
+    }
+    setOverview(data);
+  }, []);
+
+  useEffect(() => {
+    loadOverview().catch((error) => {
+      setStatus(error instanceof Error ? error.message : 'Failed to load admin overview.');
+    });
+  }, [loadOverview]);
+
+  const submitAdjustment = async () => {
+    try {
+      setIsSubmitting(true);
+      setStatus('');
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch('/api/admin/wallet/adjust', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: Number(selectedUserId),
+          delta: Number(adjustAmount),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to adjust wallet.');
+      }
+      setStatus('Wallet adjusted.');
+      setAdjustAmount('');
+      await loadOverview();
+      await refreshWallet();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to adjust wallet.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (user?.role !== 'owner') {
+    return <InfoView eyebrow="Access" title="Admin" description="Owner access is required for the admin panel." cards={[{ title: 'Restricted', body: 'This panel is only available to the owner account.', icon: Shield }]} />;
+  }
+
+  return (
+    <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8">
+      <div className="space-y-2">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Operations</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Admin Panel</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Manage balances, review recent users, and monitor withdrawal pressure from one owner-only surface.</p>
+      </div>
+
+      {status ? <div className="rounded-2xl border border-white/10 bg-[#141821] px-4 py-3 text-sm text-white/70">{status}</div> : null}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Users</div><div className="mt-3 text-3xl font-black italic">{overview?.stats.totalUsers ?? 0}</div></div>
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Platform Balance</div><div className="mt-3 text-3xl font-black italic">{formatMoney(overview?.stats.totalBalance ?? 0)}</div></div>
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Total Wagered</div><div className="mt-3 text-3xl font-black italic">{formatMoney(overview?.stats.totalWagered ?? 0)}</div></div>
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Pending Withdrawals</div><div className="mt-3 text-3xl font-black italic">{overview?.stats.pendingWithdrawals ?? 0}</div></div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Wallet Adjustment</div>
+          <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none">
+            <option value="">Select user</option>
+            {(overview?.users || []).map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.username} ({formatMoney(entry.balance)})</option>
+            ))}
+          </select>
+          <input value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} placeholder="Use positive or negative dollars" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          <button onClick={submitAdjustment} disabled={isSubmitting || !selectedUserId || !adjustAmount} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+            {isSubmitting ? 'Updating...' : 'Apply Adjustment'}
+          </button>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Recent Users</div>
+          <div className="space-y-3">
+            {(overview?.users || []).map((entry) => (
+              <div key={entry.id} className="rounded-2xl border border-white/5 bg-black/25 px-4 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-black">{entry.username}</div>
+                  <div className="text-[11px] text-white/35">{entry.email}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/25">{entry.role}</div>
+                  <div className="text-sm font-mono text-[#00FF88]">{formatMoney(entry.balance)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+        <div className="text-lg font-black uppercase tracking-tight">Recent Withdrawals</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {(overview?.withdrawals || []).map((entry) => (
+            <div key={entry.id} className="rounded-2xl border border-white/5 bg-black/25 px-4 py-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm font-black">{entry.username}</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{entry.status}</div>
+              </div>
+              <div className="mt-2 text-sm text-white/55">{formatMoney(entry.amount)} {entry.currency.toUpperCase()}</div>
+              <div className="mt-1 text-[11px] text-white/30">{new Date(entry.createdAt).toLocaleString()}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -2865,6 +3211,7 @@ const AppContent = () => {
           onOpenProfile={() => openView('profile')}
           onOpenConnections={() => openView('connections')}
           onOpenSettings={() => openView('settings')}
+          onOpenAdmin={() => openView('admin')}
         />
         
         <main className="flex-1 overflow-y-auto custom-scrollbar">
@@ -2920,6 +3267,15 @@ const AppContent = () => {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <SettingsView />
+              </motion.div>
+            ) : currentView === 'admin' ? (
+              <motion.div
+                key="admin"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <AdminView />
               </motion.div>
             ) : currentView === 'connections' ? (
               <motion.div

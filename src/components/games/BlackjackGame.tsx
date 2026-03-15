@@ -186,6 +186,10 @@ export const BlackjackGame: React.FC = () => {
               disabled={gameState !== 'idle' && gameState !== 'ended'}
               className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50 mb-3"
             />
+            <div className="mb-3 flex gap-2">
+              <button onClick={() => setBet((prev) => Math.max(1, Math.min(Math.floor(balance), prev * 2)))} disabled={gameState !== 'idle' && gameState !== 'ended'} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">x2</button>
+              <button onClick={() => setBet(Math.max(1, Math.floor(balance)))} disabled={gameState !== 'idle' && gameState !== 'ended'} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">Max</button>
+            </div>
             <input
               type="range"
               min="1"

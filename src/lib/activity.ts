@@ -22,8 +22,8 @@ export async function logBetActivity(input: LogBetActivityInput) {
       },
       body: JSON.stringify({
         ...input,
-        wager: Math.round(input.wager * 50),
-        payout: Math.round(input.payout * 50),
+        wager: Math.round(input.wager),
+        payout: Math.round(input.payout),
       }),
     });
   } catch {

@@ -363,13 +363,31 @@ export const PlinkoGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input
-              type="number"
-              value={bet}
-              onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
-              disabled={isAuto}
-              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
-            />
+            <div className="space-y-2">
+              <input
+                type="number"
+                value={bet}
+                onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
+                disabled={isAuto}
+                className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setBet((current) => Math.max(1, current * 2))}
+                  disabled={isAuto}
+                  className="py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white/60 hover:text-white transition-all disabled:opacity-40"
+                >
+                  x2
+                </button>
+                <button
+                  onClick={() => setBet(Math.max(1, Math.floor(balance)))}
+                  disabled={isAuto || balance < 1}
+                  className="py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white/60 hover:text-white transition-all disabled:opacity-40"
+                >
+                  Max
+                </button>
+              </div>
+            </div>
           </div>
 
           <div>

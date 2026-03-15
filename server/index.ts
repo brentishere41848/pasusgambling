@@ -21,6 +21,8 @@ const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
 const discordClientId = process.env.DISCORD_CLIENT_ID;
 const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
 const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/api/discord/connect/callback`;
+const siteAccessUsername = 'PASUSEARLY';
+const siteAccessPassword = 'password123';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../dist');
@@ -32,6 +34,43 @@ if (!databaseUrl) {
 const pool = new Pool({
   connectionString: databaseUrl,
   ssl: { rejectUnauthorized: false },
+});
+
+function parseBasicAuth(header: string | undefined) {
+  if (!header || !header.startsWith('Basic ')) {
+    return null;
+  }
+
+  try {
+    const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
+    const separatorIndex = decoded.indexOf(':');
+    if (separatorIndex === -1) {
+      return null;
+    }
+
+    return {
+      username: decoded.slice(0, separatorIndex),
+      password: decoded.slice(separatorIndex + 1),
+    };
+  } catch {
+    return null;
+  }
+}
+
+app.use((req, res, next) => {
+  if (req.path === '/api/payments/nowpayments/ipn') {
+    next();
+    return;
+  }
+
+  const credentials = parseBasicAuth(req.headers.authorization);
+  if (credentials?.username === siteAccessUsername && credentials.password === siteAccessPassword) {
+    next();
+    return;
+  }
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="Pasus Early Access"');
+  res.status(401).send('Authentication required');
 });
 
 app.use(express.json({
@@ -131,6 +170,14 @@ type RainRoundState = {
   hasEnded: boolean;
 };
 
+type DailyRewardStatus = {
+  streak: number;
+  rewardAmount: number;
+  canClaim: boolean;
+  nextClaimAt: string | null;
+  lastClaimedAt: string | null;
+};
+
 type RawBodyRequest = express.Request & { rawBody?: string };
 
 type AuthedRequest = RawBodyRequest & {
@@ -207,6 +254,30 @@ function normalizeFiatAmount(value: unknown) {
     return 0;
   }
   return Math.round(amount * 100) / 100;
+}
+
+function getStartOfUtcDay(value = new Date()) {
+  return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+}
+
+function getDailyRewardStatus(row: any, now = new Date()): DailyRewardStatus {
+  const lastClaimedAt = row?.daily_reward_last_claimed ? new Date(row.daily_reward_last_claimed) : null;
+  const currentStreak = Math.max(0, Number(row?.daily_reward_streak || 0));
+  const todayStart = getStartOfUtcDay(now);
+  const lastStart = lastClaimedAt ? getStartOfUtcDay(lastClaimedAt) : null;
+  const canClaim = lastStart === null || lastStart < todayStart;
+  const continuesStreak = lastStart !== null && todayStart - lastStart === 24 * 60 * 60 * 1000;
+  const nextStreak = canClaim ? (continuesStreak ? currentStreak + 1 : 1) : currentStreak || 1;
+  const rewardAmount = Math.min(10, 2 + Math.max(0, nextStreak - 1));
+  const nextClaimAt = canClaim ? null : new Date(todayStart + 24 * 60 * 60 * 1000).toISOString();
+
+  return {
+    streak: currentStreak,
+    rewardAmount,
+    canClaim,
+    nextClaimAt,
+    lastClaimedAt: lastClaimedAt ? lastClaimedAt.toISOString() : null,
+  };
 }
 
 function normalizeAffiliateCode(value: unknown) {
@@ -760,6 +831,13 @@ async function getPrimaryOwnerId(client: Pool | PoolClient) {
   return result.rowCount ? Number(result.rows[0].id) : null;
 }
 
+function requireOwner(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
+  if (!req.auth?.user || req.auth.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Forbidden.' });
+  }
+  return next();
+}
+
 async function createSession(client: Pool | PoolClient, user: AuthUser) {
   const token = signToken(user);
   const tokenHash = hashToken(token);
@@ -855,6 +933,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_last_claimed_daily TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_last_claimed_weekly TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_last_claimed_monthly TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_reward_streak INT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_reward_last_claimed TIMESTAMPTZ`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
 
@@ -1419,6 +1499,100 @@ app.get('/api/activity/bets', async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load activity feed.' });
+  }
+});
+
+app.get('/api/rewards/daily/status', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT daily_reward_streak, daily_reward_last_claimed
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [req.auth!.user.id]
+    );
+
+    return res.json({ reward: getDailyRewardStatus(result.rows[0] || {}) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load daily reward.' });
+  }
+});
+
+app.post('/api/rewards/daily/claim', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const userResult = await client.query(
+      `SELECT daily_reward_streak, daily_reward_last_claimed
+       FROM users
+       WHERE id = $1
+       FOR UPDATE`,
+      [req.auth!.user.id]
+    );
+
+    if (!userResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const reward = getDailyRewardStatus(userResult.rows[0]);
+    if (!reward.canClaim) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Daily reward already claimed.' });
+    }
+
+    const now = new Date();
+    const lastClaimedAt = userResult.rows[0]?.daily_reward_last_claimed ? new Date(userResult.rows[0].daily_reward_last_claimed) : null;
+    const continuesStreak = lastClaimedAt !== null && getStartOfUtcDay(now) - getStartOfUtcDay(lastClaimedAt) === 24 * 60 * 60 * 1000;
+    const nextStreak = continuesStreak ? Math.max(1, Number(userResult.rows[0].daily_reward_streak || 0) + 1) : 1;
+
+    await ensureWallet(client, req.auth!.user.id);
+
+    const walletResult = await client.query(
+      `UPDATE wallets
+       SET balance = balance + $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [reward.rewardAmount, req.auth!.user.id]
+    );
+
+    await client.query(
+      `UPDATE users
+       SET daily_reward_streak = $1,
+           daily_reward_last_claimed = NOW()
+       WHERE id = $2`,
+      [nextStreak, req.auth!.user.id]
+    );
+
+    await client.query(
+      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
+       VALUES ($1, $2, $3, 'win', $4, $5)`,
+      [
+        req.auth!.user.id,
+        req.auth!.user.username,
+        `claimed a daily reward of $${reward.rewardAmount.toFixed(2)} on a ${nextStreak}-day streak`,
+        req.auth!.user.role,
+        req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    return res.json({
+      reward: getDailyRewardStatus({ daily_reward_streak: nextStreak, daily_reward_last_claimed: now }),
+      claimed: reward.rewardAmount,
+      wallet: sanitizeWallet(walletResult.rows[0]),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to claim daily reward.' });
+  } finally {
+    client.release();
   }
 });
 
@@ -2379,6 +2553,96 @@ app.post('/api/payments/withdrawals/request', requireAuth, async (req: AuthedReq
     return res.status(500).json({ error: 'Failed to create withdrawal request.' });
   } finally {
     client.release();
+  }
+});
+
+app.get('/api/admin/overview', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
+  try {
+    const [statsResult, usersResult, withdrawalsResult] = await Promise.all([
+      pool.query(
+        `SELECT
+           (SELECT COUNT(*) FROM users)::int AS total_users,
+           (SELECT COALESCE(SUM(balance), 0) FROM wallets) AS total_balance,
+           (SELECT COALESCE(SUM(wager), 0) FROM bet_activities) AS total_wagered,
+           (SELECT COUNT(*) FROM withdrawal_requests WHERE status = 'pending')::int AS pending_withdrawals`
+      ),
+      pool.query(
+        `SELECT u.id, u.username, u.email, u.role, u.created_at, COALESCE(w.balance, 0) AS balance
+         FROM users u
+         LEFT JOIN wallets w ON w.user_id = u.id
+         ORDER BY u.created_at DESC
+         LIMIT 12`
+      ),
+      pool.query(
+        `SELECT wr.id, wr.user_id, u.username, wr.currency, wr.amount, wr.status, wr.created_at
+         FROM withdrawal_requests wr
+         JOIN users u ON u.id = wr.user_id
+         ORDER BY wr.created_at DESC
+         LIMIT 8`
+      ),
+    ]);
+
+    return res.json({
+      stats: {
+        totalUsers: Number(statsResult.rows[0]?.total_users || 0),
+        totalBalance: Number(statsResult.rows[0]?.total_balance || 0),
+        totalWagered: Number(statsResult.rows[0]?.total_wagered || 0),
+        pendingWithdrawals: Number(statsResult.rows[0]?.pending_withdrawals || 0),
+      },
+      users: usersResult.rows.map((row) => ({
+        id: Number(row.id),
+        username: row.username,
+        email: row.email,
+        role: normalizeUserRole(row.role),
+        balance: Number(row.balance || 0),
+        createdAt: row.created_at,
+      })),
+      withdrawals: withdrawalsResult.rows.map((row) => ({
+        id: Number(row.id),
+        userId: Number(row.user_id),
+        username: row.username,
+        currency: row.currency,
+        amount: Number(row.amount || 0),
+        status: row.status,
+        createdAt: row.created_at,
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load admin overview.' });
+  }
+});
+
+app.post('/api/admin/wallet/adjust', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  try {
+    const userId = Number(req.body.userId || 0);
+    const delta = normalizeCoins(req.body.delta);
+
+    if (!userId || delta === 0) {
+      return res.status(400).json({ error: 'User and adjustment are required.' });
+    }
+
+    await ensureWallet(pool, userId);
+
+    const result = await pool.query(
+      `UPDATE wallets
+       SET balance = balance + $1,
+           total_withdrawn = total_withdrawn + CASE WHEN $1 < 0 THEN ABS($1) ELSE 0 END,
+           updated_at = NOW()
+       WHERE user_id = $2
+         AND balance + $1 >= 0
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [delta, userId]
+    );
+
+    if (!result.rowCount) {
+      return res.status(400).json({ error: 'Insufficient balance.' });
+    }
+
+    return res.json({ wallet: sanitizeWallet(result.rows[0]) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to adjust wallet.' });
   }
 });
 

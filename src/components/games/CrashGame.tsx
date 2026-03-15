@@ -160,8 +160,8 @@ export const CrashGame: React.FC = () => {
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50 transition-colors"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-              <button onClick={() => setBet((prev) => Math.max(1, Math.round(prev / 2)))} className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] text-white/60">1/2</button>
-              <button onClick={() => setBet((prev) => prev * 2)} className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] text-white/60">x2</button>
+              <button onClick={() => setBet((prev) => Math.max(1, Math.min(Math.floor(balance), prev * 2)))} className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] text-white/60">x2</button>
+              <button onClick={() => setBet(Math.max(1, Math.floor(balance)))} className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] text-white/60">Max</button>
             </div>
           </div>
         </div>
