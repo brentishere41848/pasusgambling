@@ -765,6 +765,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_oauth_state TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS affiliate_code_used TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_claimed_total BIGINT NOT NULL DEFAULT 0`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
 
@@ -1271,6 +1272,117 @@ app.get('/api/affiliate/overview', requireAuth, async (req: AuthedRequest, res) 
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load affiliate overview.' });
+  }
+});
+
+app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         COALESCE(w.total_deposited, 0)::bigint AS total_deposited,
+         COALESCE((
+           SELECT SUM(b.wager)
+           FROM bet_activities b
+           WHERE b.user_id = $1
+         ), 0)::bigint AS total_wagered,
+         COALESCE((
+           SELECT COUNT(*)
+           FROM bet_activities b
+           WHERE b.user_id = $1
+         ), 0)::int AS total_bets,
+         COALESCE(u.rakeback_claimed_total, 0)::bigint AS rakeback_claimed_total
+       FROM users u
+       LEFT JOIN wallets w ON w.user_id = u.id
+       WHERE u.id = $1
+       LIMIT 1`,
+      [req.auth!.user.id]
+    );
+
+    const row = result.rows[0];
+    const totalDeposited = Number(row?.total_deposited || 0);
+    const totalWagered = Number(row?.total_wagered || 0);
+    const totalBets = Number(row?.total_bets || 0);
+    const rakebackClaimedTotal = Number(row?.rakeback_claimed_total || 0);
+    const earnedRakeback = Math.floor((totalDeposited + totalWagered) * 0.02);
+    const claimableRakeback = Math.max(0, earnedRakeback - rakebackClaimedTotal);
+
+    return res.json({
+      vip: {
+        totalDeposited,
+        totalWagered,
+        totalBets,
+        rakebackClaimedTotal,
+        earnedRakeback,
+        claimableRakeback,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load VIP overview.' });
+  }
+});
+
+app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT
+         COALESCE(w.total_deposited, 0)::bigint AS total_deposited,
+         COALESCE((
+           SELECT SUM(b.wager)
+           FROM bet_activities b
+           WHERE b.user_id = $1
+         ), 0)::bigint AS total_wagered,
+         COALESCE(u.rakeback_claimed_total, 0)::bigint AS rakeback_claimed_total
+       FROM users u
+       LEFT JOIN wallets w ON w.user_id = u.id
+       WHERE u.id = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [req.auth!.user.id]
+    );
+
+    const row = result.rows[0];
+    const totalDeposited = Number(row?.total_deposited || 0);
+    const totalWagered = Number(row?.total_wagered || 0);
+    const rakebackClaimedTotal = Number(row?.rakeback_claimed_total || 0);
+    const earnedRakeback = Math.floor((totalDeposited + totalWagered) * 0.02);
+    const claimableRakeback = Math.max(0, earnedRakeback - rakebackClaimedTotal);
+
+    if (claimableRakeback <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'No rakeback available to claim.' });
+    }
+
+    await client.query(
+      `UPDATE users
+       SET rakeback_claimed_total = rakeback_claimed_total + $1
+       WHERE id = $2`,
+      [claimableRakeback, req.auth!.user.id]
+    );
+
+    const walletResult = await client.query(
+      `UPDATE wallets
+       SET balance = balance + $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [claimableRakeback, req.auth!.user.id]
+    );
+
+    await client.query('COMMIT');
+    return res.json({
+      claimed: claimableRakeback,
+      wallet: sanitizeWallet(walletResult.rows[0]),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to claim rakeback.' });
+  } finally {
+    client.release();
   }
 });
 

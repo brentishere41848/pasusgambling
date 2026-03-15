@@ -145,7 +145,7 @@ const getPreferredAvatar = (user?: {
   avatar?: string;
 } | null) => user?.discordAvatarUrl || user?.robloxAvatarUrl || user?.avatar || '';
 
-type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'vip' | 'affiliate' | 'provably-fair' | 'support';
+type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'vip' | 'affiliate' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
 const Sidebar = ({
   activeGame,
@@ -1920,22 +1920,69 @@ const AffiliateView = () => {
 };
 
 const VipView = () => {
-  const [stats, setStats] = useState({ wagered: 0, bets: 0 });
+  const { refreshWallet } = useBalance();
+  const [stats, setStats] = useState({ wagered: 0, bets: 0, deposited: 0, claimableRakeback: 0, claimedTotal: 0 });
+  const [status, setStatus] = useState('');
+  const [isClaiming, setIsClaiming] = useState(false);
 
   useEffect(() => {
-    fetch('/api/activity/bets?tab=all&limit=50')
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    fetch('/api/vip/overview', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
       .then((response) => response.json().catch(() => ({})))
       .then((data) => {
-        const activities = Array.isArray(data.activities) ? data.activities : [];
+        const vip = data.vip || {};
         setStats({
-          wagered: activities.reduce((sum: number, item: any) => sum + Number(item.wager || 0), 0),
-          bets: activities.length,
+          wagered: Number(vip.totalWagered || 0),
+          bets: Number(vip.totalBets || 0),
+          deposited: Number(vip.totalDeposited || 0),
+          claimableRakeback: Number(vip.claimableRakeback || 0),
+          claimedTotal: Number(vip.rakebackClaimedTotal || 0),
         });
       })
       .catch(() => undefined);
   }, []);
 
   const vipTier = stats.wagered >= 100000 ? 'Diamond' : stats.wagered >= 25000 ? 'Gold' : stats.wagered >= 5000 ? 'Silver' : 'Bronze';
+
+  const claimRakeback = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    try {
+      setIsClaiming(true);
+      const response = await fetch('/api/vip/rakeback/claim', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to claim rakeback.');
+      }
+      setStatus(`Claimed ${Number(data.claimed || 0).toLocaleString()} coins.`);
+      setStats((prev) => ({
+        ...prev,
+        claimableRakeback: 0,
+        claimedTotal: prev.claimedTotal + Number(data.claimed || 0),
+      }));
+      await refreshWallet();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Failed to claim rakeback.');
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
   return (
     <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8">
@@ -1949,6 +1996,11 @@ const VipView = () => {
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Wager</div><div className="mt-3 text-3xl font-black italic">{stats.wagered.toLocaleString()}</div></div>
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Bets</div><div className="mt-3 text-3xl font-black italic">{stats.bets}</div></div>
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Deposit</div><div className="mt-3 text-3xl font-black italic">{stats.deposited.toLocaleString()}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimable Rakeback</div><div className="mt-3 text-3xl font-black italic text-[#00FF88]">{stats.claimableRakeback.toLocaleString()}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimed Rakeback</div><div className="mt-3 text-3xl font-black italic">{stats.claimedTotal.toLocaleString()}</div></div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Tier Ladder</div>
@@ -1960,7 +2012,15 @@ const VipView = () => {
           ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
         </div>
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
-          <div className="text-lg font-black uppercase tracking-tight">Planned Perks</div>
+          <div className="text-lg font-black uppercase tracking-tight">Rakeback</div>
+          <div className="rounded-2xl border border-[#00FF88]/15 bg-[#00FF88]/5 px-4 py-4 text-sm text-white/70">
+            Claimable rakeback is calculated as 2% of your tracked deposits and wagers, minus anything you already claimed.
+          </div>
+          <button onClick={claimRakeback} disabled={isClaiming || stats.claimableRakeback <= 0} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+            {isClaiming ? 'Claiming...' : 'Claim Rakeback'}
+          </button>
+          {status ? <div className="text-sm text-white/60">{status}</div> : null}
+          <div className="text-lg font-black uppercase tracking-tight pt-2">Planned Perks</div>
           {[
             'Rakeback and weekly cashback',
             'Higher rain priority and exclusive drops',
@@ -1975,7 +2035,7 @@ const VipView = () => {
 
 const ProvablyFairView = () => {
   const [seed, setSeed] = useState(() => crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
-  const [clientSeed, setClientSeed] = useState('PASUS-CLIENT');
+  const clientSeed = 'PASUS-CLIENT';
   const nonce = 1;
 
   return (
@@ -1987,7 +2047,7 @@ const ProvablyFairView = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Server Seed</div><div className="mt-3 text-xs break-all text-white/70 font-mono">{seed}</div></div>
-        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Client Seed</div><input value={clientSeed} onChange={(e) => setClientSeed(e.target.value)} className="mt-3 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none" /></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Client Seed</div><input value={clientSeed} readOnly className="mt-3 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono text-white/60 focus:outline-none cursor-not-allowed" /></div>
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Nonce</div><div className="mt-3 text-3xl font-black italic">{nonce}</div></div>
       </div>
       <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
@@ -2096,6 +2156,31 @@ const SupportView = () => {
     </div>
   );
 };
+
+const LegalPage = ({
+  eyebrow,
+  title,
+  sections,
+}: {
+  eyebrow: string;
+  title: string;
+  sections: Array<{ heading: string; body: string }>;
+}) => (
+  <div className="p-6 lg:p-10 max-w-5xl mx-auto space-y-8">
+    <div className="space-y-2">
+      <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">{eyebrow}</div>
+      <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">{title}</h1>
+    </div>
+    <div className="space-y-5">
+      {sections.map((section) => (
+        <div key={section.heading} className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-3">
+          <div className="text-lg font-black uppercase tracking-tight">{section.heading}</div>
+          <div className="text-sm text-white/60 leading-relaxed">{section.body}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 type ChatMessage = {
   id: number;
@@ -2678,6 +2763,42 @@ const AppContent = () => {
               >
                 <SupportView />
               </motion.div>
+            ) : currentView === 'terms' ? (
+              <motion.div key="terms" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                <LegalPage
+                  eyebrow="Legal"
+                  title="Terms of Service"
+                  sections={[
+                    { heading: 'Eligibility', body: 'You must meet the legal age and jurisdictional requirements that apply where you access Pasus. You are responsible for ensuring your use is lawful in your location.' },
+                    { heading: 'Accounts', body: 'Each user is responsible for maintaining the confidentiality of their login credentials and all activity performed through their account.' },
+                    { heading: 'Gameplay And Balances', body: 'All wallet balances, promotional rewards, rakeback claims, and affiliate earnings are subject to review if abuse, fraud, or system manipulation is detected.' },
+                  ]}
+                />
+              </motion.div>
+            ) : currentView === 'privacy' ? (
+              <motion.div key="privacy" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                <LegalPage
+                  eyebrow="Legal"
+                  title="Privacy Policy"
+                  sections={[
+                    { heading: 'Information We Store', body: 'Pasus stores account credentials, wallet and transaction records, support tickets, linked account metadata, and gameplay activity required to operate the service.' },
+                    { heading: 'How Data Is Used', body: 'We use stored data to authenticate users, maintain balances, provide support, prevent fraud, and improve product features.' },
+                    { heading: 'Third-Party Services', body: 'Payment providers, OAuth providers, hosting services, and analytics tools may process limited data required for their functions.' },
+                  ]}
+                />
+              </motion.div>
+            ) : currentView === 'responsible-gaming' ? (
+              <motion.div key="responsible-gaming" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                <LegalPage
+                  eyebrow="Safety"
+                  title="Responsible Gaming"
+                  sections={[
+                    { heading: 'Stay In Control', body: 'Gambling should remain entertainment. Never wager funds you cannot afford to lose and take regular breaks during play.' },
+                    { heading: 'Warning Signs', body: 'Chasing losses, hiding gambling activity, or spending more time and money than intended are signs that intervention may be needed.' },
+                    { heading: 'Support', body: 'If you or someone you know needs help, provide self-exclusion tools, cooldown periods, spend limits, and direct links to professional gambling support resources.' },
+                  ]}
+                />
+              </motion.div>
             ) : (
               <motion.div
                 key="dashboard"
@@ -2706,9 +2827,9 @@ const AppContent = () => {
               </div>
               <div className="text-xs space-y-2">
                 <div className="font-black uppercase tracking-widest mb-4">Links</div>
-                <div>Terms of Service</div>
-                <div>Privacy Policy</div>
-                <div>Responsible Gaming</div>
+                <button onClick={() => { setActiveGame(null); setCurrentView('terms'); }} className="block text-left hover:text-white transition-colors">Terms of Service</button>
+                <button onClick={() => { setActiveGame(null); setCurrentView('privacy'); }} className="block text-left hover:text-white transition-colors">Privacy Policy</button>
+                <button onClick={() => { setActiveGame(null); setCurrentView('responsible-gaming'); }} className="block text-left hover:text-white transition-colors">Responsible Gaming</button>
               </div>
               <div className="text-xs space-y-2">
                 <div className="font-black uppercase tracking-widest mb-4">Social</div>
