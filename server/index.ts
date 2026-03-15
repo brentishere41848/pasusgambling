@@ -220,33 +220,33 @@ function normalizeAffiliateCode(value: unknown) {
 function getRakebackBuckets(totalEarned: number, row: any) {
   const normalizedEarned = Math.max(0, normalizeCoins(totalEarned));
   const baseShare = Math.floor(normalizedEarned / 4);
-  const monthlyShare = normalizedEarned - baseShare * 3;
+  const remainder = normalizedEarned - baseShare * 4;
   const now = Date.now();
 
   const buckets: Record<RakebackPeriod, { total: number; claimed: number; claimable: number; availableAt: string | null; canClaim: boolean }> = {
     instant: {
-      total: baseShare,
+      total: baseShare + (remainder > 0 ? 1 : 0),
       claimed: Number(row?.rakeback_claimed_instant || 0),
       claimable: 0,
       availableAt: null,
       canClaim: true,
     },
     daily: {
-      total: baseShare,
+      total: baseShare + (remainder > 1 ? 1 : 0),
       claimed: Number(row?.rakeback_claimed_daily || 0),
       claimable: 0,
       availableAt: row?.rakeback_last_claimed_daily || null,
       canClaim: true,
     },
     weekly: {
-      total: baseShare,
+      total: baseShare + (remainder > 2 ? 1 : 0),
       claimed: Number(row?.rakeback_claimed_weekly || 0),
       claimable: 0,
       availableAt: row?.rakeback_last_claimed_weekly || null,
       canClaim: true,
     },
     monthly: {
-      total: monthlyShare,
+      total: baseShare + (remainder > 3 ? 1 : 0),
       claimed: Number(row?.rakeback_claimed_monthly || 0),
       claimable: 0,
       availableAt: row?.rakeback_last_claimed_monthly || null,
@@ -736,6 +736,15 @@ async function getWallet(client: Pool | PoolClient, userId: number) {
   }
 
   return sanitizeWallet(result.rows[0]);
+}
+
+async function ensureWallet(client: Pool | PoolClient, userId: number) {
+  await client.query(
+    `INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn)
+     VALUES ($1, 0, 0, 0)
+     ON CONFLICT (user_id) DO NOTHING`,
+    [userId]
+  );
 }
 
 async function createSession(client: Pool | PoolClient, user: AuthUser) {
@@ -1412,6 +1421,8 @@ app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res)
     }
 
     await client.query('BEGIN');
+    await ensureWallet(client, req.auth!.user.id);
+
     const result = await client.query(
       `SELECT
          COALESCE(w.total_deposited, 0)::bigint AS total_deposited,
@@ -1472,6 +1483,10 @@ app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res)
        RETURNING balance, total_deposited, total_withdrawn`,
       [selectedBucket.claimable, req.auth!.user.id]
     );
+
+    if (!walletResult.rowCount) {
+      throw new Error('Wallet not found during rakeback claim.');
+    }
 
     await client.query('COMMIT');
     return res.json({

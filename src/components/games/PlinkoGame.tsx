@@ -52,6 +52,7 @@ export const PlinkoGame: React.FC = () => {
   const [bet, setBet] = useState(10);
   const [risk, setRisk] = useState<RiskTier>('medium');
   const [rows, setRows] = useState<(typeof ROW_OPTIONS)[number]>(8);
+  const [autoArmed, setAutoArmed] = useState(false);
   const [isAuto, setIsAuto] = useState(false);
   const [isFast, setIsFast] = useState(false);
   const [autoRounds, setAutoRounds] = useState(10);
@@ -105,6 +106,7 @@ export const PlinkoGame: React.FC = () => {
       window.clearTimeout(autoTimeoutRef.current);
       autoTimeoutRef.current = null;
     }
+    setAutoArmed(false);
     isAutoRef.current = false;
     remainingRoundsRef.current = 0;
     setIsAuto(false);
@@ -137,6 +139,7 @@ export const PlinkoGame: React.FC = () => {
   }, [isAuto, remainingRounds, dropBall, isFast]);
 
   const startAuto = () => {
+    setAutoArmed(true);
     isAutoRef.current = true;
     remainingRoundsRef.current = autoRounds;
     setIsAuto(true);
@@ -372,10 +375,16 @@ export const PlinkoGame: React.FC = () => {
               FAST
             </button>
             <button
-              onClick={isAuto ? stopAuto : startAuto}
+              onClick={() => {
+                if (isAuto) {
+                  stopAuto();
+                  return;
+                }
+                setAutoArmed((current) => !current);
+              }}
               className={cn(
                 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
-                isAuto ? 'bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50' : 'bg-white/5 text-white/20 border border-transparent'
+                autoArmed || isAuto ? 'bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50' : 'bg-white/5 text-white/20 border border-transparent'
               )}
             >
               <RotateCcw size={12} className={isAuto ? 'animate-spin' : ''} />
@@ -383,11 +392,11 @@ export const PlinkoGame: React.FC = () => {
             </button>
           </div>
 
-          {isAuto && (
+          {(autoArmed || isAuto) && (
             <div className="space-y-2">
               <div className="flex justify-between text-[10px] uppercase tracking-widest text-white/20">
                 <span>Rounds</span>
-                <span>{remainingRounds} left</span>
+                <span>{isAuto ? `${remainingRounds} left` : `${autoRounds} queued`}</span>
               </div>
               <input
                 type="number"
@@ -400,17 +409,22 @@ export const PlinkoGame: React.FC = () => {
           )}
 
           <button
-            onClick={isAuto ? stopAuto : dropBall}
+            onClick={isAuto ? stopAuto : autoArmed ? startAuto : dropBall}
             disabled={balance < bet && !isAuto}
             className={cn(
               'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
-              isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black'
+              isAuto ? 'bg-red-500 text-white' : autoArmed ? 'bg-white text-black' : 'bg-[#00FF88] text-black'
             )}
           >
             {isAuto ? (
               <>
                 <Timer size={18} />
                 STOP AUTO
+              </>
+            ) : autoArmed ? (
+              <>
+                <Play size={18} fill="currentColor" />
+                START AUTO
               </>
             ) : (
               <>

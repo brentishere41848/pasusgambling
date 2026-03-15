@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
@@ -1942,13 +1942,13 @@ const VipView = () => {
   const [status, setStatus] = useState('');
   const [isClaiming, setIsClaiming] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadVipOverview = useCallback(() => {
     const token = localStorage.getItem('pasus_auth_token');
     if (!token) {
-      return;
+      return Promise.resolve();
     }
 
-    fetch('/api/vip/overview', {
+    return fetch('/api/vip/overview', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -1972,6 +1972,12 @@ const VipView = () => {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    loadVipOverview();
+    const interval = window.setInterval(loadVipOverview, 5000);
+    return () => window.clearInterval(interval);
+  }, [loadVipOverview]);
 
   const vipTier = stats.wagered >= 100000 ? 'Diamond' : stats.wagered >= 25000 ? 'Gold' : stats.wagered >= 5000 ? 'Silver' : 'Bronze';
 
@@ -1997,18 +2003,7 @@ const VipView = () => {
       }
       setStatus(`Claimed ${Number(data.claimed || 0).toLocaleString()} coins from ${period} rakeback.`);
       await refreshWallet();
-      const fresh = await fetch('/api/vip/overview', {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((response) => response.json().catch(() => ({})));
-      const vip = fresh.vip || {};
-      setStats({
-        wagered: Number(vip.totalWagered || 0),
-        bets: Number(vip.totalBets || 0),
-        deposited: Number(vip.totalDeposited || 0),
-        claimableRakeback: Number(vip.claimableRakeback || 0),
-        claimedTotal: Number(vip.rakebackClaimedTotal || 0),
-        rakeback: vip.rakeback || stats.rakeback,
-      });
+      await loadVipOverview();
     } catch (err) {
       setStatus(err instanceof Error ? err.message : 'Failed to claim rakeback.');
     } finally {
