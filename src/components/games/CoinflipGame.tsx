@@ -267,13 +267,6 @@ export const CoinflipGame: React.FC = () => {
               </div>
             </div>
 
-            <div
-              className="absolute left-[24px] right-[24px] top-1/2 h-6 -translate-y-1/2 rounded-full bg-[linear-gradient(180deg,#d9fff6_0%,#7cebd1_18%,#127a6b_46%,#0a3f38_100%)] opacity-75 blur-[0.3px]"
-              style={{
-                transform: 'translateY(-50%) rotateX(90deg) translateZ(136px)',
-                transformStyle: 'preserve-3d',
-              }}
-            />
           </motion.div>
         </motion.div>
 
