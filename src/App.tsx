@@ -203,11 +203,18 @@ function resolveRoute(pathname: string): { gameId: string | null; view: MainView
 }
 
 const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
+  const siteAccessStorageKey = 'pasus_site_access_granted';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isChecking, setIsChecking] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasAccess, setHasAccess] = useState(false);
+  const [hasAccess, setHasAccess] = useState(() => {
+    try {
+      return window.localStorage.getItem(siteAccessStorageKey) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -217,16 +224,24 @@ const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
           credentials: 'include',
         });
         const data = await response.json().catch(() => ({}));
-        setHasAccess(Boolean(data.authenticated));
+        const authenticated = Boolean(data.authenticated);
+        setHasAccess(authenticated);
+        if (authenticated) {
+          window.localStorage.setItem(siteAccessStorageKey, 'true');
+        } else {
+          window.localStorage.removeItem(siteAccessStorageKey);
+        }
       } catch {
-        setError('Unable to verify early access right now.');
+        if (!hasAccess) {
+          setError('Unable to verify early access right now.');
+        }
       } finally {
         setIsChecking(false);
       }
     };
 
     checkStatus();
-  }, []);
+  }, [hasAccess, siteAccessStorageKey]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -252,6 +267,7 @@ const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
         throw new Error(data.error || 'Access denied.');
       }
 
+      window.localStorage.setItem(siteAccessStorageKey, 'true');
       setHasAccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Access denied.');

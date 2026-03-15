@@ -24,6 +24,7 @@ const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/ap
 const siteAccessUsername = 'PASUSEARLY';
 const siteAccessPassword = 'password123';
 const siteAccessCookieName = 'pasus_site_access';
+const siteAccessClientCookieName = 'pasus_site_access_client';
 const siteAccessToken = crypto
   .createHash('sha256')
   .update(`${siteAccessUsername}:${siteAccessPassword}:${jwtSecret}`)
@@ -65,7 +66,10 @@ function parseCookies(header: string | undefined) {
 
 function hasSiteAccess(req: express.Request) {
   const cookies = parseCookies(req.headers.cookie);
-  return cookies[siteAccessCookieName] === siteAccessToken;
+  return (
+    cookies[siteAccessCookieName] === siteAccessToken ||
+    cookies[siteAccessClientCookieName] === siteAccessToken
+  );
 }
 
 app.use(express.json({
@@ -87,10 +91,10 @@ app.post('/api/site-access/login', (req, res) => {
     return;
   }
 
-  res.setHeader(
-    'Set-Cookie',
-    `${siteAccessCookieName}=${siteAccessToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`
-  );
+  res.setHeader('Set-Cookie', [
+    `${siteAccessCookieName}=${siteAccessToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`,
+    `${siteAccessClientCookieName}=${siteAccessToken}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`,
+  ]);
   res.json({ authenticated: true });
 });
 
