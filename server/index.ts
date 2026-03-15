@@ -89,6 +89,7 @@ type ChatMessage = {
   text: string;
   tone: string;
   role: 'owner' | 'moderator' | 'user';
+  avatarUrl?: string;
   createdAt: string;
 };
 
@@ -236,6 +237,7 @@ function mapChatMessage(row: any): ChatMessage {
     text: row.text,
     tone: row.tone || 'normal',
     role: normalizeUserRole(row.role),
+    avatarUrl: row.avatar_url || undefined,
     createdAt: row.created_at,
   };
 }
@@ -603,11 +605,13 @@ async function initDb() {
       text TEXT NOT NULL,
       tone TEXT NOT NULL DEFAULT 'normal',
       role TEXT NOT NULL DEFAULT 'user',
+      avatar_url TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
   await pool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
+  await pool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS avatar_url TEXT`);
   await pool.query(
     `DELETE FROM chat_messages
      WHERE user_id IS NULL
@@ -730,7 +734,7 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
     }
 
     const messagesResult = await client.query(
-      `SELECT id, username, text, tone, role, created_at
+      `SELECT id, username, text, tone, role, avatar_url, created_at
        FROM chat_messages
        ORDER BY created_at DESC
        LIMIT 20`
@@ -762,11 +766,12 @@ app.post('/api/chat/messages', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Message must be 280 characters or fewer.' });
     }
 
+    const avatarUrl = req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null;
     const insertResult = await pool.query(
-      `INSERT INTO chat_messages (user_id, username, text, tone, role)
-       VALUES ($1, $2, $3, 'normal', $4)
-       RETURNING id, username, text, tone, role, created_at`,
-      [req.auth!.user.id, req.auth!.user.username, text, req.auth!.user.role]
+      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
+       VALUES ($1, $2, $3, 'normal', $4, $5)
+       RETURNING id, username, text, tone, role, avatar_url, created_at`,
+      [req.auth!.user.id, req.auth!.user.username, text, req.auth!.user.role, avatarUrl]
     );
 
     return res.status(201).json({ message: mapChatMessage(insertResult.rows[0]) });

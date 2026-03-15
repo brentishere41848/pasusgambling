@@ -1485,6 +1485,7 @@ type ChatMessage = {
   text: string;
   tone: 'win' | 'normal';
   role: 'owner' | 'moderator' | 'user';
+  avatarUrl?: string;
   createdAt?: string;
 };
 
@@ -1546,6 +1547,7 @@ const RightRail = () => {
             text: String(message.text || ''),
             tone: message.tone === 'win' ? 'win' : 'normal',
             role: message.role === 'owner' || message.role === 'moderator' ? message.role : 'user',
+            avatarUrl: message.avatarUrl || message.avatar_url || undefined,
             createdAt: message.createdAt || message.created_at,
           }))
         : [];
@@ -1737,6 +1739,15 @@ const RightRail = () => {
             <div key={message.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="flex items-center gap-2 min-w-0">
+                  <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10 bg-white/5 shrink-0">
+                    {message.avatarUrl ? (
+                      <img
+                        src={message.avatarUrl}
+                        alt={message.user}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : null}
+                  </div>
                   {message.role !== 'user' ? (
                     <img
                       src={CHAT_ROLE_ICONS[message.role]}
