@@ -139,7 +139,21 @@ const GAMES = [
   }
 ];
 
-const Sidebar = ({ activeGame, onSelectGame, onHome }: { activeGame: string | null, onSelectGame: (id: string) => void, onHome: () => void }) => {
+type MainView = 'dashboard' | 'profile' | 'settings' | 'vip' | 'affiliate' | 'provably-fair' | 'support';
+
+const Sidebar = ({
+  activeGame,
+  currentView,
+  onSelectGame,
+  onHome,
+  onOpenView,
+}: {
+  activeGame: string | null,
+  currentView: MainView,
+  onSelectGame: (id: string) => void,
+  onHome: () => void,
+  onOpenView: (view: MainView) => void,
+}) => {
   const [isOriginalsExpanded, setIsOriginalsExpanded] = useState(false);
 
   return (
@@ -200,19 +214,43 @@ const Sidebar = ({ activeGame, onSelectGame, onHome }: { activeGame: string | nu
         </div>
 
         <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Platform</div>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all">
+        <button
+          onClick={() => onOpenView('vip')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+            currentView === 'vip' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+          )}
+        >
           <Star size={18} /> VIP Club
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all">
+        <button
+          onClick={() => onOpenView('affiliate')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+            currentView === 'affiliate' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+          )}
+        >
           <Users size={18} /> Affiliate
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all">
+        <button
+          onClick={() => onOpenView('provably-fair')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+            currentView === 'provably-fair' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+          )}
+        >
           <ShieldCheck size={18} /> Provably Fair
         </button>
       </nav>
 
       <div className="mt-auto pt-4 border-t border-white/5 shrink-0">
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all">
+        <button
+          onClick={() => onOpenView('support')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+            currentView === 'support' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+          )}
+        >
           <MessageSquare size={18} /> Live Support
         </button>
       </div>
@@ -1178,6 +1216,42 @@ const SettingsView = () => {
   );
 };
 
+const InfoView = ({
+  eyebrow,
+  title,
+  description,
+  cards,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  cards: Array<{ title: string; body: string; icon: React.ElementType }>;
+}) => {
+  return (
+    <div className="p-6 lg:p-10 max-w-5xl mx-auto space-y-8">
+      <div className="space-y-3">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">{eyebrow}</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">{title}</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">{description}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {cards.map((card) => (
+          <div key={card.title} className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#00FF88]/10 text-[#00FF88] flex items-center justify-center">
+              <card.icon size={22} />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-lg font-black uppercase tracking-tight">{card.title}</h2>
+              <p className="text-sm text-white/55 leading-relaxed">{card.body}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 type ChatMessage = {
   id: number;
   user: string;
@@ -1489,7 +1563,7 @@ const AppContent = () => {
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'profile' | 'settings'>('dashboard');
+  const [currentView, setCurrentView] = useState<MainView>('dashboard');
   const { isAuthenticated } = useAuth();
 
   const handleSelectGame = (id: string) => {
@@ -1507,11 +1581,16 @@ const AppContent = () => {
     <div className="flex min-h-screen bg-[#0a0c10] text-white font-sans selection:bg-[#00FF88] selection:text-black">
       <Sidebar 
         activeGame={activeGame} 
+        currentView={currentView}
         onSelectGame={handleSelectGame} 
         onHome={() => {
           setActiveGame(null);
           setCurrentView('dashboard');
-        }} 
+        }}
+        onOpenView={(view) => {
+          setActiveGame(null);
+          setCurrentView(view);
+        }}
       />
       
       <div className="flex-1 flex flex-col min-w-0">
@@ -1581,6 +1660,74 @@ const AppContent = () => {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <SettingsView />
+              </motion.div>
+            ) : currentView === 'vip' ? (
+              <motion.div
+                key="vip"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <InfoView
+                  eyebrow="Loyalty"
+                  title="VIP Club"
+                  description="Track your level, unlock rakeback-style rewards, and surface premium benefits for active Pasus players."
+                  cards={[
+                    { title: 'Level Progression', body: 'Tiered rewards, weekly bonuses, and milestone drops can be surfaced here once you finalize your loyalty math.', icon: Star },
+                    { title: 'Exclusive Perks', body: 'VIP hosts, higher rain eligibility, private tournaments, and cashback campaigns can live in this section.', icon: Shield },
+                  ]}
+                />
+              </motion.div>
+            ) : currentView === 'affiliate' ? (
+              <motion.div
+                key="affiliate"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <InfoView
+                  eyebrow="Growth"
+                  title="Affiliate"
+                  description="Use this page for referral links, commission tracking, and promoter analytics once you wire real affiliate data."
+                  cards={[
+                    { title: 'Referral Overview', body: 'Show clicks, signups, active players, and net gaming revenue contribution by campaign.', icon: Users },
+                    { title: 'Commission Payouts', body: 'Track pending affiliate earnings, payout thresholds, and historical commission withdrawals.', icon: Coins },
+                  ]}
+                />
+              </motion.div>
+            ) : currentView === 'provably-fair' ? (
+              <motion.div
+                key="provably-fair"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <InfoView
+                  eyebrow="Trust"
+                  title="Provably Fair"
+                  description="This page is where you explain seeds, hashes, nonces, and post-round verification once each game exposes verifiable fairness data."
+                  cards={[
+                    { title: 'Seed Verification', body: 'Display server seed hash, client seed controls, and nonce progression so players can verify outcomes.', icon: ShieldCheck },
+                    { title: 'Round History', body: 'Let players inspect past rounds, compare generated results, and audit the fairness chain per game.', icon: Search },
+                  ]}
+                />
+              </motion.div>
+            ) : currentView === 'support' ? (
+              <motion.div
+                key="support"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <InfoView
+                  eyebrow="Help"
+                  title="Live Support"
+                  description="Use this view for support entry points, account issue triage, payment escalation, and moderation contacts."
+                  cards={[
+                    { title: 'Support Channels', body: 'Embed live chat, Discord, Telegram, or ticketing links here so players can reach your team fast.', icon: MessageSquare },
+                    { title: 'Payment Help', body: 'Handle stuck deposits, withdrawal reviews, KYC document requests, and wallet troubleshooting in one place.', icon: Wallet },
+                  ]}
+                />
               </motion.div>
             ) : (
               <motion.div
