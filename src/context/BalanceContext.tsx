@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 
 interface BalanceContextType {
@@ -38,17 +38,37 @@ function normalizeCoins(value: number) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+function usdToCoins(value: number) {
+  return normalizeCoins(value * 50);
+}
+
+function coinsToUsdValue(value: number) {
+  return Math.round((value / 50) * 100) / 100;
+}
+
 export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
   const [balance, setBalanceState] = useState<number>(0);
   const [totalDeposited, setTotalDeposited] = useState<number>(0);
+  const balanceRef = useRef(0);
+  const totalDepositedRef = useRef(0);
+
+  const updateBalance = (nextBalance: number) => {
+    balanceRef.current = nextBalance;
+    setBalanceState(nextBalance);
+  };
+
+  const updateTotalDeposited = (nextTotalDeposited: number) => {
+    totalDepositedRef.current = nextTotalDeposited;
+    setTotalDeposited(nextTotalDeposited);
+  };
 
   const syncWallet = async () => {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY);
 
     if (!token) {
-      setBalanceState(0);
-      setTotalDeposited(0);
+      updateBalance(0);
+      updateTotalDeposited(0);
       return;
     }
 
@@ -61,11 +81,11 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         })
       );
 
-      setBalanceState(data.wallet.balance);
-      setTotalDeposited(data.wallet.totalDeposited);
+      updateBalance(coinsToUsdValue(data.wallet.balance));
+      updateTotalDeposited(coinsToUsdValue(data.wallet.totalDeposited));
     } catch {
-      setBalanceState(0);
-      setTotalDeposited(0);
+      updateBalance(0);
+      updateTotalDeposited(0);
     }
   };
 
@@ -75,8 +95,8 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     if (!isAuthenticated) {
-      setBalanceState(0);
-      setTotalDeposited(0);
+      updateBalance(0);
+      updateTotalDeposited(0);
       return;
     }
 
@@ -84,10 +104,11 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [isAuthenticated, isLoading]);
 
   const addBalance = (amount: number, isDeposit: boolean = false) => {
-    const normalizedAmount = normalizeCoins(amount);
-    setBalanceState((prev) => prev + normalizedAmount);
+    const normalizedAmount = Math.max(0, Number(amount || 0));
+    const normalizedCoins = usdToCoins(normalizedAmount);
+    updateBalance(balanceRef.current + normalizedAmount);
     if (isDeposit) {
-      setTotalDeposited((prev) => prev + normalizedAmount);
+      updateTotalDeposited(totalDepositedRef.current + normalizedAmount);
     }
 
     const token = localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -96,7 +117,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     const url = isDeposit ? '/api/wallet/deposit' : '/api/wallet/adjust';
-    const body = isDeposit ? { amount: normalizedAmount } : { delta: normalizedAmount };
+    const body = isDeposit ? { amount: normalizedCoins } : { delta: normalizedCoins };
 
     fetch(url, {
       method: 'POST',
@@ -107,23 +128,21 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       body: JSON.stringify(body),
     })
       .then(parseApiResponse)
-      .then((data) => {
-        setBalanceState(data.wallet.balance);
-        setTotalDeposited(data.wallet.totalDeposited);
-      })
+      .then(() => undefined)
       .catch(() => {
         syncWallet().catch(() => undefined);
       });
   };
 
   const subtractBalance = (amount: number) => {
-    const normalizedAmount = normalizeCoins(amount);
+    const normalizedAmount = Math.max(0, Number(amount || 0));
+    const normalizedCoins = usdToCoins(normalizedAmount);
 
-    if (balance < normalizedAmount || normalizedAmount <= 0) {
+    if (balanceRef.current < normalizedAmount || normalizedCoins <= 0) {
       return false;
     }
 
-    setBalanceState((prev) => prev - normalizedAmount);
+    updateBalance(balanceRef.current - normalizedAmount);
 
     const token = localStorage.getItem(TOKEN_STORAGE_KEY);
     if (!token) {
@@ -136,13 +155,10 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ delta: -normalizedAmount }),
+      body: JSON.stringify({ delta: -normalizedCoins }),
     })
       .then(parseApiResponse)
-      .then((data) => {
-        setBalanceState(data.wallet.balance);
-        setTotalDeposited(data.wallet.totalDeposited);
-      })
+      .then(() => undefined)
       .catch(() => {
         syncWallet().catch(() => undefined);
       });
@@ -151,10 +167,10 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const setBalance = (amount: number) => {
-    setBalanceState(amount);
+    updateBalance(amount);
   };
 
-  const coinsToUsd = (coins: number) => coins / 50;
+  const coinsToUsd = (coins: number) => coins;
 
   return (
     <BalanceContext.Provider value={{ balance, totalDeposited, addBalance, subtractBalance, setBalance, refreshWallet: syncWallet, coinsToUsd }}>

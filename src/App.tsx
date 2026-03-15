@@ -160,6 +160,23 @@ const VIEW_PATHS: Partial<Record<MainView, string>> = {
   'responsible-gaming': '/responsible-gaming',
 };
 
+function formatMoney(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+}
+
+function formatMoneyFromCoins(value: number) {
+  return formatMoney(Number(value || 0) / 50);
+}
+
+function usdToCoins(value: number) {
+  return Math.round(Number(value || 0) * 50);
+}
+
 function resolveRoute(pathname: string): { gameId: string | null; view: MainView } {
   const normalized = pathname.replace(/\/+$/, '') || '/';
   const game = GAMES.find((entry) => `/${entry.id}` === normalized);
@@ -312,7 +329,7 @@ type DepositTransaction = {
 };
 
 const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
-  const { balance, totalDeposited, refreshWallet, coinsToUsd } = useBalance();
+  const { balance, totalDeposited, refreshWallet } = useBalance();
   const [amount, setAmount] = useState('25');
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [selectedCrypto, setSelectedCrypto] = useState(SUPPORTED_CRYPTO[0]);
@@ -394,13 +411,13 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
         return;
       }
 
-      if (totalDeposited < 500) {
-        setError('You must deposit at least 500 coins before withdrawing.');
+      if (totalDeposited < 10) {
+        setError('You must deposit at least $10.00 before withdrawing.');
         return;
       }
 
-      if (val < 250) {
-        setError('Minimum withdrawal is 250 coins.');
+      if (val < 5) {
+        setError('Minimum withdrawal is $5.00.');
         return;
       }
     }
@@ -437,7 +454,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            amount: Math.round(val),
+            amount: usdToCoins(val),
             currency: selectedCrypto.nowCurrency,
             address: withdrawAddress.trim(),
           }),
@@ -615,7 +632,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">
-              {activeTab === 'deposit' ? 'Deposit Amount (USD)' : 'Withdraw Amount (Coins)'}
+              {activeTab === 'deposit' ? 'Deposit Amount (USD)' : 'Withdraw Amount (USD)'}
             </label>
             <div className="relative">
               <input
@@ -627,7 +644,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
               />
               <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <div className="text-[10px] font-bold text-white/20 mr-2">
-                  {activeTab === 'deposit' ? `${Math.round((parseFloat(amount) || 0) * 50)} coins` : `$${coinsToUsd(parseFloat(amount) || 0).toFixed(2)}`}
+                  {formatMoney(parseFloat(amount) || 0)}
                 </div>
                 <button
                   onClick={() => setAmount((Math.max(1, Math.floor((parseFloat(amount) || 0) / 2))).toString())}
@@ -648,8 +665,8 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
           <div className="bg-black/40 rounded-2xl p-4 flex items-center justify-between border border-white/5">
             <span className="text-xs font-bold text-white/40">Current Balance</span>
             <div className="text-right">
-              <div className="font-mono font-bold text-[#00FF88]">{balance.toLocaleString()} COINS</div>
-              <div className="text-[10px] text-white/20 font-bold">~ ${coinsToUsd(balance).toFixed(2)}</div>
+              <div className="font-mono font-bold text-[#00FF88]">{formatMoney(balance)}</div>
+              <div className="text-[10px] text-white/20 font-bold">USD</div>
             </div>
           </div>
 
@@ -853,7 +870,7 @@ const Header = ({
   onOpenConnections: () => void,
   onOpenSettings: () => void
 }) => {
-  const { balance, coinsToUsd } = useBalance();
+  const { balance } = useBalance();
   const { user, logout, isAuthenticated } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   
@@ -884,9 +901,9 @@ const Header = ({
             <>
               <div className="group relative bg-[#1a1d23] border border-white/10 rounded-full pl-4 pr-1 py-1 flex items-center gap-3">
                 <div className="flex flex-col items-end">
-                  <span className="font-mono font-bold text-sm text-[#00FF88]">{balance.toLocaleString()}</span>
+                  <span className="font-mono font-bold text-sm text-[#00FF88]">{formatMoney(balance)}</span>
                   <div className="absolute top-full right-0 mt-2 bg-black border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-bold text-white/60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-2xl">
-                    ≈ ${coinsToUsd(balance).toFixed(2)} {user?.currency}
+                    {user?.currency || 'USD'}
                   </div>
                 </div>
                 <button 
@@ -1120,7 +1137,7 @@ const RecentActivity = () => {
                     <td className="px-6 py-4 text-white/60 capitalize">{activity.gameKey}</td>
                     <td className="px-6 py-4">{activity.username}</td>
                     <td className="px-6 py-4 text-white/20">{formatTimeAgo(activity.createdAt)}</td>
-                    <td className="px-6 py-4 font-mono">{activity.wager.toLocaleString()}</td>
+                    <td className="px-6 py-4 font-mono">{formatMoneyFromCoins(activity.wager)}</td>
                     <td className="px-6 py-4">
                       <span className={cn(
                         'px-2 py-1 rounded-lg',
@@ -1131,7 +1148,7 @@ const RecentActivity = () => {
                     </td>
                     <td className="px-6 py-4 text-right font-mono">
                       <span className={activity.payout > 0 ? 'text-[#00FF88]' : 'text-white/20'}>
-                        {activity.payout.toLocaleString()}
+                        {formatMoneyFromCoins(activity.payout)}
                       </span>
                     </td>
                   </tr>
@@ -1178,7 +1195,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
 
 const ProfileView = () => {
   const { user, setUser, refreshUser } = useAuth();
-  const { balance, coinsToUsd } = useBalance();
+  const { balance } = useBalance();
   const [robloxUsernameInput, setRobloxUsernameInput] = useState(user?.robloxUsername || '');
   const [robloxPhrase, setRobloxPhrase] = useState('');
   const [robloxProfileUrl, setRobloxProfileUrl] = useState('');
@@ -1316,8 +1333,8 @@ const ProfileView = () => {
           <div className="flex flex-wrap justify-center md:justify-start gap-4">
             <div className="bg-black/40 border border-white/5 rounded-2xl px-6 py-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Total Balance</div>
-              <div className="font-mono font-bold text-[#00FF88] text-xl">{balance.toLocaleString()} COINS</div>
-              <div className="text-[10px] text-white/20 font-bold">≈ ${coinsToUsd(balance).toFixed(2)}</div>
+              <div className="font-mono font-bold text-[#00FF88] text-xl">{formatMoney(balance)}</div>
+              <div className="text-[10px] text-white/20 font-bold">{user?.currency || 'USD'}</div>
             </div>
             <div className="bg-black/40 border border-white/5 rounded-2xl px-6 py-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Games Played</div>
@@ -1335,9 +1352,9 @@ const ProfileView = () => {
           </h3>
           <div className="space-y-4">
             {[
-              { label: 'Total Wagered', value: '45,200 Coins' },
-              { label: 'Total Won', value: '48,150 Coins' },
-              { label: 'Net Profit', value: '+2,950 Coins', color: 'text-[#00FF88]' },
+              { label: 'Total Wagered', value: '$904.00' },
+              { label: 'Total Won', value: '$963.00' },
+              { label: 'Net Profit', value: '+$59.00', color: 'text-[#00FF88]' },
               { label: 'Highest Multiplier', value: '1,240x' },
             ].map((stat, i) => (
               <div key={i} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
@@ -1888,9 +1905,9 @@ const AffiliateView = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Referred Users', value: overview?.referredUsers ?? 0 },
-          { label: 'Total Commission', value: `${(overview?.totalCommission ?? 0).toLocaleString()} Coins` },
-          { label: 'Deposit Commission', value: `${(overview?.depositCommission ?? 0).toLocaleString()} Coins` },
-          { label: 'Wager Commission', value: `${(overview?.wagerCommission ?? 0).toLocaleString()} Coins` },
+          { label: 'Total Commission', value: formatMoneyFromCoins(overview?.totalCommission ?? 0) },
+          { label: 'Deposit Commission', value: formatMoneyFromCoins(overview?.depositCommission ?? 0) },
+          { label: 'Wager Commission', value: formatMoneyFromCoins(overview?.wagerCommission ?? 0) },
         ].map((card) => (
           <div key={card.label} className="rounded-3xl border border-white/10 bg-[#141821] p-5">
             <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">{card.label}</div>
@@ -1934,8 +1951,8 @@ const AffiliateView = () => {
                   <div className="text-[11px] text-white/35 uppercase tracking-[0.16em]">{item.sourceType}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-black text-[#00FF88]">+{Number(item.commissionAmount || 0).toLocaleString()} Coins</div>
-                  <div className="text-[11px] text-white/35">from {Number(item.baseAmount || 0).toLocaleString()} coins</div>
+                  <div className="text-sm font-black text-[#00FF88]">+{formatMoneyFromCoins(Number(item.commissionAmount || 0))}</div>
+                  <div className="text-[11px] text-white/35">from {formatMoneyFromCoins(Number(item.baseAmount || 0))}</div>
                 </div>
               </div>
             )) : (
@@ -2025,7 +2042,7 @@ const VipView = () => {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to claim rakeback.');
       }
-      setStatus(`Claimed ${Number(data.claimed || 0).toLocaleString()} coins from ${period} rakeback.`);
+      setStatus(`Claimed ${formatMoneyFromCoins(Number(data.claimed || 0))} from ${period} rakeback.`);
       await refreshWallet();
       await loadVipOverview();
     } catch (err) {
@@ -2044,13 +2061,13 @@ const VipView = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Current Tier</div><div className="mt-3 text-3xl font-black italic">{vipTier}</div></div>
-        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Wager</div><div className="mt-3 text-3xl font-black italic">{stats.wagered.toLocaleString()}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Wager</div><div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(stats.wagered)}</div></div>
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Bets</div><div className="mt-3 text-3xl font-black italic">{stats.bets}</div></div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Deposit</div><div className="mt-3 text-3xl font-black italic">{stats.deposited.toLocaleString()}</div></div>
-        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimable Rakeback</div><div className="mt-3 text-3xl font-black italic text-[#00FF88]">{stats.claimableRakeback.toLocaleString()}</div></div>
-        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimed Rakeback</div><div className="mt-3 text-3xl font-black italic">{stats.claimedTotal.toLocaleString()}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Deposit</div><div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(stats.deposited)}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimable Rakeback</div><div className="mt-3 text-3xl font-black italic text-[#00FF88]">{formatMoneyFromCoins(stats.claimableRakeback)}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimed Rakeback</div><div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(stats.claimedTotal)}</div></div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {([
@@ -2064,7 +2081,7 @@ const VipView = () => {
             <div key={period} className="rounded-3xl border border-white/10 bg-[#141821] p-5 space-y-4">
               <div>
                 <div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">{label} Rakeback</div>
-                <div className="mt-3 text-2xl font-black italic text-[#00FF88]">{Number(bucket.claimable || 0).toLocaleString()}</div>
+                <div className="mt-3 text-2xl font-black italic text-[#00FF88]">{formatMoneyFromCoins(Number(bucket.claimable || 0))}</div>
               </div>
               <div className="text-[11px] text-white/35">
                 {bucket.canClaim
@@ -2088,10 +2105,10 @@ const VipView = () => {
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Tier Ladder</div>
           {[
-            'Bronze: 0+ wagered',
-            'Silver: 5,000+ wagered',
-            'Gold: 25,000+ wagered',
-            'Diamond: 100,000+ wagered',
+            'Bronze: $0+ wagered',
+            'Silver: $100+ wagered',
+            'Gold: $500+ wagered',
+            'Diamond: $2,000+ wagered',
           ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
         </div>
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
@@ -2469,7 +2486,7 @@ const RightRail = () => {
         },
         body: JSON.stringify({
           username: tipDraft.username,
-          amount: Number(tipDraft.amount || 0),
+          amount: usdToCoins(Number(tipDraft.amount || 0)),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -2501,7 +2518,7 @@ const RightRail = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount: Number(rainDraft.amount || 0),
+          amount: usdToCoins(Number(rainDraft.amount || 0)),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -2572,7 +2589,7 @@ const RightRail = () => {
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Rain Drop</div>
-              <div className="text-2xl font-black italic tracking-tight">{rain?.poolAmount.toLocaleString() || '0'} Coins</div>
+              <div className="text-2xl font-black italic tracking-tight">{formatMoneyFromCoins(rain?.poolAmount || 0)}</div>
             </div>
             <Gift className="text-[#00FF88]" size={22} />
           </div>
@@ -2703,7 +2720,7 @@ const RightRail = () => {
             >
               <div>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Tip User</div>
-                <div className="text-lg font-black mt-2">Send coins to {tipDraft.username}</div>
+                <div className="text-lg font-black mt-2">Send money to {tipDraft.username}</div>
               </div>
               <input
                 type="number"
@@ -2747,7 +2764,7 @@ const RightRail = () => {
             >
               <div>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Start Rain</div>
-                <div className="text-lg font-black mt-2">Add coins to the active rain pool</div>
+                <div className="text-lg font-black mt-2">Add money to the active rain pool</div>
               </div>
               <input
                 type="number"

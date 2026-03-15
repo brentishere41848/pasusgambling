@@ -20,7 +20,11 @@ export async function logBetActivity(input: LogBetActivityInput) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        ...input,
+        wager: Math.round(input.wager * 50),
+        payout: Math.round(input.payout * 50),
+      }),
     });
   } catch {
     return;

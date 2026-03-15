@@ -98,7 +98,7 @@ export const BlackjackGame: React.FC = () => {
     let currentDeck = [...deck];
 
     const dealerPlay = () => {
-      if (calculateScore(currentDealerHand) < 17) {
+      if (calculateScore(currentDealerHand) < 19) {
         currentDealerHand.push(currentDeck.pop()!);
         setDealerHand([...currentDealerHand]);
         setTimeout(dealerPlay, 600);
@@ -124,14 +124,14 @@ export const BlackjackGame: React.FC = () => {
     const dScore = calculateScore(dHand);
 
     if (msg === 'Blackjack!') {
-      const payout = bet * 2.5;
-      addBalance(payout);
-      logBetActivity({ gameKey: 'blackjack', wager: bet, payout, multiplier: 2.5, outcome: 'win', detail: msg });
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-    } else if (msg === 'You Win!' || msg === 'Dealer Busts!') {
       const payout = bet * 2;
       addBalance(payout);
       logBetActivity({ gameKey: 'blackjack', wager: bet, payout, multiplier: 2, outcome: 'win', detail: msg });
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    } else if (msg === 'You Win!' || msg === 'Dealer Busts!') {
+      const payout = bet * 1.6;
+      addBalance(payout);
+      logBetActivity({ gameKey: 'blackjack', wager: bet, payout, multiplier: 1.6, outcome: 'win', detail: msg });
       confetti({ particleCount: 100, spread: 50, origin: { y: 0.6 } });
     } else if (msg === 'Push') {
       addBalance(bet);
@@ -200,11 +200,11 @@ export const BlackjackGame: React.FC = () => {
           <div className="bg-black/40 rounded-xl p-3 border border-white/5">
             <div className="text-[10px] text-white/20 uppercase tracking-widest mb-1">Potential Win</div>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-black text-[#00FF88]">{(bet * 2).toLocaleString()}</span>
-              <span className="text-[10px] text-white/40 font-bold">COINS (2x)</span>
+              <span className="text-xl font-black text-[#00FF88]">${(bet * 1.6).toFixed(2)}</span>
+              <span className="text-[10px] text-white/40 font-bold">USD (1.6x)</span>
             </div>
             <div className="text-[10px] text-white/20 mt-1">
-              Blackjack pays {(bet * 2.5).toLocaleString()} (3:2)
+              Blackjack pays ${(bet * 2).toFixed(2)} (2x)
             </div>
           </div>
         </div>
@@ -237,9 +237,9 @@ export const BlackjackGame: React.FC = () => {
         <div className="mt-auto p-4 bg-black/20 rounded-xl border border-white/5">
           <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">Rules</div>
           <ul className="text-[10px] text-white/60 space-y-1">
-            <li>• Dealer stands on 17</li>
-            <li>• Blackjack pays 3:2</li>
-            <li>• Win pays 2:1</li>
+            <li>• Dealer hits until 19</li>
+            <li>• Blackjack pays 2x</li>
+            <li>• Win pays 1.6x</li>
           </ul>
         </div>
       </div>
