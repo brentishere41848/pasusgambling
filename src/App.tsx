@@ -1004,8 +1004,10 @@ const RecentActivity = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadActivity = async () => {
-      setIsLoading(true);
+    const loadActivity = async (silent = false) => {
+      if (!silent) {
+        setIsLoading(true);
+      }
       try {
         const response = await fetch(`/api/activity/bets?tab=${activeTab}&limit=5`);
         const data = await response.json().catch(() => ({}));
@@ -1014,14 +1016,16 @@ const RecentActivity = () => {
         }
         setActivities(data.activities || []);
       } finally {
-        if (isMounted) {
+        if (isMounted && !silent) {
           setIsLoading(false);
         }
       }
     };
 
     loadActivity();
-    const interval = window.setInterval(loadActivity, 10000);
+    const interval = window.setInterval(() => {
+      loadActivity(true).catch(() => undefined);
+    }, 3000);
 
     return () => {
       isMounted = false;
@@ -2103,6 +2107,11 @@ type ChatMessage = {
   createdAt?: string;
 };
 
+type TipDraft = {
+  username: string;
+  amount: string;
+};
+
 const CHAT_ROLE_STYLES: Record<ChatMessage['role'], string> = {
   owner: 'text-[#FF9F1C]',
   moderator: 'text-[#00FF88]',
@@ -2139,6 +2148,7 @@ const RightRail = () => {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [tipDraft, setTipDraft] = useState<TipDraft | null>(null);
 
   const loadRoom = async (silent = false) => {
     if (!silent) {
@@ -2216,7 +2226,7 @@ const RightRail = () => {
   useEffect(() => {
     const timer = window.setInterval(() => {
       loadRoom(true).catch(() => undefined);
-    }, 10000);
+    }, 3000);
     return () => window.clearInterval(timer);
   }, [isAuthenticated, lastSeenRainId]);
 
@@ -2231,6 +2241,13 @@ const RightRail = () => {
 
   const submitMessage = async () => {
     if (!draft.trim() || !isAuthenticated) {
+      return;
+    }
+
+    const tipMatch = draft.trim().match(/^\.tip\s+([A-Za-z0-9_]+)$/i);
+    if (tipMatch) {
+      setTipDraft({ username: tipMatch[1], amount: '' });
+      setDraft('');
       return;
     }
 
@@ -2255,6 +2272,39 @@ const RightRail = () => {
       await loadRoom(true);
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : 'Failed to send message.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitTip = async () => {
+    if (!tipDraft) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch('/api/chat/tip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          username: tipDraft.username,
+          amount: Number(tipDraft.amount || 0),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send tip.');
+      }
+      setTipDraft(null);
+      await refreshWallet();
+      await loadRoom(true);
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : 'Failed to send tip.');
     } finally {
       setIsSubmitting(false);
     }
@@ -2308,7 +2358,7 @@ const RightRail = () => {
           : 'Join Opens Soon';
 
   return (
-    <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[#0f1115] flex-col h-screen sticky top-0">
+    <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[#0f1115] flex-col h-screen sticky top-0 relative">
       <div className="p-5 border-b border-white/5">
         <div className="rounded-3xl border border-[#00FF88]/15 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-5">
           <div className="flex items-center justify-between mb-3">
@@ -2426,6 +2476,53 @@ const RightRail = () => {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {tipDraft ? (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/70 z-20"
+              onClick={() => setTipDraft(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.96 }}
+              className="absolute left-4 right-4 top-24 rounded-3xl border border-white/10 bg-[#141821] p-5 z-30 space-y-4 shadow-2xl"
+            >
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Tip User</div>
+                <div className="text-lg font-black mt-2">Send coins to {tipDraft.username}</div>
+              </div>
+              <input
+                type="number"
+                value={tipDraft.amount}
+                onChange={(e) => setTipDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
+                placeholder="Amount"
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setTipDraft(null)}
+                  className="flex-1 rounded-2xl bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitTip}
+                  disabled={isSubmitting || !tipDraft.amount || Number(tipDraft.amount) <= 0}
+                  className="flex-1 rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
+                >
+                  {isSubmitting ? 'Sending...' : 'Send Tip'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        ) : null}
+      </AnimatePresence>
     </aside>
   );
 };

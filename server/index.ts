@@ -1744,6 +1744,90 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
   }
 });
 
+app.post('/api/chat/tip', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const username = String(req.body.username || '').trim();
+    const amount = normalizeCoins(req.body.amount);
+
+    if (!username || amount <= 0) {
+      return res.status(400).json({ error: 'Username and amount are required.' });
+    }
+
+    await client.query('BEGIN');
+
+    const recipientResult = await client.query(
+      `SELECT id, username, avatar, roblox_avatar_url, discord_avatar_url
+       FROM users
+       WHERE LOWER(username) = LOWER($1)
+       LIMIT 1`,
+      [username]
+    );
+
+    if (!recipientResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const recipient = recipientResult.rows[0];
+    if (Number(recipient.id) === req.auth!.user.id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'You cannot tip yourself.' });
+    }
+
+    const senderWallet = await client.query(
+      `UPDATE wallets
+       SET balance = balance - $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+         AND balance >= $1
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [amount, req.auth!.user.id]
+    );
+
+    if (!senderWallet.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Insufficient balance.' });
+    }
+
+    await client.query(
+      `UPDATE wallets
+       SET balance = balance + $1,
+           updated_at = NOW()
+       WHERE user_id = $2`,
+      [amount, recipient.id]
+    );
+
+    await client.query(
+      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
+       VALUES ($1, $2, $3, 'win', $4, $5)`,
+      [
+        req.auth!.user.id,
+        req.auth!.user.username,
+        `tipped ${recipient.username} ${amount.toLocaleString()} coins`,
+        req.auth!.user.role,
+        req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
+      ]
+    );
+
+    await client.query('COMMIT');
+    return res.status(201).json({
+      wallet: sanitizeWallet(senderWallet.rows[0]),
+      recipient: {
+        username: recipient.username,
+      },
+      amount,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to send tip.' });
+  } finally {
+    client.release();
+  }
+});
+
 app.post('/api/payments/nowpayments/create', requireAuth, async (req: AuthedRequest, res) => {
   const client = await pool.connect();
 
