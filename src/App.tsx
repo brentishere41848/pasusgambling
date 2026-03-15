@@ -165,8 +165,8 @@ const Sidebar = ({
   return (
     <aside className="w-64 border-r border-white/5 bg-[#0f1115] h-screen sticky top-0 hidden lg:flex flex-col p-4 overflow-y-auto custom-scrollbar">
       <button onClick={onHome} className="flex items-center gap-3 px-4 mb-8 group shrink-0">
-        <div className="w-8 h-8 bg-[#00FF88] rounded-lg flex items-center justify-center rotate-3 group-hover:rotate-12 transition-transform">
-          <Gamepad2 className="text-black" size={20} />
+        <div className="w-8 h-8 bg-[#00FF88] rounded-lg flex items-center justify-center rotate-3 group-hover:rotate-12 transition-transform overflow-hidden">
+          <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
         </div>
         <span className="text-xl font-black tracking-tighter uppercase italic">Pasus</span>
       </button>
@@ -838,7 +838,12 @@ const Header = ({
       <div className="max-w-full h-full px-6 flex items-center justify-between">
         <div className="flex items-center gap-4 lg:hidden">
           <Menu className="text-white/40" />
-          <span className="text-xl font-black italic">PASUS</span>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#00FF88]">
+              <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
+            </div>
+            <span className="text-xl font-black italic">PASUS</span>
+          </div>
         </div>
 
         <div className="flex-1 max-w-xl mx-auto hidden md:flex items-center bg-black/40 border border-white/5 rounded-full px-4 py-1.5 gap-3">
@@ -2871,8 +2876,8 @@ const AppContent = () => {
             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 opacity-40">
               <div className="col-span-1 md:col-span-2">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
-                    <Gamepad2 className="text-black" size={14} />
+                  <div className="w-6 h-6 bg-white rounded overflow-hidden">
+                    <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
                   </div>
                   <span className="text-lg font-black tracking-tighter uppercase italic">Pasus</span>
                 </div>

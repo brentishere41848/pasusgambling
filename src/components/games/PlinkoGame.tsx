@@ -21,29 +21,29 @@ const ROW_OPTIONS = [8, 10, 12, 14, 16] as const;
 
 const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
   8: {
-    easy: [4.5, 2.2, 1.3, 1.1, 1, 1.1, 1.3, 2.2, 4.5],
-    medium: [5.6, 2.1, 1.1, 1, 0.5, 1, 1.1, 2.1, 5.6],
-    hard: [13, 3.8, 1.6, 0.7, 0.2, 0.7, 1.6, 3.8, 13],
+    easy: [3.6, 1.9, 1.2, 1.02, 0.82, 1.02, 1.2, 1.9, 3.6],
+    medium: [4.8, 1.8, 0.95, 0.72, 0.32, 0.72, 0.95, 1.8, 4.8],
+    hard: [10, 2.9, 1.2, 0.52, 0.12, 0.52, 1.2, 2.9, 10],
   },
   10: {
-    easy: [6.2, 3.1, 1.7, 1.2, 1, 0.9, 1, 1.2, 1.7, 3.1, 6.2],
-    medium: [8.4, 3.2, 1.9, 1.1, 0.8, 0.5, 0.8, 1.1, 1.9, 3.2, 8.4],
-    hard: [18, 5.2, 2.4, 1, 0.5, 0.2, 0.5, 1, 2.4, 5.2, 18],
+    easy: [5, 2.5, 1.45, 1.05, 0.88, 0.72, 0.88, 1.05, 1.45, 2.5, 5],
+    medium: [6.4, 2.5, 1.45, 0.92, 0.52, 0.26, 0.52, 0.92, 1.45, 2.5, 6.4],
+    hard: [14, 4.1, 1.9, 0.82, 0.38, 0.12, 0.38, 0.82, 1.9, 4.1, 14],
   },
   12: {
-    easy: [8, 3.6, 2.1, 1.5, 1.2, 1, 0.8, 1, 1.2, 1.5, 2.1, 3.6, 8],
-    medium: [10, 4.1, 2, 1.4, 1, 0.7, 0.5, 0.7, 1, 1.4, 2, 4.1, 10],
-    hard: [24, 8, 3.2, 1.6, 0.9, 0.5, 0.2, 0.5, 0.9, 1.6, 3.2, 8, 24],
+    easy: [6.4, 2.9, 1.7, 1.22, 1, 0.82, 0.62, 0.82, 1, 1.22, 1.7, 2.9, 6.4],
+    medium: [8.2, 3.3, 1.6, 1.08, 0.72, 0.46, 0.22, 0.46, 0.72, 1.08, 1.6, 3.3, 8.2],
+    hard: [18, 6.2, 2.5, 1.2, 0.62, 0.28, 0.1, 0.28, 0.62, 1.2, 2.5, 6.2, 18],
   },
   14: {
-    easy: [11, 4.8, 2.8, 1.8, 1.4, 1.1, 1, 0.8, 1, 1.1, 1.4, 1.8, 2.8, 4.8, 11],
-    medium: [16, 5.5, 2.7, 1.6, 1.2, 0.9, 0.7, 0.4, 0.7, 0.9, 1.2, 1.6, 2.7, 5.5, 16],
-    hard: [41, 10, 4.2, 2.1, 1.1, 0.6, 0.3, 0.2, 0.3, 0.6, 1.1, 2.1, 4.2, 10, 41],
+    easy: [8.8, 3.9, 2.2, 1.48, 1.16, 0.92, 0.76, 0.54, 0.76, 0.92, 1.16, 1.48, 2.2, 3.9, 8.8],
+    medium: [12, 4.2, 2.1, 1.24, 0.92, 0.64, 0.42, 0.2, 0.42, 0.64, 0.92, 1.24, 2.1, 4.2, 12],
+    hard: [30, 7.4, 3.1, 1.56, 0.82, 0.42, 0.2, 0.08, 0.2, 0.42, 0.82, 1.56, 3.1, 7.4, 30],
   },
   16: {
-    easy: [14, 6, 3.4, 2.2, 1.7, 1.3, 1.1, 1, 0.8, 1, 1.1, 1.3, 1.7, 2.2, 3.4, 6, 14],
-    medium: [24, 8, 3.9, 2, 1.4, 1.1, 0.8, 0.6, 0.3, 0.6, 0.8, 1.1, 1.4, 2, 3.9, 8, 24],
-    hard: [72, 15, 6, 3, 1.5, 0.9, 0.5, 0.3, 0.2, 0.3, 0.5, 0.9, 1.5, 3, 6, 15, 72],
+    easy: [11, 4.9, 2.7, 1.75, 1.32, 1.04, 0.88, 0.74, 0.5, 0.74, 0.88, 1.04, 1.32, 1.75, 2.7, 4.9, 11],
+    medium: [18, 6.1, 3, 1.55, 1.08, 0.82, 0.58, 0.38, 0.18, 0.38, 0.58, 0.82, 1.08, 1.55, 3, 6.1, 18],
+    hard: [50, 10.5, 4.2, 2.1, 1.04, 0.58, 0.28, 0.16, 0.06, 0.16, 0.28, 0.58, 1.04, 2.1, 4.2, 10.5, 50],
   },
 };
 
@@ -59,10 +59,19 @@ export const PlinkoGame: React.FC = () => {
   const [lastBucket, setLastBucket] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ballsRef = useRef<Ball[]>([]);
+  const autoTimeoutRef = useRef<number | null>(null);
+  const isAutoRef = useRef(false);
+  const remainingRoundsRef = useRef(0);
 
   const multipliers = useMemo(() => PAYOUTS[rows][risk], [rows, risk]);
 
   const dropBall = useCallback(() => {
+    autoTimeoutRef.current = null;
+
+    if (!isAutoRef.current && remainingRoundsRef.current <= 0) {
+      return;
+    }
+
     if (subtractBalance(bet)) {
       const startX = 250;
       ballsRef.current.push({
@@ -74,35 +83,73 @@ export const PlinkoGame: React.FC = () => {
         trail: [],
       });
 
-      if (isAuto && remainingRounds > 1) {
-        setRemainingRounds((prev) => prev - 1);
-      } else if (isAuto) {
+      if (isAutoRef.current && remainingRoundsRef.current > 1) {
+        remainingRoundsRef.current -= 1;
+        setRemainingRounds(remainingRoundsRef.current);
+      } else if (isAutoRef.current) {
+        isAutoRef.current = false;
+        remainingRoundsRef.current = 0;
         setIsAuto(false);
         setRemainingRounds(0);
       }
     } else {
+      isAutoRef.current = false;
+      remainingRoundsRef.current = 0;
       setIsAuto(false);
       setRemainingRounds(0);
     }
-  }, [bet, isAuto, remainingRounds, subtractBalance]);
+  }, [bet, subtractBalance]);
+
+  const stopAuto = useCallback(() => {
+    if (autoTimeoutRef.current !== null) {
+      window.clearTimeout(autoTimeoutRef.current);
+      autoTimeoutRef.current = null;
+    }
+    isAutoRef.current = false;
+    remainingRoundsRef.current = 0;
+    setIsAuto(false);
+    setRemainingRounds(0);
+  }, []);
+
+  useEffect(() => {
+    isAutoRef.current = isAuto;
+  }, [isAuto]);
+
+  useEffect(() => {
+    remainingRoundsRef.current = remainingRounds;
+  }, [remainingRounds]);
 
   useEffect(() => {
     if (isAuto && remainingRounds > 0) {
       const interval = isFast ? 100 : 500;
-      const timer = setTimeout(dropBall, interval);
-      return () => clearTimeout(timer);
+      if (autoTimeoutRef.current !== null) {
+        window.clearTimeout(autoTimeoutRef.current);
+      }
+      autoTimeoutRef.current = window.setTimeout(dropBall, interval);
+      return () => {
+        if (autoTimeoutRef.current !== null) {
+          window.clearTimeout(autoTimeoutRef.current);
+          autoTimeoutRef.current = null;
+        }
+      };
     }
+    return undefined;
   }, [isAuto, remainingRounds, dropBall, isFast]);
 
   const startAuto = () => {
-    if (isAuto) {
-      setIsAuto(false);
-      setRemainingRounds(0);
-    } else {
-      setIsAuto(true);
-      setRemainingRounds(autoRounds);
-    }
+    isAutoRef.current = true;
+    remainingRoundsRef.current = autoRounds;
+    setIsAuto(true);
+    setRemainingRounds(autoRounds);
   };
+
+  useEffect(() => {
+    return () => {
+      if (autoTimeoutRef.current !== null) {
+        window.clearTimeout(autoTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -325,7 +372,7 @@ export const PlinkoGame: React.FC = () => {
               FAST
             </button>
             <button
-              onClick={startAuto}
+              onClick={isAuto ? stopAuto : startAuto}
               className={cn(
                 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
                 isAuto ? 'bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50' : 'bg-white/5 text-white/20 border border-transparent'
@@ -353,7 +400,7 @@ export const PlinkoGame: React.FC = () => {
           )}
 
           <button
-            onClick={isAuto ? startAuto : dropBall}
+            onClick={isAuto ? stopAuto : dropBall}
             disabled={balance < bet && !isAuto}
             className={cn(
               'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
