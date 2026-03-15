@@ -147,6 +147,31 @@ const getPreferredAvatar = (user?: {
 
 type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'vip' | 'affiliate' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
+const VIEW_PATHS: Partial<Record<MainView, string>> = {
+  dashboard: '/',
+  profile: '/profile',
+  connections: '/connections',
+  settings: '/settings',
+  vip: '/vip-club',
+  affiliate: '/affiliate',
+  'provably-fair': '/provably-fair',
+  support: '/live-support',
+  terms: '/terms-of-service',
+  privacy: '/privacy-policy',
+  'responsible-gaming': '/responsible-gaming',
+};
+
+function resolveRoute(pathname: string): { gameId: string | null; view: MainView } {
+  const normalized = pathname.replace(/\/+$/, '') || '/';
+  const game = GAMES.find((entry) => `/${entry.id}` === normalized);
+  if (game) {
+    return { gameId: game.id, view: 'dashboard' };
+  }
+
+  const matchedView = (Object.entries(VIEW_PATHS) as Array<[MainView, string]>).find(([, path]) => path === normalized)?.[0];
+  return { gameId: null, view: matchedView || 'dashboard' };
+}
+
 const Sidebar = ({
   activeGame,
   currentView,
@@ -2253,6 +2278,10 @@ type TipDraft = {
   amount: string;
 };
 
+type RainDraft = {
+  amount: string;
+};
+
 const CHAT_ROLE_STYLES: Record<ChatMessage['role'], string> = {
   owner: 'text-[#FF9F1C]',
   moderator: 'text-[#00FF88]',
@@ -2290,6 +2319,7 @@ const RightRail = () => {
   const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [tipDraft, setTipDraft] = useState<TipDraft | null>(null);
+  const [rainDraft, setRainDraft] = useState<RainDraft | null>(null);
 
   const loadRoom = async (silent = false) => {
     if (!silent) {
@@ -2392,6 +2422,12 @@ const RightRail = () => {
       return;
     }
 
+    if (/^\.rain$/i.test(draft.trim())) {
+      setRainDraft({ amount: '' });
+      setDraft('');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const token = localStorage.getItem('pasus_auth_token');
@@ -2446,6 +2482,38 @@ const RightRail = () => {
       await loadRoom(true);
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : 'Failed to send tip.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitRain = async () => {
+    if (!rainDraft) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch('/api/rain/contribute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount: Number(rainDraft.amount || 0),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start rain.');
+      }
+      setRainDraft(null);
+      await refreshWallet();
+      await loadRoom(true);
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : 'Failed to start rain.');
     } finally {
       setIsSubmitting(false);
     }
@@ -2663,25 +2731,103 @@ const RightRail = () => {
             </motion.div>
           </>
         ) : null}
+        {rainDraft ? (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/70 z-20"
+              onClick={() => setRainDraft(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.96 }}
+              className="absolute left-4 right-4 top-24 rounded-3xl border border-white/10 bg-[#141821] p-5 z-30 space-y-4 shadow-2xl"
+            >
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Start Rain</div>
+                <div className="text-lg font-black mt-2">Add coins to the active rain pool</div>
+              </div>
+              <input
+                type="number"
+                value={rainDraft.amount}
+                onChange={(e) => setRainDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
+                placeholder="Amount"
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
+              />
+              <div className="text-[11px] text-white/40">
+                This contributes directly to the current hourly rain pool.
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setRainDraft(null)}
+                  className="flex-1 rounded-2xl bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitRain}
+                  disabled={isSubmitting || !rainDraft.amount || Number(rainDraft.amount) <= 0}
+                  className="flex-1 rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
+                >
+                  {isSubmitting ? 'Starting...' : 'Start Rain'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        ) : null}
       </AnimatePresence>
     </aside>
   );
 };
 
 const AppContent = () => {
-  const [activeGame, setActiveGame] = useState<string | null>(null);
+  const initialRoute = resolveRoute(window.location.pathname);
+  const [activeGame, setActiveGame] = useState<string | null>(initialRoute.gameId);
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<MainView>('dashboard');
+  const [currentView, setCurrentView] = useState<MainView>(initialRoute.view);
   const { isAuthenticated } = useAuth();
+
+  const navigateTo = useCallback((path: string, gameId: string | null, view: MainView) => {
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+    setActiveGame(gameId);
+    setCurrentView(view);
+  }, []);
+
+  const openDashboard = useCallback(() => {
+    navigateTo('/', null, 'dashboard');
+  }, [navigateTo]);
+
+  const openView = useCallback((view: MainView) => {
+    navigateTo(VIEW_PATHS[view] || '/', null, view);
+  }, [navigateTo]);
+
+  const openGame = useCallback((id: string) => {
+    navigateTo(`/${id}`, id, 'dashboard');
+  }, [navigateTo]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const route = resolveRoute(window.location.pathname);
+      setActiveGame(route.gameId);
+      setCurrentView(route.view);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const handleSelectGame = (id: string) => {
     if (!isAuthenticated) {
       setIsLoginOpen(true);
       return;
     }
-    setActiveGame(id);
-    setCurrentView('dashboard');
+    openGame(id);
   };
 
   const CurrentGame = activeGame ? GAMES.find(g => g.id === activeGame)?.component : null;
@@ -2692,32 +2838,17 @@ const AppContent = () => {
         activeGame={activeGame} 
         currentView={currentView}
         onSelectGame={handleSelectGame} 
-        onHome={() => {
-          setActiveGame(null);
-          setCurrentView('dashboard');
-        }}
-        onOpenView={(view) => {
-          setActiveGame(null);
-          setCurrentView(view);
-        }}
+        onHome={openDashboard}
+        onOpenView={openView}
       />
       
       <div className="flex-1 flex flex-col min-w-0">
         <Header 
           onOpenWallet={() => setIsWalletOpen(true)} 
           onOpenLogin={() => setIsLoginOpen(true)}
-          onOpenProfile={() => {
-            setActiveGame(null);
-            setCurrentView('profile');
-          }}
-          onOpenConnections={() => {
-            setActiveGame(null);
-            setCurrentView('connections');
-          }}
-          onOpenSettings={() => {
-            setActiveGame(null);
-            setCurrentView('settings');
-          }}
+          onOpenProfile={() => openView('profile')}
+          onOpenConnections={() => openView('connections')}
+          onOpenSettings={() => openView('settings')}
         />
         
         <main className="flex-1 overflow-y-auto custom-scrollbar">
@@ -2733,7 +2864,7 @@ const AppContent = () => {
                 <div className="max-w-6xl mx-auto mb-6 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <button 
-                      onClick={() => setActiveGame(null)}
+                      onClick={openDashboard}
                       className="w-10 h-10 rounded-xl bg-[#1a1d23] border border-white/5 flex items-center justify-center hover:bg-white/5 transition-colors"
                     >
                       <ChevronRight className="rotate-180 text-white/40" size={20} />
@@ -2883,9 +3014,9 @@ const AppContent = () => {
               </div>
               <div className="text-xs space-y-2">
                 <div className="font-black uppercase tracking-widest mb-4">Links</div>
-                <button onClick={() => { setActiveGame(null); setCurrentView('terms'); }} className="block text-left hover:text-white transition-colors">Terms of Service</button>
-                <button onClick={() => { setActiveGame(null); setCurrentView('privacy'); }} className="block text-left hover:text-white transition-colors">Privacy Policy</button>
-                <button onClick={() => { setActiveGame(null); setCurrentView('responsible-gaming'); }} className="block text-left hover:text-white transition-colors">Responsible Gaming</button>
+                <button onClick={() => openView('terms')} className="block text-left hover:text-white transition-colors">Terms of Service</button>
+                <button onClick={() => openView('privacy')} className="block text-left hover:text-white transition-colors">Privacy Policy</button>
+                <button onClick={() => openView('responsible-gaming')} className="block text-left hover:text-white transition-colors">Responsible Gaming</button>
               </div>
               <div className="text-xs space-y-2">
                 <div className="font-black uppercase tracking-widest mb-4">Social</div>

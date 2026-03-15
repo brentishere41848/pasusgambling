@@ -747,6 +747,18 @@ async function ensureWallet(client: Pool | PoolClient, userId: number) {
   );
 }
 
+async function getPrimaryOwnerId(client: Pool | PoolClient) {
+  const result = await client.query(
+    `SELECT id
+     FROM users
+     WHERE role = 'owner'
+     ORDER BY id ASC
+     LIMIT 1`
+  );
+
+  return result.rowCount ? Number(result.rows[0].id) : null;
+}
+
 async function createSession(client: Pool | PoolClient, user: AuthUser) {
   const token = signToken(user);
   const tokenHash = hashToken(token);
@@ -931,10 +943,14 @@ async function initDb() {
       currency TEXT NOT NULL,
       address TEXT NOT NULL,
       amount BIGINT NOT NULL,
+      fee_amount BIGINT NOT NULL DEFAULT 0,
+      net_amount BIGINT NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'pending',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS fee_amount BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS net_amount BIGINT NOT NULL DEFAULT 0`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bet_activities (
@@ -1186,6 +1202,70 @@ app.post('/api/rain/join', requireAuth, async (req: AuthedRequest, res) => {
     await client.query('ROLLBACK');
     console.error(error);
     return res.status(500).json({ error: 'Failed to join rain.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/rain/contribute', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const amount = normalizeCoins(req.body.amount);
+    if (amount <= 0) {
+      return res.status(400).json({ error: 'Rain amount is required.' });
+    }
+
+    await client.query('BEGIN');
+    await ensureWallet(client, req.auth!.user.id);
+
+    const walletResult = await client.query(
+      `UPDATE wallets
+       SET balance = balance - $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+         AND balance >= $1
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [amount, req.auth!.user.id]
+    );
+
+    if (!walletResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Insufficient balance.' });
+    }
+
+    const roundRow = await ensureCurrentRainRound(client);
+    const updatedRain = await client.query(
+      `UPDATE rain_rounds
+       SET pool_amount = pool_amount + $1,
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, status`,
+      [amount, roundRow.id]
+    );
+
+    await client.query(
+      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
+       VALUES ($1, $2, $3, 'win', $4, $5)`,
+      [
+        req.auth!.user.id,
+        req.auth!.user.username,
+        `started a rain with ${amount.toLocaleString()} coins`,
+        req.auth!.user.role,
+        req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
+      ]
+    );
+
+    await client.query('COMMIT');
+    return res.status(201).json({
+      rain: mapRainRound({ ...updatedRain.rows[0], participant_count: roundRow.participant_count || 0 }, false),
+      wallet: sanitizeWallet(walletResult.rows[0]),
+      amount,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to start rain.' });
   } finally {
     client.release();
   }
@@ -2247,6 +2327,7 @@ app.post('/api/payments/withdrawals/request', requireAuth, async (req: AuthedReq
     }
 
     await client.query('BEGIN');
+    await ensureWallet(client, req.auth!.user.id);
 
     const walletResult = await client.query(
       `UPDATE wallets
@@ -2264,11 +2345,26 @@ app.post('/api/payments/withdrawals/request', requireAuth, async (req: AuthedReq
       return res.status(400).json({ error: 'Insufficient balance.' });
     }
 
+    const feeAmount = Math.max(1, Math.floor(amount * 0.05));
+    const netAmount = Math.max(0, amount - feeAmount);
+    const ownerUserId = await getPrimaryOwnerId(client);
+
+    if (ownerUserId) {
+      await ensureWallet(client, ownerUserId);
+      await client.query(
+        `UPDATE wallets
+         SET balance = balance + $1,
+             updated_at = NOW()
+         WHERE user_id = $2`,
+        [feeAmount, ownerUserId]
+      );
+    }
+
     const requestResult = await client.query(
-      `INSERT INTO withdrawal_requests (user_id, currency, address, amount)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, status, created_at`,
-      [req.auth!.user.id, currency, address, amount]
+      `INSERT INTO withdrawal_requests (user_id, currency, address, amount, fee_amount, net_amount)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, status, created_at, amount, fee_amount, net_amount`,
+      [req.auth!.user.id, currency, address, amount, feeAmount, netAmount]
     );
 
     await client.query('COMMIT');
