@@ -18,11 +18,7 @@ type Ball = {
 };
 
 const ROW_OPTIONS = [8, 10, 12, 14, 16] as const;
-const RISK_SCALING: Record<RiskTier, number> = {
-  easy: 0.72,
-  medium: 0.62,
-  hard: 0.52,
-};
+const MAX_ACTIVE_BALLS = 1;
 
 const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
   8: {
@@ -48,7 +44,7 @@ const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
   16: {
     easy: [11, 4.9, 2.7, 1.75, 1.32, 1.04, 0.88, 0.74, 0.5, 0.74, 0.88, 1.04, 1.32, 1.75, 2.7, 4.9, 11],
     medium: [18, 6.1, 3, 1.55, 1.08, 0.82, 0.58, 0.38, 0.18, 0.38, 0.58, 0.82, 1.08, 1.55, 3, 6.1, 18],
-    hard: [50, 10.5, 4.2, 2.1, 1.04, 0.58, 0.28, 0.16, 0.06, 0.16, 0.28, 0.58, 1.04, 2.1, 4.2, 10.5, 50],
+    hard: [100, 16, 6.4, 2.8, 1.28, 0.62, 0.32, 0.18, 0.08, 0.18, 0.32, 0.62, 1.28, 2.8, 6.4, 16, 100],
   },
 };
 
@@ -63,18 +59,20 @@ export const PlinkoGame: React.FC = () => {
   const [autoRounds, setAutoRounds] = useState(10);
   const [remainingRounds, setRemainingRounds] = useState(0);
   const [lastBucket, setLastBucket] = useState<number | null>(null);
+  const [activeBallCount, setActiveBallCount] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ballsRef = useRef<Ball[]>([]);
   const autoTimeoutRef = useRef<number | null>(null);
   const isAutoRef = useRef(false);
   const remainingRoundsRef = useRef(0);
+  const activeBallCountRef = useRef(0);
 
-  const multipliers = useMemo(
-    () => PAYOUTS[rows][risk].map((value) => Math.max(0.05, Number((value * RISK_SCALING[risk]).toFixed(2)))),
-    [rows, risk]
-  );
+  const multipliers = useMemo(() => PAYOUTS[rows][risk], [rows, risk]);
 
   const spawnBall = useCallback(() => {
+    if (ballsRef.current.length >= MAX_ACTIVE_BALLS) {
+      return false;
+    }
     const startX = 250;
     ballsRef.current.push({
       x: startX + (Math.random() - 0.5) * 4,
@@ -84,6 +82,8 @@ export const PlinkoGame: React.FC = () => {
       row: 0,
       trail: [],
     });
+    setActiveBallCount(ballsRef.current.length);
+    return true;
   }, []);
 
   const dropBall = useCallback(() => {
@@ -93,7 +93,11 @@ export const PlinkoGame: React.FC = () => {
     }
 
     if (subtractBalance(bet)) {
-      spawnBall();
+      const spawned = spawnBall();
+      if (!spawned) {
+        addBalance(bet);
+        return;
+      }
 
       if (remainingRoundsRef.current > 1) {
         remainingRoundsRef.current -= 1;
@@ -110,7 +114,7 @@ export const PlinkoGame: React.FC = () => {
       setIsAuto(false);
       setRemainingRounds(0);
     }
-  }, [bet, spawnBall, subtractBalance]);
+  }, [addBalance, bet, spawnBall, subtractBalance]);
 
   const dropManualBall = useCallback(() => {
     if (autoTimeoutRef.current !== null) {
@@ -125,9 +129,12 @@ export const PlinkoGame: React.FC = () => {
     setRemainingRounds(0);
 
     if (subtractBalance(bet)) {
-      spawnBall();
+      const spawned = spawnBall();
+      if (!spawned) {
+        addBalance(bet);
+      }
     }
-  }, [bet, spawnBall, subtractBalance]);
+  }, [addBalance, bet, spawnBall, subtractBalance]);
 
   const stopAuto = useCallback(() => {
     if (autoTimeoutRef.current !== null) {
@@ -194,7 +201,7 @@ export const PlinkoGame: React.FC = () => {
     const verticalGap = rows <= 10 ? 34 : rows <= 14 ? 28 : 24;
     const pegGap = rows <= 10 ? 38 : rows <= 14 ? 32 : 28;
     const pegRadius = rows <= 10 ? 4 : 3.5;
-    const bucketHeight = 28;
+    const bucketHeight = 34;
     const lastRowY = topOffset + rows * verticalGap;
     const bucketWidth = pegGap;
     const totalBuckets = rows + 1;
@@ -226,9 +233,10 @@ export const PlinkoGame: React.FC = () => {
           : multiplierValue >= 1 ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)';
         ctx.fillRect(x + 1, lastRowY, bucketWidth - 2, bucketHeight);
         ctx.fillStyle = activeBucket ? '#ffffff' : multiplierValue >= 1 ? '#00FF88' : 'rgba(255, 255, 255, 0.4)';
-        ctx.font = '10px monospace';
+        const label = multiplierValue >= 10 ? `${multiplierValue}x` : `${Number(multiplierValue.toFixed(2))}x`;
+        ctx.font = `${rows >= 14 ? 8 : 9}px monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText(`${multiplierValue}x`, x + bucketWidth / 2, lastRowY + 18);
+        ctx.fillText(label, x + bucketWidth / 2, lastRowY + 21);
       });
 
       const steps = isFast ? 3 : 2;
@@ -303,6 +311,11 @@ export const PlinkoGame: React.FC = () => {
 
           return true;
         });
+      }
+
+      if (activeBallCountRef.current !== ballsRef.current.length) {
+        activeBallCountRef.current = ballsRef.current.length;
+        setActiveBallCount(ballsRef.current.length);
       }
 
       ballsRef.current.forEach((ball) => {
@@ -481,12 +494,16 @@ export const PlinkoGame: React.FC = () => {
               <span className="text-white/20 uppercase">Max Win</span>
               <span className="text-[#00FF88]">{Math.max(...multipliers)}x</span>
             </div>
+            <div className="flex justify-between text-[10px]">
+              <span className="text-white/20 uppercase">Active Balls</span>
+              <span className="text-white/60">{activeBallCount}/{MAX_ACTIVE_BALLS}</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-4 flex items-center justify-center overflow-hidden">
-        <canvas ref={canvasRef} width={500} height={500} className="max-w-full h-auto" />
+        <canvas ref={canvasRef} width={640} height={540} className="max-w-full h-auto" />
       </div>
     </div>
   );
