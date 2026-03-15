@@ -18,7 +18,7 @@ type Ball = {
 };
 
 const ROW_OPTIONS = [8, 10, 12, 14, 16] as const;
-const MAX_ACTIVE_BALLS = 1;
+const MAX_ACTIVE_BALLS = 3;
 
 const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
   8: {
@@ -66,6 +66,7 @@ export const PlinkoGame: React.FC = () => {
   const isAutoRef = useRef(false);
   const remainingRoundsRef = useRef(0);
   const activeBallCountRef = useRef(0);
+  const lastManualDropAtRef = useRef(0);
 
   const multipliers = useMemo(() => PAYOUTS[rows][risk], [rows, risk]);
 
@@ -117,6 +118,11 @@ export const PlinkoGame: React.FC = () => {
   }, [addBalance, bet, spawnBall, subtractBalance]);
 
   const dropManualBall = useCallback(() => {
+    const now = Date.now();
+    if (now - lastManualDropAtRef.current < 180) {
+      return;
+    }
+
     if (autoTimeoutRef.current !== null) {
       window.clearTimeout(autoTimeoutRef.current);
       autoTimeoutRef.current = null;
@@ -132,7 +138,9 @@ export const PlinkoGame: React.FC = () => {
       const spawned = spawnBall();
       if (!spawned) {
         addBalance(bet);
+        return;
       }
+      lastManualDropAtRef.current = now;
     }
   }, [addBalance, bet, spawnBall, subtractBalance]);
 
