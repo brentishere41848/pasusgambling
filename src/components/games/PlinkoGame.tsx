@@ -18,6 +18,11 @@ type Ball = {
 };
 
 const ROW_OPTIONS = [8, 10, 12, 14, 16] as const;
+const RISK_SCALING: Record<RiskTier, number> = {
+  easy: 0.72,
+  medium: 0.62,
+  hard: 0.52,
+};
 
 const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
   8: {
@@ -64,30 +69,36 @@ export const PlinkoGame: React.FC = () => {
   const isAutoRef = useRef(false);
   const remainingRoundsRef = useRef(0);
 
-  const multipliers = useMemo(() => PAYOUTS[rows][risk], [rows, risk]);
+  const multipliers = useMemo(
+    () => PAYOUTS[rows][risk].map((value) => Math.max(0.05, Number((value * RISK_SCALING[risk]).toFixed(2)))),
+    [rows, risk]
+  );
+
+  const spawnBall = useCallback(() => {
+    const startX = 250;
+    ballsRef.current.push({
+      x: startX + (Math.random() - 0.5) * 4,
+      y: 24,
+      vx: 0,
+      vy: 0,
+      row: 0,
+      trail: [],
+    });
+  }, []);
 
   const dropBall = useCallback(() => {
     autoTimeoutRef.current = null;
-
-    if (!isAutoRef.current && remainingRoundsRef.current <= 0) {
+    if (remainingRoundsRef.current <= 0) {
       return;
     }
 
     if (subtractBalance(bet)) {
-      const startX = 250;
-      ballsRef.current.push({
-        x: startX + (Math.random() - 0.5) * 4,
-        y: 24,
-        vx: 0,
-        vy: 0,
-        row: 0,
-        trail: [],
-      });
+      spawnBall();
 
-      if (isAutoRef.current && remainingRoundsRef.current > 1) {
+      if (remainingRoundsRef.current > 1) {
         remainingRoundsRef.current -= 1;
         setRemainingRounds(remainingRoundsRef.current);
-      } else if (isAutoRef.current) {
+      } else {
         isAutoRef.current = false;
         remainingRoundsRef.current = 0;
         setIsAuto(false);
@@ -99,7 +110,24 @@ export const PlinkoGame: React.FC = () => {
       setIsAuto(false);
       setRemainingRounds(0);
     }
-  }, [bet, subtractBalance]);
+  }, [bet, spawnBall, subtractBalance]);
+
+  const dropManualBall = useCallback(() => {
+    if (autoTimeoutRef.current !== null) {
+      window.clearTimeout(autoTimeoutRef.current);
+      autoTimeoutRef.current = null;
+    }
+
+    isAutoRef.current = false;
+    remainingRoundsRef.current = 0;
+    setIsAuto(false);
+    setAutoArmed(false);
+    setRemainingRounds(0);
+
+    if (subtractBalance(bet)) {
+      spawnBall();
+    }
+  }, [bet, spawnBall, subtractBalance]);
 
   const stopAuto = useCallback(() => {
     if (autoTimeoutRef.current !== null) {
@@ -409,7 +437,7 @@ export const PlinkoGame: React.FC = () => {
           )}
 
           <button
-            onClick={isAuto ? stopAuto : autoArmed ? startAuto : dropBall}
+            onClick={isAuto ? stopAuto : autoArmed ? startAuto : dropManualBall}
             disabled={balance < bet && !isAuto}
             className={cn(
               'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
