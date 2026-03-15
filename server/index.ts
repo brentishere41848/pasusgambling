@@ -82,6 +82,8 @@ type AffiliateOverview = {
   }>;
 };
 
+type RakebackPeriod = 'instant' | 'daily' | 'weekly' | 'monthly';
+
 type PaymentTransaction = {
   id: number;
   paymentId: string | null;
@@ -213,6 +215,64 @@ function normalizeAffiliateCode(value: unknown) {
     .toUpperCase()
     .replace(/[^A-Z0-9_-]/g, '')
     .slice(0, 24);
+}
+
+function getRakebackBuckets(totalEarned: number, row: any) {
+  const normalizedEarned = Math.max(0, normalizeCoins(totalEarned));
+  const baseShare = Math.floor(normalizedEarned / 4);
+  const monthlyShare = normalizedEarned - baseShare * 3;
+  const now = Date.now();
+
+  const buckets: Record<RakebackPeriod, { total: number; claimed: number; claimable: number; availableAt: string | null; canClaim: boolean }> = {
+    instant: {
+      total: baseShare,
+      claimed: Number(row?.rakeback_claimed_instant || 0),
+      claimable: 0,
+      availableAt: null,
+      canClaim: true,
+    },
+    daily: {
+      total: baseShare,
+      claimed: Number(row?.rakeback_claimed_daily || 0),
+      claimable: 0,
+      availableAt: row?.rakeback_last_claimed_daily || null,
+      canClaim: true,
+    },
+    weekly: {
+      total: baseShare,
+      claimed: Number(row?.rakeback_claimed_weekly || 0),
+      claimable: 0,
+      availableAt: row?.rakeback_last_claimed_weekly || null,
+      canClaim: true,
+    },
+    monthly: {
+      total: monthlyShare,
+      claimed: Number(row?.rakeback_claimed_monthly || 0),
+      claimable: 0,
+      availableAt: row?.rakeback_last_claimed_monthly || null,
+      canClaim: true,
+    },
+  };
+
+  const cooldowns: Record<RakebackPeriod, number> = {
+    instant: 0,
+    daily: 24 * 60 * 60 * 1000,
+    weekly: 7 * 24 * 60 * 60 * 1000,
+    monthly: 30 * 24 * 60 * 60 * 1000,
+  };
+
+  (Object.keys(buckets) as RakebackPeriod[]).forEach((period) => {
+    const bucket = buckets[period];
+    bucket.claimable = Math.max(0, bucket.total - bucket.claimed);
+
+    if (period !== 'instant' && bucket.availableAt) {
+      const nextAllowedAt = new Date(bucket.availableAt).getTime() + cooldowns[period];
+      bucket.canClaim = now >= nextAllowedAt;
+      bucket.availableAt = new Date(nextAllowedAt).toISOString();
+    }
+  });
+
+  return buckets;
 }
 
 function nowPaymentsHeaders() {
@@ -766,6 +826,13 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS affiliate_code_used TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_claimed_total BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_claimed_instant BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_claimed_daily BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_claimed_weekly BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_claimed_monthly BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_last_claimed_daily TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_last_claimed_weekly TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_last_claimed_monthly TIMESTAMPTZ`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
 
@@ -1290,7 +1357,14 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
            FROM bet_activities b
            WHERE b.user_id = $1
          ), 0)::int AS total_bets,
-         COALESCE(u.rakeback_claimed_total, 0)::bigint AS rakeback_claimed_total
+         COALESCE(u.rakeback_claimed_total, 0)::bigint AS rakeback_claimed_total,
+         COALESCE(u.rakeback_claimed_instant, 0)::bigint AS rakeback_claimed_instant,
+         COALESCE(u.rakeback_claimed_daily, 0)::bigint AS rakeback_claimed_daily,
+         COALESCE(u.rakeback_claimed_weekly, 0)::bigint AS rakeback_claimed_weekly,
+         COALESCE(u.rakeback_claimed_monthly, 0)::bigint AS rakeback_claimed_monthly,
+         u.rakeback_last_claimed_daily,
+         u.rakeback_last_claimed_weekly,
+         u.rakeback_last_claimed_monthly
        FROM users u
        LEFT JOIN wallets w ON w.user_id = u.id
        WHERE u.id = $1
@@ -1304,7 +1378,12 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
     const totalBets = Number(row?.total_bets || 0);
     const rakebackClaimedTotal = Number(row?.rakeback_claimed_total || 0);
     const earnedRakeback = Math.floor((totalDeposited + totalWagered) * 0.02);
-    const claimableRakeback = Math.max(0, earnedRakeback - rakebackClaimedTotal);
+    const buckets = getRakebackBuckets(earnedRakeback, row);
+    const claimableRakeback =
+      buckets.instant.claimable +
+      buckets.daily.claimable +
+      buckets.weekly.claimable +
+      buckets.monthly.claimable;
 
     return res.json({
       vip: {
@@ -1314,6 +1393,7 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
         rakebackClaimedTotal,
         earnedRakeback,
         claimableRakeback,
+        rakeback: buckets,
       },
     });
   } catch (error) {
@@ -1326,6 +1406,11 @@ app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res)
   const client = await pool.connect();
 
   try {
+    const period = String(req.body.period || 'instant').trim().toLowerCase() as RakebackPeriod;
+    if (!['instant', 'daily', 'weekly', 'monthly'].includes(period)) {
+      return res.status(400).json({ error: 'Invalid rakeback period.' });
+    }
+
     await client.query('BEGIN');
     const result = await client.query(
       `SELECT
@@ -1335,7 +1420,14 @@ app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res)
            FROM bet_activities b
            WHERE b.user_id = $1
          ), 0)::bigint AS total_wagered,
-         COALESCE(u.rakeback_claimed_total, 0)::bigint AS rakeback_claimed_total
+         COALESCE(u.rakeback_claimed_total, 0)::bigint AS rakeback_claimed_total,
+         COALESCE(u.rakeback_claimed_instant, 0)::bigint AS rakeback_claimed_instant,
+         COALESCE(u.rakeback_claimed_daily, 0)::bigint AS rakeback_claimed_daily,
+         COALESCE(u.rakeback_claimed_weekly, 0)::bigint AS rakeback_claimed_weekly,
+         COALESCE(u.rakeback_claimed_monthly, 0)::bigint AS rakeback_claimed_monthly,
+         u.rakeback_last_claimed_daily,
+         u.rakeback_last_claimed_weekly,
+         u.rakeback_last_claimed_monthly
        FROM users u
        LEFT JOIN wallets w ON w.user_id = u.id
        WHERE u.id = $1
@@ -1347,20 +1439,29 @@ app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res)
     const row = result.rows[0];
     const totalDeposited = Number(row?.total_deposited || 0);
     const totalWagered = Number(row?.total_wagered || 0);
-    const rakebackClaimedTotal = Number(row?.rakeback_claimed_total || 0);
     const earnedRakeback = Math.floor((totalDeposited + totalWagered) * 0.02);
-    const claimableRakeback = Math.max(0, earnedRakeback - rakebackClaimedTotal);
+    const buckets = getRakebackBuckets(earnedRakeback, row);
+    const selectedBucket = buckets[period];
 
-    if (claimableRakeback <= 0) {
+    if (!selectedBucket.claimable) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'No rakeback available to claim.' });
     }
+    if (!selectedBucket.canClaim) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'This rakeback bucket is still on cooldown.' });
+    }
+
+    const claimedField = `rakeback_claimed_${period}`;
+    const lastClaimedField = period === 'instant' ? null : `rakeback_last_claimed_${period}`;
 
     await client.query(
       `UPDATE users
-       SET rakeback_claimed_total = rakeback_claimed_total + $1
+       SET rakeback_claimed_total = rakeback_claimed_total + $1,
+           ${claimedField} = ${claimedField} + $1
+           ${lastClaimedField ? `, ${lastClaimedField} = NOW()` : ''}
        WHERE id = $2`,
-      [claimableRakeback, req.auth!.user.id]
+      [selectedBucket.claimable, req.auth!.user.id]
     );
 
     const walletResult = await client.query(
@@ -1369,12 +1470,13 @@ app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res)
            updated_at = NOW()
        WHERE user_id = $2
        RETURNING balance, total_deposited, total_withdrawn`,
-      [claimableRakeback, req.auth!.user.id]
+      [selectedBucket.claimable, req.auth!.user.id]
     );
 
     await client.query('COMMIT');
     return res.json({
-      claimed: claimableRakeback,
+      claimed: selectedBucket.claimable,
+      period,
       wallet: sanitizeWallet(walletResult.rows[0]),
     });
   } catch (error) {

@@ -1921,9 +1921,21 @@ const AffiliateView = () => {
 
 const VipView = () => {
   const { refreshWallet } = useBalance();
-  const [stats, setStats] = useState({ wagered: 0, bets: 0, deposited: 0, claimableRakeback: 0, claimedTotal: 0 });
+  const [stats, setStats] = useState({
+    wagered: 0,
+    bets: 0,
+    deposited: 0,
+    claimableRakeback: 0,
+    claimedTotal: 0,
+    rakeback: {
+      instant: { claimable: 0, canClaim: true, availableAt: null as string | null },
+      daily: { claimable: 0, canClaim: false, availableAt: null as string | null },
+      weekly: { claimable: 0, canClaim: false, availableAt: null as string | null },
+      monthly: { claimable: 0, canClaim: false, availableAt: null as string | null },
+    },
+  });
   const [status, setStatus] = useState('');
-  const [isClaiming, setIsClaiming] = useState(false);
+  const [isClaiming, setIsClaiming] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -1945,6 +1957,12 @@ const VipView = () => {
           deposited: Number(vip.totalDeposited || 0),
           claimableRakeback: Number(vip.claimableRakeback || 0),
           claimedTotal: Number(vip.rakebackClaimedTotal || 0),
+          rakeback: vip.rakeback || {
+            instant: { claimable: 0, canClaim: true, availableAt: null },
+            daily: { claimable: 0, canClaim: false, availableAt: null },
+            weekly: { claimable: 0, canClaim: false, availableAt: null },
+            monthly: { claimable: 0, canClaim: false, availableAt: null },
+          },
         });
       })
       .catch(() => undefined);
@@ -1952,35 +1970,44 @@ const VipView = () => {
 
   const vipTier = stats.wagered >= 100000 ? 'Diamond' : stats.wagered >= 25000 ? 'Gold' : stats.wagered >= 5000 ? 'Silver' : 'Bronze';
 
-  const claimRakeback = async () => {
+  const claimRakeback = async (period: 'instant' | 'daily' | 'weekly' | 'monthly') => {
     const token = localStorage.getItem('pasus_auth_token');
     if (!token) {
       return;
     }
 
     try {
-      setIsClaiming(true);
+      setIsClaiming(period);
       const response = await fetch('/api/vip/rakeback/claim', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ period }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Failed to claim rakeback.');
       }
-      setStatus(`Claimed ${Number(data.claimed || 0).toLocaleString()} coins.`);
-      setStats((prev) => ({
-        ...prev,
-        claimableRakeback: 0,
-        claimedTotal: prev.claimedTotal + Number(data.claimed || 0),
-      }));
+      setStatus(`Claimed ${Number(data.claimed || 0).toLocaleString()} coins from ${period} rakeback.`);
       await refreshWallet();
+      const fresh = await fetch('/api/vip/overview', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((response) => response.json().catch(() => ({})));
+      const vip = fresh.vip || {};
+      setStats({
+        wagered: Number(vip.totalWagered || 0),
+        bets: Number(vip.totalBets || 0),
+        deposited: Number(vip.totalDeposited || 0),
+        claimableRakeback: Number(vip.claimableRakeback || 0),
+        claimedTotal: Number(vip.rakebackClaimedTotal || 0),
+        rakeback: vip.rakeback || stats.rakeback,
+      });
     } catch (err) {
       setStatus(err instanceof Error ? err.message : 'Failed to claim rakeback.');
     } finally {
-      setIsClaiming(false);
+      setIsClaiming(null);
     }
   };
 
@@ -2001,6 +2028,38 @@ const VipView = () => {
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimable Rakeback</div><div className="mt-3 text-3xl font-black italic text-[#00FF88]">{stats.claimableRakeback.toLocaleString()}</div></div>
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimed Rakeback</div><div className="mt-3 text-3xl font-black italic">{stats.claimedTotal.toLocaleString()}</div></div>
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {([
+          ['instant', 'Instant'],
+          ['daily', 'Daily'],
+          ['weekly', 'Weekly'],
+          ['monthly', 'Monthly'],
+        ] as const).map(([period, label]) => {
+          const bucket = stats.rakeback[period];
+          return (
+            <div key={period} className="rounded-3xl border border-white/10 bg-[#141821] p-5 space-y-4">
+              <div>
+                <div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">{label} Rakeback</div>
+                <div className="mt-3 text-2xl font-black italic text-[#00FF88]">{Number(bucket.claimable || 0).toLocaleString()}</div>
+              </div>
+              <div className="text-[11px] text-white/35">
+                {bucket.canClaim
+                  ? 'Ready to claim'
+                  : bucket.availableAt
+                    ? `Available ${new Date(bucket.availableAt).toLocaleString()}`
+                    : 'Not available yet'}
+              </div>
+              <button
+                onClick={() => claimRakeback(period)}
+                disabled={isClaiming !== null || !bucket.canClaim || Number(bucket.claimable || 0) <= 0}
+                className="w-full rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
+              >
+                {isClaiming === period ? 'Claiming...' : `Claim ${label}`}
+              </button>
+            </div>
+          );
+        })}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Tier Ladder</div>
@@ -2014,11 +2073,8 @@ const VipView = () => {
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Rakeback</div>
           <div className="rounded-2xl border border-[#00FF88]/15 bg-[#00FF88]/5 px-4 py-4 text-sm text-white/70">
-            Claimable rakeback is calculated as 2% of your tracked deposits and wagers, minus anything you already claimed.
+            Total rakeback is calculated as 2% of your tracked deposits and wagers, then split across Instant, Daily, Weekly, and Monthly buckets.
           </div>
-          <button onClick={claimRakeback} disabled={isClaiming || stats.claimableRakeback <= 0} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
-            {isClaiming ? 'Claiming...' : 'Claim Rakeback'}
-          </button>
           {status ? <div className="text-sm text-white/60">{status}</div> : null}
           <div className="text-lg font-black uppercase tracking-tight pt-2">Planned Perks</div>
           {[
