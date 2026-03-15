@@ -204,6 +204,28 @@ type TipNotification = {
   createdAt: string;
 };
 
+type SupportTicketMessage = {
+  id: number;
+  ticketId: number;
+  senderType: 'user' | 'admin';
+  userId: number | null;
+  username: string;
+  role: 'owner' | 'moderator' | 'user';
+  message: string;
+  createdAt: string;
+};
+
+type SupportTicketThread = {
+  id: number;
+  userId: number;
+  username: string;
+  subject: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: SupportTicketMessage[];
+};
+
 type RainRoundState = {
   id: number;
   poolAmount: number;
@@ -476,6 +498,40 @@ function mapTipNotification(row: any): TipNotification {
     amount: Number(row.amount || 0),
     createdAt: row.created_at,
   };
+}
+
+function mapSupportTicketMessage(row: any): SupportTicketMessage {
+  return {
+    id: Number(row.id),
+    ticketId: Number(row.ticket_id),
+    senderType: row.sender_type === 'admin' ? 'admin' : 'user',
+    userId: row.user_id ? Number(row.user_id) : null,
+    username: String(row.username || ''),
+    role: normalizeUserRole(row.role),
+    message: String(row.message || ''),
+    createdAt: row.created_at,
+  };
+}
+
+function buildSupportThreads(ticketRows: any[], messageRows: any[]): SupportTicketThread[] {
+  const messagesByTicket = new Map<number, SupportTicketMessage[]>();
+  for (const row of messageRows) {
+    const message = mapSupportTicketMessage(row);
+    const list = messagesByTicket.get(message.ticketId) || [];
+    list.push(message);
+    messagesByTicket.set(message.ticketId, list);
+  }
+
+  return ticketRows.map((row) => ({
+    id: Number(row.id),
+    userId: Number(row.user_id),
+    username: String(row.username || ''),
+    subject: String(row.subject || ''),
+    status: String(row.status || 'open'),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+    messages: messagesByTicket.get(Number(row.id)) || [],
+  }));
 }
 
 function buildRobloxVerificationPhrase() {
@@ -1032,9 +1088,39 @@ async function initDb() {
       subject TEXT NOT NULL,
       message TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_ticket_messages (
+      id BIGSERIAL PRIMARY KEY,
+      ticket_id BIGINT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+      user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      sender_type TEXT NOT NULL DEFAULT 'user',
+      username TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      message TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE support_ticket_messages ADD COLUMN IF NOT EXISTS sender_type TEXT NOT NULL DEFAULT 'user'`);
+  await pool.query(`ALTER TABLE support_ticket_messages ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT 'Support'`);
+  await pool.query(`ALTER TABLE support_ticket_messages ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
+
+  await pool.query(
+    `INSERT INTO support_ticket_messages (ticket_id, user_id, sender_type, username, role, message, created_at)
+     SELECT st.id, st.user_id, 'user', u.username, COALESCE(u.role, 'user'), st.message, st.created_at
+     FROM support_tickets st
+     JOIN users u ON u.id = st.user_id
+     WHERE NOT EXISTS (
+       SELECT 1
+       FROM support_ticket_messages stm
+       WHERE stm.ticket_id = st.id
+     )`
+  );
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS wallets (
@@ -1905,16 +1991,28 @@ app.post('/api/affiliate/code', requireAuth, async (req: AuthedRequest, res) => 
 
 app.get('/api/support/tickets', requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const result = await pool.query(
-      `SELECT id, subject, message, status, created_at
-       FROM support_tickets
-       WHERE user_id = $1
-       ORDER BY created_at DESC
+    const ticketsResult = await pool.query(
+      `SELECT st.id, st.user_id, u.username, st.subject, st.status, st.created_at, st.updated_at
+       FROM support_tickets st
+       JOIN users u ON u.id = st.user_id
+       WHERE st.user_id = $1
+       ORDER BY st.updated_at DESC, st.created_at DESC
        LIMIT 20`,
       [req.auth!.user.id]
     );
 
-    return res.json({ tickets: result.rows });
+    const ticketIds = ticketsResult.rows.map((row) => Number(row.id));
+    const messagesResult = ticketIds.length
+      ? await pool.query(
+          `SELECT id, ticket_id, user_id, sender_type, username, role, message, created_at
+           FROM support_ticket_messages
+           WHERE ticket_id = ANY($1::bigint[])
+           ORDER BY created_at ASC`,
+          [ticketIds]
+        )
+      : { rows: [] };
+
+    return res.json({ tickets: buildSupportThreads(ticketsResult.rows, messagesResult.rows) });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load support tickets.' });
@@ -1922,6 +2020,8 @@ app.get('/api/support/tickets', requireAuth, async (req: AuthedRequest, res) => 
 });
 
 app.post('/api/support/tickets', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
   try {
     const subject = String(req.body.subject || '').trim();
     const message = String(req.body.message || '').trim();
@@ -1930,17 +2030,180 @@ app.post('/api/support/tickets', requireAuth, async (req: AuthedRequest, res) =>
       return res.status(400).json({ error: 'Subject and message are required.' });
     }
 
-    const result = await pool.query(
-      `INSERT INTO support_tickets (user_id, subject, message)
-       VALUES ($1, $2, $3)
-       RETURNING id, subject, message, status, created_at`,
+    await client.query('BEGIN');
+    const result = await client.query(
+      `INSERT INTO support_tickets (user_id, subject, message, status, updated_at)
+       VALUES ($1, $2, $3, 'open', NOW())
+       RETURNING id, user_id, subject, status, created_at, updated_at`,
       [req.auth!.user.id, subject, message]
     );
 
-    return res.status(201).json({ ticket: result.rows[0] });
+    await client.query(
+      `INSERT INTO support_ticket_messages (ticket_id, user_id, sender_type, username, role, message)
+       VALUES ($1, $2, 'user', $3, $4, $5)`,
+      [result.rows[0].id, req.auth!.user.id, req.auth!.user.username, req.auth!.user.role, message]
+    );
+
+    await client.query('COMMIT');
+    return res.status(201).json({
+      ticket: {
+        id: Number(result.rows[0].id),
+        userId: Number(result.rows[0].user_id),
+        username: req.auth!.user.username,
+        subject,
+        status: result.rows[0].status,
+        createdAt: result.rows[0].created_at,
+        updatedAt: result.rows[0].updated_at,
+        messages: [
+          {
+            id: 0,
+            ticketId: Number(result.rows[0].id),
+            senderType: 'user',
+            userId: req.auth!.user.id,
+            username: req.auth!.user.username,
+            role: req.auth!.user.role,
+            message,
+            createdAt: result.rows[0].created_at,
+          },
+        ],
+      },
+    });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error(error);
     return res.status(500).json({ error: 'Failed to create support ticket.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/support/tickets/:ticketId/reply', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const ticketId = Number(req.params.ticketId);
+    const message = String(req.body.message || '').trim();
+
+    if (!Number.isFinite(ticketId) || ticketId <= 0 || !message) {
+      return res.status(400).json({ error: 'Valid ticket and message are required.' });
+    }
+
+    await client.query('BEGIN');
+    const ticketResult = await client.query(
+      `SELECT id
+       FROM support_tickets
+       WHERE id = $1 AND user_id = $2
+       LIMIT 1
+       FOR UPDATE`,
+      [ticketId, req.auth!.user.id]
+    );
+
+    if (!ticketResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Support ticket not found.' });
+    }
+
+    await client.query(
+      `INSERT INTO support_ticket_messages (ticket_id, user_id, sender_type, username, role, message)
+       VALUES ($1, $2, 'user', $3, $4, $5)`,
+      [ticketId, req.auth!.user.id, req.auth!.user.username, req.auth!.user.role, message]
+    );
+
+    await client.query(
+      `UPDATE support_tickets
+       SET status = 'open',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [ticketId]
+    );
+
+    await client.query('COMMIT');
+    return res.status(201).json({ ok: true });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to reply to support ticket.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/admin/support/tickets', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
+  try {
+    const ticketsResult = await pool.query(
+      `SELECT st.id, st.user_id, u.username, st.subject, st.status, st.created_at, st.updated_at
+       FROM support_tickets st
+       JOIN users u ON u.id = st.user_id
+       ORDER BY st.updated_at DESC, st.created_at DESC
+       LIMIT 100`
+    );
+
+    const ticketIds = ticketsResult.rows.map((row) => Number(row.id));
+    const messagesResult = ticketIds.length
+      ? await pool.query(
+          `SELECT id, ticket_id, user_id, sender_type, username, role, message, created_at
+           FROM support_ticket_messages
+           WHERE ticket_id = ANY($1::bigint[])
+           ORDER BY created_at ASC`,
+          [ticketIds]
+        )
+      : { rows: [] };
+
+    return res.json({ tickets: buildSupportThreads(ticketsResult.rows, messagesResult.rows) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load support inbox.' });
+  }
+});
+
+app.post('/api/admin/support/tickets/:ticketId/reply', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const ticketId = Number(req.params.ticketId);
+    const message = String(req.body.message || '').trim();
+
+    if (!Number.isFinite(ticketId) || ticketId <= 0 || !message) {
+      return res.status(400).json({ error: 'Valid ticket and message are required.' });
+    }
+
+    await client.query('BEGIN');
+    const ticketResult = await client.query(
+      `SELECT id
+       FROM support_tickets
+       WHERE id = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [ticketId]
+    );
+
+    if (!ticketResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Support ticket not found.' });
+    }
+
+    await client.query(
+      `INSERT INTO support_ticket_messages (ticket_id, user_id, sender_type, username, role, message)
+       VALUES ($1, $2, 'admin', $3, $4, $5)`,
+      [ticketId, req.auth!.user.id, req.auth!.user.username, req.auth!.user.role, message]
+    );
+
+    await client.query(
+      `UPDATE support_tickets
+       SET status = 'answered',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [ticketId]
+    );
+
+    await client.query('COMMIT');
+    return res.status(201).json({ ok: true });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to send support reply.' });
+  } finally {
+    client.release();
   }
 });
 

@@ -2178,6 +2178,10 @@ const AdminView = () => {
   const [adjustAmount, setAdjustAmount] = useState('');
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [supportTickets, setSupportTickets] = useState<SupportThread[]>([]);
+  const [selectedSupportTicketId, setSelectedSupportTicketId] = useState<number | null>(null);
+  const [supportReply, setSupportReply] = useState('');
+  const [isReplyingToSupport, setIsReplyingToSupport] = useState(false);
 
   const loadOverview = useCallback(async () => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -2193,11 +2197,39 @@ const AdminView = () => {
     setOverview(data);
   }, []);
 
+  const loadSupportTickets = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    const response = await fetch('/api/admin/support/tickets', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load support inbox.');
+    }
+    const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+    setSupportTickets(tickets);
+    setSelectedSupportTicketId((current) => {
+      if (current && tickets.some((ticket: SupportThread) => ticket.id === current)) {
+        return current;
+      }
+      return tickets[0]?.id ?? null;
+    });
+  }, []);
+
   useEffect(() => {
-    loadOverview().catch((error) => {
+    Promise.all([loadOverview(), loadSupportTickets()]).catch((error) => {
       setStatus(error instanceof Error ? error.message : 'Failed to load admin overview.');
     });
-  }, [loadOverview]);
+  }, [loadOverview, loadSupportTickets]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadSupportTickets().catch(() => undefined);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [loadSupportTickets]);
 
   const submitAdjustment = async () => {
     try {
@@ -2227,6 +2259,39 @@ const AdminView = () => {
       setStatus(error instanceof Error ? error.message : 'Failed to adjust wallet.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const selectedSupportTicket = supportTickets.find((ticket) => ticket.id === selectedSupportTicketId) || null;
+
+  const submitSupportReply = async () => {
+    if (!selectedSupportTicket || !supportReply.trim()) {
+      return;
+    }
+
+    try {
+      setIsReplyingToSupport(true);
+      setStatus('');
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await fetch(`/api/admin/support/tickets/${selectedSupportTicket.id}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: supportReply.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send support reply.');
+      }
+      setSupportReply('');
+      setStatus('Support reply sent.');
+      await loadSupportTickets();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to send support reply.');
+    } finally {
+      setIsReplyingToSupport(false);
     }
   };
 
@@ -2300,6 +2365,72 @@ const AdminView = () => {
           ))}
         </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Support Inbox</div>
+          <div className="space-y-3 max-h-[520px] overflow-y-auto custom-scrollbar">
+            {supportTickets.length ? supportTickets.map((ticket) => (
+              <button
+                key={ticket.id}
+                onClick={() => setSelectedSupportTicketId(ticket.id)}
+                className={cn(
+                  'w-full rounded-2xl border px-4 py-4 text-left transition-all',
+                  selectedSupportTicketId === ticket.id ? 'border-[#00FF88]/40 bg-[#00FF88]/10' : 'border-white/5 bg-black/25'
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-black">{ticket.subject}</div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{ticket.status}</div>
+                </div>
+                <div className="mt-2 text-xs text-white/45">{ticket.username}</div>
+                <div className="mt-2 text-[11px] text-white/25">{new Date(ticket.updatedAt).toLocaleString()}</div>
+              </button>
+            )) : (
+              <div className="rounded-2xl border border-white/5 bg-black/25 px-4 py-8 text-sm text-white/35">No support tickets yet.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-black uppercase tracking-tight">{selectedSupportTicket?.subject || 'Select A Ticket'}</div>
+              <div className="text-xs text-white/35">{selectedSupportTicket ? `${selectedSupportTicket.username} • ${selectedSupportTicket.status}` : 'Open a ticket from the list to view the thread.'}</div>
+            </div>
+          </div>
+          <div className="rounded-3xl border border-white/5 bg-black/25 p-4 space-y-3 min-h-[320px] max-h-[420px] overflow-y-auto custom-scrollbar">
+            {selectedSupportTicket ? selectedSupportTicket.messages.map((entry) => (
+              <div key={`${selectedSupportTicket.id}-${entry.id}-${entry.createdAt}`} className={cn('rounded-2xl px-4 py-3 border', entry.senderType === 'admin' ? 'border-[#00FF88]/20 bg-[#00FF88]/10 ml-8' : 'border-white/5 bg-white/[0.03] mr-8')}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs font-black">{entry.username}</div>
+                  <div className="text-[10px] text-white/25">{new Date(entry.createdAt).toLocaleString()}</div>
+                </div>
+                <div className="mt-2 text-sm text-white/65 whitespace-pre-wrap">{entry.message}</div>
+              </div>
+            )) : (
+              <div className="h-full flex items-center justify-center text-sm text-white/35">Pick a ticket to view the support thread.</div>
+            )}
+          </div>
+          <div className="space-y-3">
+            <textarea
+              value={supportReply}
+              onChange={(e) => setSupportReply(e.target.value)}
+              rows={4}
+              placeholder={selectedSupportTicket ? 'Reply to this ticket' : 'Select a ticket first'}
+              disabled={!selectedSupportTicket}
+              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none disabled:opacity-50"
+            />
+            <button
+              onClick={submitSupportReply}
+              disabled={!selectedSupportTicket || !supportReply.trim() || isReplyingToSupport}
+              className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
+            >
+              {isReplyingToSupport ? 'Replying...' : 'Send Support Reply'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -2338,6 +2469,28 @@ const InfoView = ({
       </div>
     </div>
   );
+};
+
+type SupportThreadMessage = {
+  id: number;
+  ticketId: number;
+  senderType: 'user' | 'admin';
+  userId: number | null;
+  username: string;
+  role: 'owner' | 'moderator' | 'user';
+  message: string;
+  createdAt: string;
+};
+
+type SupportThread = {
+  id: number;
+  userId: number;
+  username: string;
+  subject: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: SupportThreadMessage[];
 };
 
 const AffiliateView = () => {
@@ -2692,7 +2845,9 @@ const ProvablyFairView = () => {
 const SupportView = () => {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [tickets, setTickets] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<SupportThread[]>([]);
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [replyMessage, setReplyMessage] = useState('');
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -2706,12 +2861,26 @@ const SupportView = () => {
     });
     const data = await response.json().catch(() => ({}));
     if (response.ok) {
-      setTickets(Array.isArray(data.tickets) ? data.tickets : []);
+      const nextTickets = Array.isArray(data.tickets) ? data.tickets : [];
+      setTickets(nextTickets);
+      setSelectedTicketId((current) => {
+        if (current && nextTickets.some((ticket: SupportThread) => ticket.id === current)) {
+          return current;
+        }
+        return nextTickets[0]?.id ?? null;
+      });
     }
   };
 
   useEffect(() => {
     loadTickets().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadTickets().catch(() => undefined);
+    }, 4000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const submitTicket = async () => {
@@ -2736,9 +2905,42 @@ const SupportView = () => {
       setStatus('Support ticket submitted.');
       setSubject('');
       setMessage('');
+      setSelectedTicketId(Number(data.ticket?.id || 0) || null);
       await loadTickets();
     } catch (err) {
       setStatus(err instanceof Error ? err.message : 'Failed to create support ticket.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const selectedTicket = tickets.find((ticket) => ticket.id === selectedTicketId) || null;
+
+  const submitReply = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token || !selectedTicket || !replyMessage.trim()) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(`/api/support/tickets/${selectedTicket.id}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: replyMessage.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to reply to support ticket.');
+      }
+      setReplyMessage('');
+      setStatus('Support reply sent.');
+      await loadTickets();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Failed to reply to support ticket.');
     } finally {
       setIsSubmitting(false);
     }
@@ -2763,20 +2965,65 @@ const SupportView = () => {
           <div className="text-xs text-white/35">For urgent cases, you can also direct users to your Discord server or Telegram from here.</div>
         </div>
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
-          <div className="text-lg font-black uppercase tracking-tight">Recent Tickets</div>
-          <div className="space-y-3">
-            {tickets.length ? tickets.map((ticket) => (
-              <div key={ticket.id} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-4 space-y-2">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="text-sm font-black">{ticket.subject}</div>
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{ticket.status}</div>
-                </div>
-                <div className="text-sm text-white/55">{ticket.message}</div>
-                <div className="text-[11px] text-white/30">{new Date(ticket.created_at).toLocaleString()}</div>
+          <div className="text-lg font-black uppercase tracking-tight">Ticket Threads</div>
+          <div className="grid grid-cols-1 xl:grid-cols-[0.8fr_1.2fr] gap-4">
+            <div className="space-y-3 max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
+              {tickets.length ? tickets.map((ticket) => (
+                <button
+                  key={ticket.id}
+                  onClick={() => setSelectedTicketId(ticket.id)}
+                  className={cn(
+                    'w-full rounded-2xl border px-4 py-4 text-left transition-all',
+                    selectedTicketId === ticket.id ? 'border-[#00FF88]/40 bg-[#00FF88]/10' : 'border-white/5 bg-black/30'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="text-sm font-black">{ticket.subject}</div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{ticket.status}</div>
+                  </div>
+                  <div className="mt-2 text-[11px] text-white/30">{new Date(ticket.updatedAt).toLocaleString()}</div>
+                </button>
+              )) : (
+                <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">No support tickets yet.</div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-white/5 bg-black/25 p-4 min-h-[320px] max-h-[420px] overflow-y-auto custom-scrollbar space-y-3">
+                {selectedTicket ? selectedTicket.messages.map((entry) => (
+                  <div
+                    key={`${selectedTicket.id}-${entry.id}-${entry.createdAt}`}
+                    className={cn(
+                      'rounded-2xl px-4 py-3 border',
+                      entry.senderType === 'admin' ? 'border-[#00FF88]/20 bg-[#00FF88]/10 ml-8' : 'border-white/5 bg-white/[0.03] mr-8'
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs font-black">{entry.username}</div>
+                      <div className="text-[10px] text-white/25">{new Date(entry.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div className="mt-2 text-sm text-white/65 whitespace-pre-wrap">{entry.message}</div>
+                  </div>
+                )) : (
+                  <div className="h-full flex items-center justify-center text-sm text-white/35">Select a ticket to view the thread.</div>
+                )}
               </div>
-            )) : (
-              <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">No support tickets yet.</div>
-            )}
+              <textarea
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                rows={4}
+                placeholder={selectedTicket ? 'Reply to support' : 'Select a ticket first'}
+                disabled={!selectedTicket}
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none disabled:opacity-50"
+              />
+              <button
+                onClick={submitReply}
+                disabled={!selectedTicket || !replyMessage.trim() || isSubmitting}
+                className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
+              >
+                {isSubmitting ? 'Sending...' : 'Send Reply'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2997,6 +3244,26 @@ const RightRail = () => {
 
   const submitMessage = async () => {
     if (!draft.trim() || !isAuthenticated) {
+      return;
+    }
+
+    if (/^\.commands$/i.test(draft.trim())) {
+      const commandLines = ['Commands: .commands, .tip <username>, .rain'];
+      if (user?.role === 'owner' || user?.role === 'moderator') {
+        commandLines.push('Staff access: admin panel support inbox, wallet tools, and staff chat badge.');
+      }
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now(),
+          user: 'PasusHelp',
+          text: commandLines.join(' '),
+          tone: 'normal',
+          role: user?.role === 'owner' || user?.role === 'moderator' ? user.role : 'user',
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      setDraft('');
       return;
     }
 
