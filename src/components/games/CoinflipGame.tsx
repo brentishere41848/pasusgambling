@@ -19,6 +19,7 @@ export const CoinflipGame: React.FC = () => {
   const [isFast, setIsFast] = useState(false);
   const [autoRounds, setAutoRounds] = useState(10);
   const [remainingRounds, setRemainingRounds] = useState(0);
+  const [coinRotation, setCoinRotation] = useState(0);
 
   const runFlip = useCallback(() => {
     if (!subtractBalance(bet)) {
@@ -28,11 +29,14 @@ export const CoinflipGame: React.FC = () => {
     }
 
     setIsFlipping(true);
+    const landed: CoinSide = Math.random() < 0.5 ? 'heads' : 'tails';
+    const extraSpins = isFast ? 6 : 9;
+    const finalFaceOffset = landed === 'heads' ? 0 : 180;
+    setCoinRotation((current) => current + extraSpins * 360 + finalFaceOffset);
     setResult(null);
     const duration = isFast ? 450 : 1100;
 
     window.setTimeout(() => {
-      const landed: CoinSide = Math.random() < 0.5 ? 'heads' : 'tails';
       const didWin = landed === selectedSide;
       setResult(landed);
 
@@ -202,21 +206,74 @@ export const CoinflipGame: React.FC = () => {
 
         <motion.div
           animate={{
-            rotateY: isFlipping ? [0, 540, 1080] : 0,
-            y: isFlipping ? [0, -24, 0] : 0,
-            scale: isFlipping ? [1, 1.04, 1] : 1,
+            y: isFlipping ? [0, -34, 0] : 0,
+            scale: isFlipping ? [1, 1.03, 1] : 1,
           }}
           transition={{
             duration: isFast ? 0.45 : 1.1,
             ease: 'easeInOut',
           }}
-          className="relative w-56 h-56 rounded-full border border-white/10 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.35),rgba(0,255,136,0.14)_35%,rgba(0,0,0,0.92)_100%)] shadow-[0_25px_80px_rgba(0,0,0,0.45)] flex items-center justify-center"
-          style={{ transformStyle: 'preserve-3d' }}
+          className="relative [perspective:1400px]"
         >
-          <div className="absolute inset-3 rounded-full border border-[#00FF88]/30" />
-          <div className="text-7xl font-black italic tracking-tighter text-[#00FF88] drop-shadow-[0_0_22px_rgba(0,255,136,0.4)]">
-            {result === 'tails' ? 'T' : 'H'}
-          </div>
+          <motion.div
+            animate={{
+              rotateX: coinRotation,
+              rotateZ: isFlipping ? [0, -10, 8, 0] : 0,
+            }}
+            transition={{
+              rotateX: {
+                duration: isFast ? 0.45 : 1.1,
+                ease: [0.18, 0.9, 0.2, 1],
+              },
+              rotateZ: {
+                duration: isFast ? 0.45 : 1.1,
+                ease: 'easeInOut',
+              },
+            }}
+            className="relative h-56 w-56"
+            style={{ transformStyle: 'preserve-3d' }}
+          >
+            <div className="absolute inset-[10px] rounded-full bg-[#7fffd4]/25 blur-2xl" />
+            <div className="absolute inset-[22px] rounded-full bg-black/60 blur-md" />
+
+            <div
+              className="absolute inset-0 rounded-full border border-[#8fffe4]/25 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.9),rgba(169,255,235,0.7)_18%,rgba(18,122,107,0.98)_58%,rgba(5,12,16,1)_100%)] shadow-[0_30px_90px_rgba(0,0,0,0.5)]"
+              style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+            >
+              <div className="absolute inset-[12px] rounded-full border border-white/20" />
+              <div className="absolute inset-[26px] rounded-full border border-[#b0fff0]/25" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-7xl font-black italic tracking-tighter text-[#dffff7] drop-shadow-[0_0_28px_rgba(160,255,230,0.45)]">
+                  H
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="absolute inset-0 rounded-full border border-[#8fffe4]/25 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.9),rgba(169,255,235,0.7)_18%,rgba(18,122,107,0.98)_58%,rgba(5,12,16,1)_100%)] shadow-[0_30px_90px_rgba(0,0,0,0.5)]"
+              style={{
+                transform: 'rotateX(180deg)',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+              }}
+            >
+              <div className="absolute inset-[12px] rounded-full border border-white/20" />
+              <div className="absolute inset-[26px] rounded-full border border-[#b0fff0]/25" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-7xl font-black italic tracking-tighter text-[#dffff7] drop-shadow-[0_0_28px_rgba(160,255,230,0.45)]">
+                  T
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="absolute left-[18px] right-[18px] top-1/2 h-5 -translate-y-1/2 rounded-full bg-[linear-gradient(180deg,#d9fff6_0%,#7cebd1_18%,#127a6b_46%,#0a3f38_100%)] opacity-80 blur-[0.3px]"
+              style={{
+                transform: 'translateY(-50%) rotateX(90deg) translateZ(104px)',
+                transformStyle: 'preserve-3d',
+              }}
+            />
+          </motion.div>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl">
