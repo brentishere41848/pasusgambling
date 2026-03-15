@@ -73,7 +73,7 @@ export const PlinkoGame: React.FC = () => {
     if (ballsRef.current.length >= MAX_ACTIVE_BALLS) {
       return false;
     }
-    const startX = 250;
+    const startX = canvasRef.current ? canvasRef.current.width / 2 : 320;
     ballsRef.current.push({
       x: startX + (Math.random() - 0.5) * 4,
       y: 24,
@@ -200,7 +200,7 @@ export const PlinkoGame: React.FC = () => {
     const topOffset = 70;
     const verticalGap = rows <= 10 ? 34 : rows <= 14 ? 28 : 24;
     const pegGap = rows <= 10 ? 38 : rows <= 14 ? 32 : 28;
-    const pegRadius = rows <= 10 ? 4 : 3.5;
+    const pegRadius = rows <= 10 ? 4 : 4.25;
     const bucketHeight = 34;
     const lastRowY = topOffset + rows * verticalGap;
     const bucketWidth = pegGap;
@@ -239,7 +239,7 @@ export const PlinkoGame: React.FC = () => {
         ctx.fillText(label, x + bucketWidth / 2, lastRowY + 21);
       });
 
-      const steps = isFast ? 3 : 2;
+      const steps = isFast ? (rows >= 14 ? 6 : 4) : rows >= 14 ? 4 : 3;
       for (let step = 0; step < steps; step++) {
         ballsRef.current = ballsRef.current.filter((ball) => {
           ball.vy += 0.16 / steps;
@@ -250,20 +250,21 @@ export const PlinkoGame: React.FC = () => {
 
           for (let row = 0; row < rows; row++) {
             const rowY = topOffset + row * verticalGap;
-            if (Math.abs(ball.y - rowY) < pegGap * 0.25 && ball.row === row) {
+            if (Math.abs(ball.y - rowY) < verticalGap * 0.45 && ball.row === row) {
               const pegsInRow = row + 3;
               const rowWidth = (pegsInRow - 1) * pegGap;
               const rowStartX = (canvas.width - rowWidth) / 2;
-              const pegIndex = Math.round((ball.x - rowStartX) / pegGap);
+              const pegIndex = Math.max(0, Math.min(pegsInRow - 1, Math.round((ball.x - rowStartX) / pegGap)));
               const pegX = rowStartX + pegIndex * pegGap;
               const dx = ball.x - pegX;
               const dy = ball.y - rowY;
               const distance = Math.sqrt(dx * dx + dy * dy);
 
-              if (distance < pegGap * 0.32) {
+              if (distance < pegRadius + 5.5) {
                 const direction = dx >= 0 ? 1 : -1;
                 ball.vx = direction * (1.6 + Math.random() * 0.6);
                 ball.vy = -0.7 - Math.random() * 0.25;
+                ball.y = rowY - (pegRadius + 6);
                 ball.row++;
               }
             }
