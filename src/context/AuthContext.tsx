@@ -7,6 +7,11 @@ interface User {
   avatar?: string;
   currency: string;
   role: 'owner' | 'moderator' | 'user';
+  robloxUserId?: number;
+  robloxUsername?: string;
+  robloxDisplayName?: string;
+  robloxAvatarUrl?: string;
+  robloxVerifiedAt?: string;
 }
 
 interface AuthContextType {
@@ -15,6 +20,8 @@ interface AuthContextType {
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateCurrency: (currency: string) => void;
+  setUser: (user: User | null) => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -40,6 +47,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  const refreshUser = async () => {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+
+    if (!token) {
+      setUser(null);
+      return;
+    }
+
+    const data = await parseApiResponse(
+      await fetch('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+    );
+
+    setUser(data.user as User);
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user));
+  };
+
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY);
 
@@ -48,16 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    fetch('/api/auth/me', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(parseApiResponse)
-      .then((data) => {
-        setUser(data.user as User);
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user));
-      })
+    refreshUser()
       .catch(() => {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         localStorage.removeItem(USER_STORAGE_KEY);
@@ -147,6 +165,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         register,
         logout,
         updateCurrency,
+        setUser,
+        refreshUser,
         isAuthenticated: !!user,
         isLoading,
       }}

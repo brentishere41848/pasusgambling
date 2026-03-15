@@ -44,6 +44,11 @@ type AuthUser = {
   currency: string;
   avatar?: string;
   role: 'owner' | 'moderator' | 'user';
+  robloxUserId?: number;
+  robloxUsername?: string;
+  robloxDisplayName?: string;
+  robloxAvatarUrl?: string;
+  robloxVerifiedAt?: string;
 };
 
 type Wallet = {
@@ -134,6 +139,11 @@ function sanitizeUser(row: any): AuthUser {
     currency: row.currency || 'USD',
     avatar: row.avatar || undefined,
     role: normalizeUserRole(row.role),
+    robloxUserId: row.roblox_user_id ? Number(row.roblox_user_id) : undefined,
+    robloxUsername: row.roblox_username || undefined,
+    robloxDisplayName: row.roblox_display_name || undefined,
+    robloxAvatarUrl: row.roblox_avatar_url || undefined,
+    robloxVerifiedAt: row.roblox_verified_at || undefined,
   };
 }
 
@@ -241,6 +251,69 @@ function mapRainRound(row: any, joined = false): RainRoundState {
     joined,
     hasEnded: new Date(row.ends_at).getTime() <= Date.now(),
   };
+}
+
+function buildRobloxVerificationPhrase() {
+  return `PASUS VERIFICATION ${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+async function fetchRobloxUserByUsername(username: string) {
+  const response = await fetch('https://users.roblox.com/v1/usernames/users', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      usernames: [username],
+      excludeBannedUsers: false,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to resolve Roblox username.');
+  }
+
+  const payload = await response.json().catch(() => ({} as any));
+  const row = Array.isArray(payload.data) ? payload.data[0] : null;
+
+  if (!row?.id) {
+    throw new Error('Roblox username not found.');
+  }
+
+  return {
+    id: Number(row.id),
+    username: String(row.name || username),
+    displayName: String(row.displayName || row.name || username),
+  };
+}
+
+async function fetchRobloxProfile(userId: number) {
+  const response = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+  if (!response.ok) {
+    throw new Error('Failed to load Roblox profile.');
+  }
+
+  const payload = await response.json().catch(() => ({} as any));
+  return {
+    id: Number(payload.id || userId),
+    username: String(payload.name || ''),
+    displayName: String(payload.displayName || payload.name || ''),
+    description: String(payload.description || ''),
+  };
+}
+
+async function fetchRobloxAvatar(userId: number) {
+  const response = await fetch(
+    `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`
+  );
+
+  if (!response.ok) {
+    return undefined;
+  }
+
+  const payload = await response.json().catch(() => ({} as any));
+  const row = Array.isArray(payload.data) ? payload.data[0] : null;
+  return row?.imageUrl ? String(row.imageUrl) : undefined;
 }
 
 async function settleFinishedRainRounds(client: Pool | PoolClient) {
@@ -437,6 +510,14 @@ async function initDb() {
   `);
 
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_user_id BIGINT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_username TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_display_name TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_avatar_url TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_verified_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_verification_phrase TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_verification_started_at TIMESTAMPTZ`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS wallets (
@@ -575,7 +656,8 @@ async function requireAuth(req: AuthedRequest, res: express.Response, next: expr
     const tokenHash = hashToken(token);
 
     const result = await pool.query(
-      `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.role
+      `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.role,
+              u.roblox_user_id, u.roblox_username, u.roblox_display_name, u.roblox_avatar_url, u.roblox_verified_at
        FROM user_sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.user_id = $1
@@ -778,7 +860,7 @@ app.post('/api/auth/register', async (req, res) => {
     const userResult = await client.query(
       `INSERT INTO users (username, email, password_hash, avatar)
        VALUES ($1, $2, $3, $4)
-       RETURNING id, username, email, currency, avatar, role`,
+       RETURNING id, username, email, currency, avatar, role, roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at`,
       [username, email, passwordHash, avatar]
     );
 
@@ -883,7 +965,9 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const result = await client.query(
-      `SELECT id, username, email, currency, avatar, role, password_hash
+      `SELECT id, username, email, currency, avatar, role,
+              roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
+              password_hash
        FROM users
        WHERE username = $1
        LIMIT 1`,
@@ -926,6 +1010,140 @@ app.get('/api/auth/me', requireAuth, async (req: AuthedRequest, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load user.' });
+  }
+});
+
+app.get('/api/roblox/link/status', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url,
+              roblox_verified_at, roblox_verification_phrase
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [req.auth!.user.id]
+    );
+
+    const row = result.rows[0] || {};
+    return res.json({
+      roblox: {
+        userId: row.roblox_user_id ? Number(row.roblox_user_id) : null,
+        username: row.roblox_username || null,
+        displayName: row.roblox_display_name || null,
+        avatarUrl: row.roblox_avatar_url || null,
+        verifiedAt: row.roblox_verified_at || null,
+        pendingPhrase: row.roblox_verification_phrase || null,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load Roblox link status.' });
+  }
+});
+
+app.post('/api/roblox/link/start', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const username = String(req.body.username || '').trim();
+    if (!username) {
+      return res.status(400).json({ error: 'Roblox username is required.' });
+    }
+
+    const robloxUser = await fetchRobloxUserByUsername(username);
+    const avatarUrl = await fetchRobloxAvatar(robloxUser.id);
+    const phrase = buildRobloxVerificationPhrase();
+
+    const conflict = await client.query(
+      `SELECT id
+       FROM users
+       WHERE roblox_user_id = $1
+         AND id <> $2
+       LIMIT 1`,
+      [robloxUser.id, req.auth!.user.id]
+    );
+
+    if (conflict.rowCount) {
+      return res.status(409).json({ error: 'That Roblox account is already linked to another Pasus user.' });
+    }
+
+    const update = await client.query(
+      `UPDATE users
+       SET roblox_user_id = $1,
+           roblox_username = $2,
+           roblox_display_name = $3,
+           roblox_avatar_url = $4,
+           roblox_verification_phrase = $5,
+           roblox_verification_started_at = NOW()
+       WHERE id = $6
+       RETURNING roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verification_phrase`,
+      [robloxUser.id, robloxUser.username, robloxUser.displayName, avatarUrl || null, phrase, req.auth!.user.id]
+    );
+
+    const row = update.rows[0];
+    return res.status(201).json({
+      roblox: {
+        userId: Number(row.roblox_user_id),
+        username: row.roblox_username,
+        displayName: row.roblox_display_name,
+        avatarUrl: row.roblox_avatar_url,
+        pendingPhrase: row.roblox_verification_phrase,
+        profileUrl: `https://www.roblox.com/users/${row.roblox_user_id}/profile`,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to start Roblox verification.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/roblox/link/verify', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const current = await client.query(
+      `SELECT roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verification_phrase
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [req.auth!.user.id]
+    );
+
+    if (!current.rowCount || !current.rows[0].roblox_user_id || !current.rows[0].roblox_verification_phrase) {
+      return res.status(400).json({ error: 'Start Roblox verification first.' });
+    }
+
+    const row = current.rows[0];
+    const robloxUserId = Number(row.roblox_user_id);
+    const phrase = String(row.roblox_verification_phrase);
+    const profile = await fetchRobloxProfile(robloxUserId);
+    const avatarUrl = (await fetchRobloxAvatar(robloxUserId)) || row.roblox_avatar_url || null;
+
+    if (!profile.description.includes(phrase)) {
+      return res.status(400).json({ error: 'Verification phrase not found in your Roblox profile description yet.' });
+    }
+
+    const updated = await client.query(
+      `UPDATE users
+       SET roblox_username = $1,
+           roblox_display_name = $2,
+           roblox_avatar_url = $3,
+           roblox_verified_at = NOW(),
+           roblox_verification_phrase = NULL
+       WHERE id = $4
+       RETURNING id, username, email, currency, avatar, role,
+                 roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at`,
+      [profile.username || row.roblox_username, profile.displayName || row.roblox_display_name, avatarUrl, req.auth!.user.id]
+    );
+
+    return res.json({ user: sanitizeUser(updated.rows[0]) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to verify Roblox account.' });
+  } finally {
+    client.release();
   }
 });
 

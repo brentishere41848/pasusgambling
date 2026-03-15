@@ -1087,8 +1087,131 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
 };
 
 const ProfileView = () => {
-  const { user } = useAuth();
+  const { user, setUser, refreshUser } = useAuth();
   const { balance, coinsToUsd } = useBalance();
+  const [robloxUsernameInput, setRobloxUsernameInput] = useState(user?.robloxUsername || '');
+  const [robloxPhrase, setRobloxPhrase] = useState('');
+  const [robloxProfileUrl, setRobloxProfileUrl] = useState('');
+  const [robloxAvatarPreview, setRobloxAvatarPreview] = useState(user?.robloxAvatarUrl || '');
+  const [robloxDisplayNamePreview, setRobloxDisplayNamePreview] = useState(user?.robloxDisplayName || '');
+  const [robloxError, setRobloxError] = useState('');
+  const [robloxSuccess, setRobloxSuccess] = useState('');
+  const [isRobloxLoading, setIsRobloxLoading] = useState(false);
+  const [copiedPhrase, setCopiedPhrase] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    fetch('/api/roblox/link/status', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((response) => response.json().then((data) => ({ ok: response.ok, data })).catch(() => ({ ok: response.ok, data: {} })))
+      .then(({ ok, data }) => {
+        if (!ok || !data.roblox) {
+          return;
+        }
+
+        setRobloxPhrase(data.roblox.pendingPhrase || '');
+        setRobloxUsernameInput(data.roblox.username || user?.robloxUsername || '');
+        setRobloxAvatarPreview(data.roblox.avatarUrl || user?.robloxAvatarUrl || '');
+        setRobloxDisplayNamePreview(data.roblox.displayName || user?.robloxDisplayName || '');
+        setRobloxProfileUrl(data.roblox.userId ? `https://www.roblox.com/users/${data.roblox.userId}/profile` : '');
+      })
+      .catch(() => undefined);
+  }, [user?.robloxUsername, user?.robloxAvatarUrl, user?.robloxDisplayName]);
+
+  const startRobloxVerification = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    try {
+      setIsRobloxLoading(true);
+      setRobloxError('');
+      setRobloxSuccess('');
+
+      const response = await fetch('/api/roblox/link/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ username: robloxUsernameInput.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start Roblox verification.');
+      }
+
+      setRobloxPhrase(data.roblox.pendingPhrase || '');
+      setRobloxProfileUrl(data.roblox.profileUrl || '');
+      setRobloxAvatarPreview(data.roblox.avatarUrl || '');
+      setRobloxDisplayNamePreview(data.roblox.displayName || '');
+      setRobloxSuccess('Verification phrase created. Put it in your Roblox profile description, then click verify.');
+    } catch (error) {
+      setRobloxError(error instanceof Error ? error.message : 'Failed to start Roblox verification.');
+    } finally {
+      setIsRobloxLoading(false);
+    }
+  };
+
+  const verifyRobloxLink = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    try {
+      setIsRobloxLoading(true);
+      setRobloxError('');
+      setRobloxSuccess('');
+
+      const response = await fetch('/api/roblox/link/verify', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to verify Roblox account.');
+      }
+
+      setUser(data.user);
+      setRobloxPhrase('');
+      setRobloxAvatarPreview(data.user?.robloxAvatarUrl || '');
+      setRobloxDisplayNamePreview(data.user?.robloxDisplayName || '');
+      setRobloxUsernameInput(data.user?.robloxUsername || robloxUsernameInput);
+      setRobloxSuccess('Roblox account verified and linked to your Pasus profile.');
+      await refreshUser();
+    } catch (error) {
+      setRobloxError(error instanceof Error ? error.message : 'Failed to verify Roblox account.');
+    } finally {
+      setIsRobloxLoading(false);
+    }
+  };
+
+  const copyRobloxPhrase = async () => {
+    if (!robloxPhrase) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(robloxPhrase);
+      setCopiedPhrase(true);
+      window.setTimeout(() => setCopiedPhrase(false), 1800);
+    } catch {
+      setCopiedPhrase(false);
+    }
+  };
   
   return (
     <div className="p-6 lg:p-10 max-w-4xl mx-auto space-y-10">
@@ -1155,6 +1278,110 @@ const ProfileView = () => {
             <button className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-bold transition-all">
               Session History
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-[#1a1d23] border border-white/10 rounded-3xl p-8 space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-3">
+              <User className="text-[#00FF88]" size={20} />
+              Roblox Link
+            </h3>
+            <div className="text-xs text-white/35 mt-2">Link your Roblox profile safely by placing a Pasus verification phrase in your Roblox profile description.</div>
+          </div>
+          {user?.robloxVerifiedAt ? (
+            <div className="rounded-2xl border border-[#00FF88]/20 bg-[#00FF88]/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#00FF88]">
+              Verified
+            </div>
+          ) : null}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] gap-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Roblox Username</label>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={robloxUsernameInput}
+                  onChange={(e) => setRobloxUsernameInput(e.target.value)}
+                  placeholder="Enter Roblox username"
+                  className="flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#00FF88]/30"
+                />
+                <button
+                  onClick={startRobloxVerification}
+                  disabled={isRobloxLoading || !robloxUsernameInput.trim()}
+                  className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.18em] disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isRobloxLoading ? 'Loading...' : 'Start'}
+                </button>
+              </div>
+            </div>
+
+            {robloxPhrase ? (
+              <div className="rounded-3xl border border-white/10 bg-black/30 p-5 space-y-4">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Verification Phrase</div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-4 py-4 font-mono text-sm text-white break-all">{robloxPhrase}</div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={copyRobloxPhrase}
+                    className="rounded-2xl bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] transition-colors"
+                  >
+                    {copiedPhrase ? 'Copied' : 'Copy Phrase'}
+                  </button>
+                  {robloxProfileUrl ? (
+                    <a
+                      href={robloxProfileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-2xl bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] transition-colors"
+                    >
+                      Open Roblox
+                    </a>
+                  ) : null}
+                  <button
+                    onClick={verifyRobloxLink}
+                    disabled={isRobloxLoading}
+                    className="rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Verify
+                  </button>
+                </div>
+                <div className="text-xs text-white/45 leading-relaxed">
+                  Put the phrase above into your Roblox profile description exactly, save it on Roblox, then come back and click verify.
+                </div>
+              </div>
+            ) : null}
+
+            {robloxError ? <div className="text-sm text-red-300">{robloxError}</div> : null}
+            {robloxSuccess ? <div className="text-sm text-[#00FF88]">{robloxSuccess}</div> : null}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/30 p-5 space-y-4">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/20 font-black">Linked Profile</div>
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 bg-white/5">
+                {(user?.robloxAvatarUrl || robloxAvatarPreview) ? (
+                  <img
+                    src={user?.robloxAvatarUrl || robloxAvatarPreview}
+                    alt="Roblox Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : null}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-black truncate">{user?.robloxDisplayName || robloxDisplayNamePreview || 'Not linked yet'}</div>
+                <div className="text-xs text-white/40 truncate">
+                  {user?.robloxUsername || robloxUsernameInput || 'Connect a Roblox account to link it here.'}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2 text-xs text-white/45">
+              <div>Verified at: {user?.robloxVerifiedAt ? new Date(user.robloxVerifiedAt).toLocaleString() : 'Not verified'}</div>
+              <div>Profile linking uses your public Roblox profile description only. No cookies, passwords, or session tokens are collected.</div>
+            </div>
           </div>
         </div>
       </div>
