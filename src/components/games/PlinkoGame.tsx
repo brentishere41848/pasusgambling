@@ -248,25 +248,22 @@ export const PlinkoGame: React.FC = () => {
           ball.x += ball.vx / steps;
           ball.y += ball.vy / steps;
 
-          for (let row = 0; row < rows; row++) {
-            const rowY = topOffset + row * verticalGap;
-            if (Math.abs(ball.y - rowY) < verticalGap * 0.45 && ball.row === row) {
-              const pegsInRow = row + 3;
+          if (ball.row < rows) {
+            const rowY = topOffset + ball.row * verticalGap;
+            if (ball.y >= rowY - (pegRadius + 4)) {
+              const pegsInRow = ball.row + 3;
               const rowWidth = (pegsInRow - 1) * pegGap;
               const rowStartX = (canvas.width - rowWidth) / 2;
               const pegIndex = Math.max(0, Math.min(pegsInRow - 1, Math.round((ball.x - rowStartX) / pegGap)));
               const pegX = rowStartX + pegIndex * pegGap;
-              const dx = ball.x - pegX;
-              const dy = ball.y - rowY;
-              const distance = Math.sqrt(dx * dx + dy * dy);
+              const direction = ball.x >= pegX ? 1 : -1;
+              const horizontalKick = (rows >= 14 ? 1.05 : 1.2) + Math.random() * 0.45;
 
-              if (distance < pegRadius + 5.5) {
-                const direction = dx >= 0 ? 1 : -1;
-                ball.vx = direction * (1.6 + Math.random() * 0.6);
-                ball.vy = -0.7 - Math.random() * 0.25;
-                ball.y = rowY - (pegRadius + 6);
-                ball.row++;
-              }
+              ball.x = pegX + direction * (pegRadius + 6);
+              ball.vx = direction * horizontalKick;
+              ball.vy = -0.42 - Math.random() * 0.16;
+              ball.y = rowY - (pegRadius + 7);
+              ball.row++;
             }
           }
 
