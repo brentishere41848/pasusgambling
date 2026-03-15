@@ -139,7 +139,13 @@ const GAMES = [
   }
 ];
 
-type MainView = 'dashboard' | 'profile' | 'settings' | 'vip' | 'affiliate' | 'provably-fair' | 'support';
+const getPreferredAvatar = (user?: {
+  discordAvatarUrl?: string;
+  robloxAvatarUrl?: string;
+  avatar?: string;
+} | null) => user?.discordAvatarUrl || user?.robloxAvatarUrl || user?.avatar || '';
+
+type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'vip' | 'affiliate' | 'provably-fair' | 'support';
 
 const Sidebar = ({
   activeGame,
@@ -780,7 +786,19 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
   );
 };
 
-const Header = ({ onOpenWallet, onOpenLogin, onOpenProfile, onOpenSettings }: { onOpenWallet: () => void, onOpenLogin: () => void, onOpenProfile: () => void, onOpenSettings: () => void }) => {
+const Header = ({
+  onOpenWallet,
+  onOpenLogin,
+  onOpenProfile,
+  onOpenConnections,
+  onOpenSettings,
+}: {
+  onOpenWallet: () => void,
+  onOpenLogin: () => void,
+  onOpenProfile: () => void,
+  onOpenConnections: () => void,
+  onOpenSettings: () => void
+}) => {
   const { balance, coinsToUsd } = useBalance();
   const { user, logout, isAuthenticated } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -825,7 +843,7 @@ const Header = ({ onOpenWallet, onOpenLogin, onOpenProfile, onOpenSettings }: { 
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="w-10 h-10 rounded-full border border-white/10 overflow-hidden hover:border-[#00FF88]/50 transition-all"
                 >
-                  <img src={user?.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  <img src={getPreferredAvatar(user)} alt="Avatar" className="w-full h-full object-cover" />
                 </button>
 
                 <AnimatePresence>
@@ -851,6 +869,15 @@ const Header = ({ onOpenWallet, onOpenLogin, onOpenProfile, onOpenSettings }: { 
                             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all"
                           >
                             <User size={14} /> Profile
+                          </button>
+                          <button
+                            onClick={() => {
+                              onOpenConnections();
+                              setShowUserMenu(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all"
+                          >
+                            <Users size={14} /> Connections
                           </button>
                           <button 
                             onClick={() => {
@@ -1218,7 +1245,7 @@ const ProfileView = () => {
       <div className="flex flex-col md:flex-row items-center gap-8 bg-[#1a1d23] border border-white/10 rounded-[40px] p-10 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#00FF88] opacity-5 blur-[100px] -mr-32 -mt-32" />
         <div className="w-32 h-32 rounded-full border-4 border-[#00FF88]/20 p-1 relative z-10">
-          <img src={user?.avatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+          <img src={getPreferredAvatar(user)} alt="Avatar" className="w-full h-full rounded-full object-cover" />
         </div>
         <div className="flex-1 text-center md:text-left relative z-10">
           <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-2">{user?.username}</h2>
@@ -1383,6 +1410,230 @@ const ProfileView = () => {
               <div>Profile linking uses your public Roblox profile description only. No cookies, passwords, or session tokens are collected.</div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ConnectionsView = () => {
+  const { user, setUser, refreshUser } = useAuth();
+  const [robloxUsernameInput, setRobloxUsernameInput] = useState(user?.robloxUsername || '');
+  const [robloxPhrase, setRobloxPhrase] = useState('');
+  const [robloxProfileUrl, setRobloxProfileUrl] = useState('');
+  const [robloxAvatarPreview, setRobloxAvatarPreview] = useState(user?.robloxAvatarUrl || '');
+  const [robloxDisplayNamePreview, setRobloxDisplayNamePreview] = useState(user?.robloxDisplayName || '');
+  const [discordStatus, setDiscordStatus] = useState({
+    userId: user?.discordUserId || '',
+    username: user?.discordUsername || '',
+    displayName: user?.discordDisplayName || '',
+    avatarUrl: user?.discordAvatarUrl || '',
+    verifiedAt: user?.discordVerifiedAt || '',
+  });
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [copiedPhrase, setCopiedPhrase] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    Promise.all([
+      fetch('/api/roblox/link/status', { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json().catch(() => ({}))),
+      fetch('/api/discord/link/status', { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json().catch(() => ({}))),
+    ])
+      .then(([robloxData, discordData]) => {
+        if (robloxData.roblox) {
+          setRobloxPhrase(robloxData.roblox.pendingPhrase || '');
+          setRobloxUsernameInput(robloxData.roblox.username || user?.robloxUsername || '');
+          setRobloxAvatarPreview(robloxData.roblox.avatarUrl || user?.robloxAvatarUrl || '');
+          setRobloxDisplayNamePreview(robloxData.roblox.displayName || user?.robloxDisplayName || '');
+          setRobloxProfileUrl(robloxData.roblox.userId ? `https://www.roblox.com/users/${robloxData.roblox.userId}/profile` : '');
+        }
+        if (discordData.discord) {
+          setDiscordStatus({
+            userId: discordData.discord.userId || '',
+            username: discordData.discord.username || '',
+            displayName: discordData.discord.displayName || '',
+            avatarUrl: discordData.discord.avatarUrl || '',
+            verifiedAt: discordData.discord.verifiedAt || '',
+          });
+        }
+      })
+      .catch(() => undefined);
+
+    const params = new URLSearchParams(window.location.search);
+    const connectionStatus = params.get('connections');
+    if (connectionStatus === 'discord-linked') {
+      setSuccess('Discord account connected.');
+      refreshUser().catch(() => undefined);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (connectionStatus === 'discord-taken') {
+      setError('That Discord account is already linked to another Pasus user.');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (connectionStatus === 'discord-error') {
+      setError('Discord connection failed.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [refreshUser, user?.discordAvatarUrl, user?.discordDisplayName, user?.discordUsername, user?.robloxAvatarUrl, user?.robloxDisplayName, user?.robloxUsername]);
+
+  const startRobloxVerification = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      setIsLoading(true);
+      setError('');
+      setSuccess('');
+      const response = await fetch('/api/roblox/link/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username: robloxUsernameInput.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to start Roblox verification.');
+      setRobloxPhrase(data.roblox.pendingPhrase || '');
+      setRobloxProfileUrl(data.roblox.profileUrl || '');
+      setRobloxAvatarPreview(data.roblox.avatarUrl || '');
+      setRobloxDisplayNamePreview(data.roblox.displayName || '');
+      setSuccess('Roblox phrase generated. Add it to your Roblox description and click verify.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start Roblox verification.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyRobloxLink = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      setIsLoading(true);
+      setError('');
+      setSuccess('');
+      const response = await fetch('/api/roblox/link/verify', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to verify Roblox account.');
+      setUser(data.user);
+      setRobloxPhrase('');
+      setSuccess('Roblox account connected.');
+      await refreshUser();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to verify Roblox account.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const startDiscordConnect = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      setIsLoading(true);
+      setError('');
+      setSuccess('');
+      const response = await fetch('/api/discord/link/start', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to start Discord connection.');
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start Discord connection.');
+      setIsLoading(false);
+    }
+  };
+
+  const copyPhrase = async () => {
+    if (!robloxPhrase) return;
+    try {
+      await navigator.clipboard.writeText(robloxPhrase);
+      setCopiedPhrase(true);
+      window.setTimeout(() => setCopiedPhrase(false), 1500);
+    } catch {}
+  };
+
+  return (
+    <div className="p-6 lg:p-10 max-w-5xl mx-auto space-y-8">
+      <div className="space-y-2">
+        <h2 className="text-3xl font-black italic uppercase tracking-tighter">Connections</h2>
+        <p className="text-white/40 text-sm font-medium">Link Roblox and Discord. Connected accounts can supply your Pasus profile picture.</p>
+      </div>
+
+      {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div> : null}
+      {success ? <div className="rounded-2xl border border-[#00FF88]/20 bg-[#00FF88]/10 px-4 py-3 text-sm text-[#00FF88]">{success}</div> : null}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-[#1a1d23] border border-white/10 rounded-3xl p-8 space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-lg font-black italic uppercase tracking-tighter">Roblox</div>
+              <div className="text-xs text-white/35 mt-1">Verify by placing a Pasus phrase in your Roblox profile description.</div>
+            </div>
+            {user?.robloxVerifiedAt ? <div className="text-xs font-black uppercase tracking-[0.16em] text-[#00FF88]">Connected</div> : null}
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 bg-white/5">
+              {(user?.robloxAvatarUrl || robloxAvatarPreview) ? <img src={user?.robloxAvatarUrl || robloxAvatarPreview} alt="Roblox Avatar" className="w-full h-full object-cover" /> : null}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-black truncate">{user?.robloxDisplayName || robloxDisplayNamePreview || 'Not connected'}</div>
+              <div className="text-xs text-white/40 truncate">{user?.robloxUsername || robloxUsernameInput || 'Roblox username'}</div>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={robloxUsernameInput}
+              onChange={(e) => setRobloxUsernameInput(e.target.value)}
+              placeholder="Roblox username"
+              className="flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none"
+            />
+            <button onClick={startRobloxVerification} disabled={isLoading || !robloxUsernameInput.trim()} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+              Start
+            </button>
+          </div>
+          {robloxPhrase ? (
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-4 space-y-3">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Phrase</div>
+              <div className="font-mono text-sm break-all">{robloxPhrase}</div>
+              <div className="flex gap-3">
+                <button onClick={copyPhrase} className="rounded-2xl bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em]">{copiedPhrase ? 'Copied' : 'Copy'}</button>
+                {robloxProfileUrl ? <a href={robloxProfileUrl} target="_blank" rel="noreferrer" className="rounded-2xl bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em]">Open Roblox</a> : null}
+                <button onClick={verifyRobloxLink} disabled={isLoading} className="rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">Verify</button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="bg-[#1a1d23] border border-white/10 rounded-3xl p-8 space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-lg font-black italic uppercase tracking-tighter">Discord</div>
+              <div className="text-xs text-white/35 mt-1">Connect through Discord OAuth. Pasus stores your public Discord identity only.</div>
+            </div>
+            {user?.discordVerifiedAt ? <div className="text-xs font-black uppercase tracking-[0.16em] text-[#00FF88]">Connected</div> : null}
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 bg-white/5">
+              {(user?.discordAvatarUrl || discordStatus.avatarUrl) ? <img src={user?.discordAvatarUrl || discordStatus.avatarUrl} alt="Discord Avatar" className="w-full h-full object-cover" /> : null}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-black truncate">{user?.discordDisplayName || discordStatus.displayName || 'Not connected'}</div>
+              <div className="text-xs text-white/40 truncate">{user?.discordUsername || discordStatus.username || 'Discord account'}</div>
+            </div>
+          </div>
+          <div className="text-xs text-white/40">After connecting, Discord becomes the preferred Pasus profile image source unless you disconnect or replace it.</div>
+          <button onClick={startDiscordConnect} disabled={isLoading} className="rounded-2xl bg-[#5865F2] text-white px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+            Connect Discord
+          </button>
         </div>
       </div>
     </div>
@@ -1839,6 +2090,10 @@ const AppContent = () => {
             setActiveGame(null);
             setCurrentView('profile');
           }}
+          onOpenConnections={() => {
+            setActiveGame(null);
+            setCurrentView('connections');
+          }}
           onOpenSettings={() => {
             setActiveGame(null);
             setCurrentView('settings');
@@ -1898,6 +2153,15 @@ const AppContent = () => {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <SettingsView />
+              </motion.div>
+            ) : currentView === 'connections' ? (
+              <motion.div
+                key="connections"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <ConnectionsView />
               </motion.div>
             ) : currentView === 'vip' ? (
               <motion.div

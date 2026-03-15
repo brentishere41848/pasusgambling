@@ -18,6 +18,9 @@ const nowPaymentsApiKey = process.env.NOWPAYMENTS_API_KEY;
 const nowPaymentsIpnSecret = process.env.NOWPAYMENTS_IPN_SECRET;
 const nowPaymentsBaseUrl = process.env.NOWPAYMENTS_BASE_URL || 'https://api.nowpayments.io/v1';
 const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+const discordClientId = process.env.DISCORD_CLIENT_ID;
+const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
+const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/api/discord/connect/callback`;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../dist');
@@ -49,6 +52,11 @@ type AuthUser = {
   robloxDisplayName?: string;
   robloxAvatarUrl?: string;
   robloxVerifiedAt?: string;
+  discordUserId?: string;
+  discordUsername?: string;
+  discordDisplayName?: string;
+  discordAvatarUrl?: string;
+  discordVerifiedAt?: string;
 };
 
 type Wallet = {
@@ -145,6 +153,11 @@ function sanitizeUser(row: any): AuthUser {
     robloxDisplayName: row.roblox_display_name || undefined,
     robloxAvatarUrl: row.roblox_avatar_url || undefined,
     robloxVerifiedAt: row.roblox_verified_at || undefined,
+    discordUserId: row.discord_user_id || undefined,
+    discordUsername: row.discord_username || undefined,
+    discordDisplayName: row.discord_display_name || undefined,
+    discordAvatarUrl: row.discord_avatar_url || undefined,
+    discordVerifiedAt: row.discord_verified_at || undefined,
   };
 }
 
@@ -321,6 +334,58 @@ async function fetchRobloxAvatar(userId: number) {
   const payload = await response.json().catch(() => ({} as any));
   const row = Array.isArray(payload.data) ? payload.data[0] : null;
   return row?.imageUrl ? String(row.imageUrl) : undefined;
+}
+
+async function fetchDiscordAccessToken(code: string) {
+  if (!discordClientId || !discordClientSecret) {
+    throw new Error('Discord OAuth is not configured.');
+  }
+
+  const params = new URLSearchParams();
+  params.set('client_id', discordClientId);
+  params.set('client_secret', discordClientSecret);
+  params.set('grant_type', 'authorization_code');
+  params.set('code', code);
+  params.set('redirect_uri', discordRedirectUri);
+
+  const response = await fetch('https://discord.com/api/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to exchange Discord OAuth code.');
+  }
+
+  return response.json();
+}
+
+async function fetchDiscordProfile(accessToken: string) {
+  const response = await fetch('https://discord.com/api/users/@me', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to load Discord profile.');
+  }
+
+  const payload = await response.json().catch(() => ({} as any));
+  const avatarUrl =
+    payload.avatar && payload.id
+      ? `https://cdn.discordapp.com/avatars/${payload.id}/${payload.avatar}.png?size=256`
+      : undefined;
+
+  return {
+    id: String(payload.id || ''),
+    username: String(payload.username || ''),
+    displayName: String(payload.global_name || payload.username || ''),
+    avatarUrl,
+  };
 }
 
 async function settleFinishedRainRounds(client: Pool | PoolClient) {
@@ -524,7 +589,14 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_verified_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_verification_phrase TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_verification_started_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_user_id TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_username TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_display_name TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_avatar_url TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_verified_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_oauth_state TEXT`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS wallets (
@@ -666,7 +738,8 @@ async function requireAuth(req: AuthedRequest, res: express.Response, next: expr
 
     const result = await pool.query(
       `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.role,
-              u.roblox_user_id, u.roblox_username, u.roblox_display_name, u.roblox_avatar_url, u.roblox_verified_at
+              u.roblox_user_id, u.roblox_username, u.roblox_display_name, u.roblox_avatar_url, u.roblox_verified_at,
+              u.discord_user_id, u.discord_username, u.discord_display_name, u.discord_avatar_url, u.discord_verified_at
        FROM user_sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.user_id = $1
@@ -870,7 +943,9 @@ app.post('/api/auth/register', async (req, res) => {
     const userResult = await client.query(
       `INSERT INTO users (username, email, password_hash, avatar)
        VALUES ($1, $2, $3, $4)
-       RETURNING id, username, email, currency, avatar, role, roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at`,
+       RETURNING id, username, email, currency, avatar, role,
+                 roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
+                 discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at`,
       [username, email, passwordHash, avatar]
     );
 
@@ -977,6 +1052,7 @@ app.post('/api/auth/login', async (req, res) => {
     const result = await client.query(
       `SELECT id, username, email, currency, avatar, role,
               roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
+              discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at,
               password_hash
        FROM users
        WHERE username = $1
@@ -1048,6 +1124,116 @@ app.get('/api/roblox/link/status', requireAuth, async (req: AuthedRequest, res) 
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load Roblox link status.' });
+  }
+});
+
+app.get('/api/discord/link/status', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [req.auth!.user.id]
+    );
+
+    const row = result.rows[0] || {};
+    return res.json({
+      discord: {
+        userId: row.discord_user_id || null,
+        username: row.discord_username || null,
+        displayName: row.discord_display_name || null,
+        avatarUrl: row.discord_avatar_url || null,
+        verifiedAt: row.discord_verified_at || null,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load Discord link status.' });
+  }
+});
+
+app.get('/api/discord/link/start', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    if (!discordClientId || !discordClientSecret) {
+      return res.status(400).json({ error: 'Discord OAuth is not configured.' });
+    }
+
+    const state = crypto.randomBytes(16).toString('hex');
+    await pool.query(
+      `UPDATE users
+       SET discord_oauth_state = $1
+       WHERE id = $2`,
+      [state, req.auth!.user.id]
+    );
+
+    const params = new URLSearchParams();
+    params.set('client_id', discordClientId);
+    params.set('response_type', 'code');
+    params.set('redirect_uri', discordRedirectUri);
+    params.set('scope', 'identify');
+    params.set('state', state);
+    return res.json({ url: `https://discord.com/oauth2/authorize?${params.toString()}` });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to start Discord link.' });
+  }
+});
+
+app.get('/api/discord/connect/callback', async (req, res) => {
+  const code = String(req.query.code || '');
+  const state = String(req.query.state || '');
+
+  if (!code || !state) {
+    return res.redirect(`${appBaseUrl}?connections=discord-error`);
+  }
+
+  try {
+    const userResult = await pool.query(
+      `SELECT id
+       FROM users
+       WHERE discord_oauth_state = $1
+       LIMIT 1`,
+      [state]
+    );
+
+    if (!userResult.rowCount) {
+      return res.redirect(`${appBaseUrl}?connections=discord-error`);
+    }
+
+    const appUserId = Number(userResult.rows[0].id);
+    const tokenPayload = await fetchDiscordAccessToken(code);
+    const discordProfile = await fetchDiscordProfile(String(tokenPayload.access_token || ''));
+
+    const conflict = await pool.query(
+      `SELECT id
+       FROM users
+       WHERE discord_user_id = $1
+         AND id <> $2
+       LIMIT 1`,
+      [discordProfile.id, appUserId]
+    );
+
+    if (conflict.rowCount) {
+      return res.redirect(`${appBaseUrl}?connections=discord-taken`);
+    }
+
+    await pool.query(
+      `UPDATE users
+       SET discord_user_id = $1,
+           discord_username = $2,
+           discord_display_name = $3,
+           discord_avatar_url = $4,
+           discord_verified_at = NOW(),
+           discord_oauth_state = NULL
+       WHERE id = $5`,
+      [discordProfile.id, discordProfile.username, discordProfile.displayName, discordProfile.avatarUrl || null, appUserId]
+    );
+
+    return res.redirect(`${appBaseUrl}?connections=discord-linked`);
+  } catch (error) {
+    console.error(error);
+    return res.redirect(`${appBaseUrl}?connections=discord-error`);
   }
 });
 

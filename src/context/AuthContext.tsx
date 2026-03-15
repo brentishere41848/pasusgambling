@@ -12,6 +12,11 @@ interface User {
   robloxDisplayName?: string;
   robloxAvatarUrl?: string;
   robloxVerifiedAt?: string;
+  discordUserId?: string;
+  discordUsername?: string;
+  discordDisplayName?: string;
+  discordAvatarUrl?: string;
+  discordVerifiedAt?: string;
 }
 
 interface AuthContextType {
