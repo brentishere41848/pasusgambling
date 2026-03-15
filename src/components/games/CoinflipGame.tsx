@@ -203,7 +203,7 @@ export const CoinflipGame: React.FC = () => {
         </div>
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center gap-8 min-h-[520px]">
+      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center gap-8 min-h-[620px]">
         <div className="text-[10px] uppercase tracking-[0.28em] text-white/25 font-black">
           Call {selectedSide.toUpperCase()} and beat the flip
         </div>
@@ -234,50 +234,43 @@ export const CoinflipGame: React.FC = () => {
                 ease: 'easeInOut',
               },
             }}
-            className="relative h-56 w-56"
+            className="relative h-72 w-72"
             style={{ transformStyle: 'preserve-3d' }}
           >
-            <div className="absolute inset-[10px] rounded-full bg-[#7fffd4]/25 blur-2xl" />
-            <div className="absolute inset-[22px] rounded-full bg-black/60 blur-md" />
-
             <div
-              className="absolute inset-0 rounded-full border border-[#8fffe4]/25 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.9),rgba(169,255,235,0.7)_18%,rgba(18,122,107,0.98)_58%,rgba(5,12,16,1)_100%)] shadow-[0_30px_90px_rgba(0,0,0,0.5)]"
+              className="absolute inset-0 rounded-full shadow-[0_30px_90px_rgba(0,0,0,0.5)]"
               style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
             >
-              <div className="absolute inset-[12px] rounded-full border border-white/20" />
-              <div className="absolute inset-[26px] rounded-full border border-[#b0fff0]/25" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <img
                   src="/assets/heads.png"
                   alt="Heads"
-                  className="h-[68%] w-[68%] object-contain drop-shadow-[0_0_28px_rgba(160,255,230,0.35)]"
+                  className="h-full w-full object-contain drop-shadow-[0_0_28px_rgba(160,255,230,0.22)]"
                 />
               </div>
             </div>
 
             <div
-              className="absolute inset-0 rounded-full border border-[#8fffe4]/25 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.9),rgba(169,255,235,0.7)_18%,rgba(18,122,107,0.98)_58%,rgba(5,12,16,1)_100%)] shadow-[0_30px_90px_rgba(0,0,0,0.5)]"
+              className="absolute inset-0 rounded-full shadow-[0_30px_90px_rgba(0,0,0,0.5)]"
               style={{
                 transform: 'rotateX(180deg)',
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
               }}
             >
-              <div className="absolute inset-[12px] rounded-full border border-white/20" />
-              <div className="absolute inset-[26px] rounded-full border border-[#b0fff0]/25" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <img
                   src="/assets/tails.png"
                   alt="Tails"
-                  className="h-[68%] w-[68%] object-contain drop-shadow-[0_0_28px_rgba(160,255,230,0.35)]"
+                  className="h-full w-full object-contain drop-shadow-[0_0_28px_rgba(160,255,230,0.22)]"
                 />
               </div>
             </div>
 
             <div
-              className="absolute left-[18px] right-[18px] top-1/2 h-5 -translate-y-1/2 rounded-full bg-[linear-gradient(180deg,#d9fff6_0%,#7cebd1_18%,#127a6b_46%,#0a3f38_100%)] opacity-80 blur-[0.3px]"
+              className="absolute left-[24px] right-[24px] top-1/2 h-6 -translate-y-1/2 rounded-full bg-[linear-gradient(180deg,#d9fff6_0%,#7cebd1_18%,#127a6b_46%,#0a3f38_100%)] opacity-75 blur-[0.3px]"
               style={{
-                transform: 'translateY(-50%) rotateX(90deg) translateZ(104px)',
+                transform: 'translateY(-50%) rotateX(90deg) translateZ(136px)',
                 transformStyle: 'preserve-3d',
               }}
             />
