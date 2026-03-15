@@ -1443,7 +1443,7 @@ app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res)
        LEFT JOIN wallets w ON w.user_id = u.id
        WHERE u.id = $1
        LIMIT 1
-       FOR UPDATE`,
+       FOR UPDATE OF u`,
       [req.auth!.user.id]
     );
 
