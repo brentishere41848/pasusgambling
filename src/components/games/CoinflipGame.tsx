@@ -31,8 +31,12 @@ export const CoinflipGame: React.FC = () => {
     setIsFlipping(true);
     const landed: CoinSide = Math.random() < 0.5 ? 'heads' : 'tails';
     const extraSpins = isFast ? 6 : 9;
-    const finalFaceOffset = landed === 'heads' ? 0 : 180;
-    setCoinRotation((current) => current + extraSpins * 360 + finalFaceOffset);
+    const targetFaceRotation = landed === 'heads' ? 0 : 180;
+    setCoinRotation((current) => {
+      const normalizedCurrent = ((current % 360) + 360) % 360;
+      const deltaToTarget = ((targetFaceRotation - normalizedCurrent) + 360) % 360;
+      return current + extraSpins * 360 + deltaToTarget;
+    });
     setResult(null);
     const duration = isFast ? 450 : 1100;
 
@@ -243,9 +247,11 @@ export const CoinflipGame: React.FC = () => {
               <div className="absolute inset-[12px] rounded-full border border-white/20" />
               <div className="absolute inset-[26px] rounded-full border border-[#b0fff0]/25" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-7xl font-black italic tracking-tighter text-[#dffff7] drop-shadow-[0_0_28px_rgba(160,255,230,0.45)]">
-                  H
-                </div>
+                <img
+                  src="/assets/heads.png"
+                  alt="Heads"
+                  className="h-[68%] w-[68%] object-contain drop-shadow-[0_0_28px_rgba(160,255,230,0.35)]"
+                />
               </div>
             </div>
 
@@ -260,9 +266,11 @@ export const CoinflipGame: React.FC = () => {
               <div className="absolute inset-[12px] rounded-full border border-white/20" />
               <div className="absolute inset-[26px] rounded-full border border-[#b0fff0]/25" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-7xl font-black italic tracking-tighter text-[#dffff7] drop-shadow-[0_0_28px_rgba(160,255,230,0.45)]">
-                  T
-                </div>
+                <img
+                  src="/assets/tails.png"
+                  alt="Tails"
+                  className="h-[68%] w-[68%] object-contain drop-shadow-[0_0_28px_rgba(160,255,230,0.35)]"
+                />
               </div>
             </div>
 
