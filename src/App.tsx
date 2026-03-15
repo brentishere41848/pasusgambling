@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
   Grid3X3, 
-  CircleDot, 
   Dice5, 
   Wallet, 
   Gamepad2,
@@ -52,7 +51,6 @@ import { BalanceProvider, useBalance } from './context/BalanceContext';
 import { useAuth } from './context/AuthContext';
 import { CrashGame } from './components/games/CrashGame';
 import { MinesGame } from './components/games/MinesGame';
-import { PlinkoGame } from './components/games/PlinkoGame';
 import { DiceGame } from './components/games/DiceGame';
 import { BlackjackGame } from './components/games/BlackjackGame';
 import { RouletteGame } from './components/games/RouletteGame';
@@ -92,17 +90,6 @@ const GAMES = [
     component: MinesGame,
     featured: true,
     image: '/assets/mines.png'
-  },
-  {
-    id: 'plinko',
-    name: 'Plinko',
-    description: 'Drop the ball and watch it bounce into multipliers.',
-    icon: CircleDot,
-    color: 'text-pink-400',
-    bg: 'bg-pink-400/10',
-    component: PlinkoGame,
-    featured: false,
-    image: 'https://picsum.photos/seed/casino-plinko/800/600'
   },
   {
     id: 'dice',
