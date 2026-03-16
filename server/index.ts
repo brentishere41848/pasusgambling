@@ -21,6 +21,8 @@ const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
 const discordClientId = process.env.DISCORD_CLIENT_ID;
 const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
 const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/api/discord/connect/callback`;
+const COINS_PER_DOLLAR = 100;
+const DEFAULT_RAIN_POOL_COINS = 500;
 const siteAccessUsername = 'PASUSEARLY';
 const siteAccessPassword = 'password123';
 const siteAccessCookieName = 'pasus_site_access';
@@ -146,15 +148,22 @@ type AffiliateOverview = {
   code: string | null;
   referralLink: string | null;
   referredUsers: number;
+  trackedVolume: number;
   totalCommission: number;
   depositCommission: number;
   wagerCommission: number;
+  affiliateRakeback: number;
   recentCommissions: Array<{
     id: number;
     username: string;
     sourceType: string;
     baseAmount: number;
     commissionAmount: number;
+    createdAt: string;
+  }>;
+  referredAccounts: Array<{
+    id: number;
+    username: string;
     createdAt: string;
   }>;
 };
@@ -315,6 +324,18 @@ function normalizeCoins(value: unknown) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+function dollarsToCoins(value: unknown) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return 0;
+  }
+  return Math.round(amount * COINS_PER_DOLLAR);
+}
+
+function formatCoinsLabel(value: unknown) {
+  return normalizeCoins(value).toLocaleString('en-US');
+}
+
 function normalizeFiatAmount(value: unknown) {
   const amount = Number(value || 0);
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -335,7 +356,7 @@ function getDailyRewardStatus(row: any, now = new Date()): DailyRewardStatus {
   const canClaim = lastStart === null || lastStart < todayStart;
   const continuesStreak = lastStart !== null && todayStart - lastStart === 24 * 60 * 60 * 1000;
   const nextStreak = canClaim ? (continuesStreak ? currentStreak + 1 : 1) : currentStreak || 1;
-  const rewardAmount = Math.min(10, 2 + Math.max(0, nextStreak - 1));
+  const rewardAmount = dollarsToCoins(Math.min(10, 2 + Math.max(0, nextStreak - 1)));
   const nextClaimAt = canClaim ? null : new Date(todayStart + 24 * 60 * 60 * 1000).toISOString();
 
   return {
@@ -702,8 +723,8 @@ async function settleFinishedRainRounds(client: Pool | PoolClient) {
       [
         'PasusRain',
         count > 0
-          ? `rain ended with $${totalPool.toFixed(2)} claimed by ${count} ${count === 1 ? 'person' : 'people'}`
-          : `rain ended with $${totalPool.toFixed(2)} and nobody claimed it`,
+          ? `rain ended with ${formatCoinsLabel(totalPool)} claimed by ${count} ${count === 1 ? 'person' : 'people'}`
+          : `rain ended with ${formatCoinsLabel(totalPool)} and nobody claimed it`,
       ]
     );
   }
@@ -734,7 +755,19 @@ async function ensureCurrentRainRound(client: Pool | PoolClient) {
   );
 
   if (existing.rowCount) {
-    return existing.rows[0];
+    const currentRound = existing.rows[0];
+    if (Number(currentRound.pool_amount || 0) !== DEFAULT_RAIN_POOL_COINS && Number(currentRound.participant_count || 0) === 0) {
+      const updated = await client.query(
+        `UPDATE rain_rounds
+         SET pool_amount = $1,
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, status, $3::int AS participant_count`,
+        [DEFAULT_RAIN_POOL_COINS, currentRound.id, Number(currentRound.participant_count || 0)]
+      );
+      return updated.rows[0];
+    }
+    return currentRound;
   }
 
   const { startsAt, joinOpensAt, endsAt } = getCurrentRainWindow();
@@ -743,7 +776,7 @@ async function ensureCurrentRainRound(client: Pool | PoolClient) {
     `INSERT INTO rain_rounds (pool_amount, starts_at, join_opens_at, ends_at, status)
      VALUES ($1, $2, $3, $4, 'active')
      RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, 0::int AS participant_count`,
-    [50, startsAt, joinOpensAt, endsAt]
+    [DEFAULT_RAIN_POOL_COINS, startsAt, joinOpensAt, endsAt]
   );
 
   return insertResult.rows[0];
@@ -874,6 +907,7 @@ async function getAffiliateOverview(client: Pool | PoolClient, userId: number): 
   const statsResult = await client.query(
     `SELECT
        COUNT(DISTINCT u.id)::int AS referred_users,
+       COALESCE(SUM(ac.base_amount), 0)::bigint AS tracked_volume,
        COALESCE(SUM(ac.commission_amount), 0)::bigint AS total_commission,
        COALESCE(SUM(CASE WHEN ac.source_type = 'deposit' THEN ac.commission_amount ELSE 0 END), 0)::bigint AS deposit_commission,
        COALESCE(SUM(CASE WHEN ac.source_type = 'wager' THEN ac.commission_amount ELSE 0 END), 0)::bigint AS wager_commission
@@ -889,7 +923,16 @@ async function getAffiliateOverview(client: Pool | PoolClient, userId: number): 
      JOIN users u ON u.id = ac.referred_user_id
      WHERE ac.referrer_user_id = $1
      ORDER BY ac.created_at DESC
-     LIMIT 12`,
+     LIMIT 10`,
+    [userId]
+  );
+
+  const referredAccountsResult = await client.query(
+    `SELECT id, username, created_at
+     FROM users
+     WHERE referred_by_user_id = $1
+     ORDER BY created_at DESC
+     LIMIT 10`,
     [userId]
   );
 
@@ -900,15 +943,22 @@ async function getAffiliateOverview(client: Pool | PoolClient, userId: number): 
     code,
     referralLink: code ? `${appBaseUrl}?ref=${encodeURIComponent(code)}` : null,
     referredUsers: Number(stats.referred_users || 0),
+    trackedVolume: Number(stats.tracked_volume || 0),
     totalCommission: Number(stats.total_commission || 0),
     depositCommission: Number(stats.deposit_commission || 0),
     wagerCommission: Number(stats.wager_commission || 0),
+    affiliateRakeback: Math.floor(Number(stats.tracked_volume || 0) * 0.02),
     recentCommissions: recentResult.rows.map((row) => ({
       id: Number(row.id),
       username: row.username,
       sourceType: row.source_type,
       baseAmount: Number(row.base_amount || 0),
       commissionAmount: Number(row.commission_amount || 0),
+      createdAt: row.created_at,
+    })),
+    referredAccounts: referredAccountsResult.rows.map((row) => ({
+      id: Number(row.id),
+      username: row.username,
       createdAt: row.created_at,
     })),
   };
@@ -1014,7 +1064,7 @@ async function creditDepositIfNeeded(client: PoolClient, transactionId: number) 
     return;
   }
 
-  const coins = normalizeCoins(Number(tx.outcome_amount || 0) * 50);
+  const coins = dollarsToCoins(tx.outcome_amount || 0);
   if (coins <= 0) {
     return;
   }
@@ -1380,7 +1430,7 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
       `SELECT id, username, text, tone, role, avatar_url, created_at
        FROM chat_messages
        ORDER BY created_at DESC
-       LIMIT 20`
+       LIMIT 100`
     );
 
     let tipNotifications: TipNotification[] = [];
@@ -1551,7 +1601,7 @@ app.post('/api/rain/contribute', requireAuth, async (req: AuthedRequest, res) =>
       [
         req.auth!.user.id,
         req.auth!.user.username,
-        `started a rain with $${amount.toFixed(2)}`,
+        `started a rain with ${formatCoinsLabel(amount)}`,
         req.auth!.user.role,
         req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
       ]
@@ -1722,6 +1772,35 @@ app.get('/api/activity/bets', async (req, res) => {
   }
 });
 
+app.get('/api/leaderboard', async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         u.id,
+         u.username,
+         COALESCE(SUM(b.wager), 0)::bigint AS total_wagered
+       FROM users u
+       JOIN bet_activities b ON b.user_id = u.id
+       GROUP BY u.id, u.username
+       HAVING COALESCE(SUM(b.wager), 0) > 0
+       ORDER BY total_wagered DESC, u.username ASC
+       LIMIT 10`
+    );
+
+    return res.json({
+      leaderboard: result.rows.map((row, index) => ({
+        rank: index + 1,
+        userId: Number(row.id),
+        username: row.username,
+        totalWagered: Number(row.total_wagered || 0),
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load leaderboard.' });
+  }
+});
+
 app.get('/api/rewards/daily/status', requireAuth, async (req: AuthedRequest, res) => {
   try {
     const result = await pool.query(
@@ -1794,7 +1873,7 @@ app.post('/api/rewards/daily/claim', requireAuth, async (req: AuthedRequest, res
       [
         req.auth!.user.id,
         req.auth!.user.username,
-        `claimed a daily reward of $${reward.rewardAmount.toFixed(2)} on a ${nextStreak}-day streak`,
+        `claimed a daily reward of ${formatCoinsLabel(reward.rewardAmount)} on a ${nextStreak}-day streak`,
         req.auth!.user.role,
         req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
       ]
@@ -2692,7 +2771,7 @@ app.post('/api/chat/tip', requireAuth, async (req: AuthedRequest, res) => {
       [
         req.auth!.user.id,
         req.auth!.user.username,
-        `tipped ${recipient.username} $${amount.toFixed(2)}`,
+        `tipped ${recipient.username} ${formatCoinsLabel(amount)}`,
         req.auth!.user.role,
         req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
       ]

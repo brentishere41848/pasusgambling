@@ -21,7 +21,6 @@ import {
   Users,
   ShieldCheck,
   MessageSquare,
-  Search,
   Settings,
   Shield,
   Flame,
@@ -39,12 +38,12 @@ import {
   Copy,
   Check,
   User,
+  Trophy,
   LogIn,
   UserPlus,
   LogOut,
   Mail,
   Lock,
-  Gift,
   SendHorizontal,
   LoaderCircle
 } from 'lucide-react';
@@ -58,7 +57,19 @@ import { BlackjackGame } from './components/games/BlackjackGame';
 import { HiloGame } from './components/games/HiloGame';
 import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
+import { CrossyRoadGame } from './components/games/CrossyRoadGame';
 import { cn } from './lib/utils';
+
+function CurrencyIcon({ className = '', size = 18 }: { className?: string; size?: number }) {
+  return (
+    <img
+      src="/assets/currency.png"
+      alt="Coins"
+      className={className}
+      style={{ width: size, height: size }}
+    />
+  );
+}
 
 const GAMES = [
   {
@@ -98,7 +109,7 @@ const GAMES = [
     id: 'coinflip',
     name: 'Coinflip',
     description: 'Call heads or tails and double up on the flip.',
-    icon: Coins,
+    icon: CurrencyIcon,
     color: 'text-amber-300',
     bg: 'bg-amber-300/10',
     component: CoinflipGame,
@@ -148,6 +159,17 @@ const GAMES = [
     component: WheelGame,
     featured: false,
     image: 'https://picsum.photos/seed/casino-wheel/800/600'
+  },
+  {
+    id: 'crossy-road',
+    name: 'Crossy Road',
+    description: 'Run the chicken across traffic and cash out before you get hit.',
+    icon: ArrowUpRight,
+    color: 'text-lime-300',
+    bg: 'bg-lime-300/10',
+    component: CrossyRoadGame,
+    featured: false,
+    image: 'https://picsum.photos/seed/casino-crossy/800/600'
   }
 ];
 
@@ -157,7 +179,7 @@ const getPreferredAvatar = (user?: {
   avatar?: string;
 } | null) => user?.discordAvatarUrl || user?.robloxAvatarUrl || user?.avatar || '';
 
-type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
+type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
 const VIEW_PATHS: Partial<Record<MainView, string>> = {
   dashboard: '/',
@@ -167,6 +189,7 @@ const VIEW_PATHS: Partial<Record<MainView, string>> = {
   admin: '/admin',
   vip: '/vip-club',
   affiliate: '/affiliate',
+  leaderboard: '/leaderboard',
   'provably-fair': '/provably-fair',
   support: '/live-support',
   terms: '/terms-of-service',
@@ -183,12 +206,31 @@ function formatMoney(value: number) {
   }).format(Number(value || 0));
 }
 
+const COINS_PER_DOLLAR = 100;
+const DISPLAY_CURRENCY_RATES: Record<string, number> = {
+  USD: 1,
+  EUR: 0.92,
+  GBP: 0.79,
+  JPY: 149,
+  CAD: 1.35,
+};
+
+function formatCoins(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 0,
+  }).format(Math.round(Number(value || 0)));
+}
+
+function coinsToUsd(value: number) {
+  return Number(value || 0) / COINS_PER_DOLLAR;
+}
+
 function formatMoneyFromCoins(value: number) {
-  return formatMoney(Number(value || 0));
+  return formatCoins(Number(value || 0));
 }
 
 function usdToCoins(value: number) {
-  return Math.round(Number(value || 0));
+  return Math.round(Number(value || 0) * COINS_PER_DOLLAR);
 }
 
 function resolveRoute(pathname: string): { gameId: string | null; view: MainView } {
@@ -402,7 +444,7 @@ const Sidebar = ({
   const [isOriginalsExpanded, setIsOriginalsExpanded] = useState(false);
 
   return (
-    <aside className="w-64 border-r border-white/5 bg-[#0f1115] h-screen sticky top-0 hidden lg:flex flex-col p-4 overflow-y-auto custom-scrollbar">
+    <aside className="w-64 border-r border-white/5 bg-[linear-gradient(180deg,#162229_0%,#171d2a_100%)] h-screen sticky top-0 hidden lg:flex flex-col p-4 overflow-y-auto custom-scrollbar">
       <button onClick={onHome} className="flex items-center gap-3 px-4 mb-8 group shrink-0">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center rotate-3 group-hover:rotate-12 transition-transform overflow-hidden">
           <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
@@ -459,6 +501,15 @@ const Sidebar = ({
         </div>
 
         <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Platform</div>
+        <button
+          onClick={() => onOpenView('leaderboard')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+            currentView === 'leaderboard' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Trophy size={18} /> Leaderboard
+        </button>
         <button
           onClick={() => onOpenView('vip')}
           className={cn(
@@ -538,6 +589,7 @@ type DepositTransaction = {
 };
 
 const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+  const { user } = useAuth();
   const { balance, totalDeposited, refreshWallet } = useBalance();
   const [amount, setAmount] = useState('25');
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
@@ -620,7 +672,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
         return;
       }
 
-      if (totalDeposited < 10) {
+      if (totalDeposited < usdToCoins(10)) {
         setError('You must deposit at least $10.00 before withdrawing.');
         return;
       }
@@ -874,8 +926,11 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
           <div className="bg-black/40 rounded-2xl p-4 flex items-center justify-between border border-white/5">
             <span className="text-xs font-bold text-white/40">Current Balance</span>
             <div className="text-right">
-              <div className="font-mono font-bold text-[#00FF88]">{formatMoney(balance)}</div>
-              <div className="text-[10px] text-white/20 font-bold">USD</div>
+              <div className="group flex items-center justify-end gap-2 font-mono font-bold text-[#00FF88]">
+                <CurrencyIcon className="rounded-full object-cover" size={16} />
+                <span className="group-hover:hidden">{formatMoneyFromCoins(balance)}</span>
+                <span className="hidden group-hover:inline">{formatMoney(coinsToUsd(balance))}</span>
+              </div>
             </div>
           </div>
 
@@ -1073,55 +1128,63 @@ const Header = ({
   onOpenConnections,
   onOpenSettings,
   onOpenAdmin,
+  onOpenLeaderboard,
 }: {
   onOpenWallet: () => void,
   onOpenLogin: () => void,
   onOpenProfile: () => void,
   onOpenConnections: () => void,
   onOpenSettings: () => void,
-  onOpenAdmin: () => void
+  onOpenAdmin: () => void,
+  onOpenLeaderboard: () => void
 }) => {
   const { balance } = useBalance();
   const { user, logout, isAuthenticated } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   
   return (
-    <header className="h-16 border-b border-white/5 bg-[#0f1115]/80 backdrop-blur-xl sticky top-0 z-50">
+    <header className="h-16 border-b border-white/5 bg-[linear-gradient(90deg,rgba(20,49,54,0.9),rgba(23,31,47,0.9))] backdrop-blur-xl sticky top-0 z-50">
       <div className="max-w-full h-full px-6 flex items-center justify-between">
-        <div className="flex items-center gap-4 lg:hidden">
-          <Menu className="text-white/40" />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 lg:hidden">
+            <Menu className="text-white/40" />
+          </div>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg overflow-hidden">
               <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
             </div>
             <span className="text-xl font-black italic">PASUS</span>
           </div>
+          <button
+            onClick={onOpenLeaderboard}
+            className="hidden md:flex rounded-full border border-white/10 bg-[#1a1d23] px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white/70 transition-all hover:border-[#00FF88]/40 hover:text-white"
+          >
+            <span className="flex items-center gap-2">
+              <Trophy size={14} className="text-[#00FF88]" />
+              <span>Leaderboard</span>
+            </span>
+          </button>
         </div>
 
-        <div className="flex-1 max-w-xl mx-auto hidden md:flex items-center bg-black/40 border border-white/5 rounded-full px-4 py-1.5 gap-3">
-          <Search size={16} className="text-white/20" />
-          <input 
-            type="text" 
-            placeholder="Search games..." 
-            className="bg-transparent border-none focus:outline-none text-sm w-full text-white/60"
-          />
+        <div className="hidden md:flex flex-1 items-center justify-center gap-4">
+          <div className="group rounded-full border border-white/10 bg-[#1a1d23] px-5 py-2">
+            <div className="flex items-center gap-2 font-mono font-bold text-sm text-[#00FF88]">
+              <CurrencyIcon className="rounded-full object-cover" size={16} />
+              <span className="group-hover:hidden">{formatMoneyFromCoins(balance)}</span>
+              <span className="hidden group-hover:inline">{formatMoney(coinsToUsd(balance))}</span>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
           {isAuthenticated ? (
             <>
-              <div className="group relative bg-[#1a1d23] border border-white/10 rounded-full pl-4 pr-1 py-1 flex items-center gap-3">
-                <div className="flex flex-col items-end">
-                  <span className="font-mono font-bold text-sm text-[#00FF88]">{formatMoney(balance)}</span>
-                  <div className="absolute top-full right-0 mt-2 bg-black border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-bold text-white/60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-2xl">
-                    {user?.currency || 'USD'}
-                  </div>
-                </div>
+              <div className="bg-[#1f2228] border border-white/10 rounded-full p-1 flex items-center">
                 <button 
                   onClick={onOpenWallet}
-                  className="bg-[#00FF88] text-black text-[10px] font-black px-4 py-2 rounded-full hover:bg-[#00FF88]/90 transition-colors"
+                  className="bg-[#00FF88] text-black text-sm font-black px-4 py-2 rounded-full hover:bg-[#00FF88]/90 transition-colors"
                 >
-                  WALLET
+                  +
                 </button>
               </div>
 
@@ -1447,7 +1510,7 @@ const DailyRewardsCard = () => {
         throw new Error(data.error || 'Failed to claim reward.');
       }
       setReward(data.reward || null);
-      setStatus(`Claimed ${formatMoney(Number(data.claimed || 0))}.`);
+      setStatus(`Claimed ${formatMoneyFromCoins(Number(data.claimed || 0))}.`);
       await refreshWallet();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Failed to claim reward.');
@@ -1468,7 +1531,7 @@ const DailyRewardsCard = () => {
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Daily Rewards</div>
-            <div className="text-3xl font-black italic tracking-tight">{isLoading ? 'Loading...' : formatMoney(reward?.rewardAmount || 0)}</div>
+            <div className="text-3xl font-black italic tracking-tight">{isLoading ? 'Loading...' : formatMoneyFromCoins(reward?.rewardAmount || 0)}</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-right">
             <div className="text-[10px] uppercase tracking-[0.2em] text-white/30">Streak</div>
@@ -1495,7 +1558,7 @@ const DailyRewardsCard = () => {
           {[1, 2, 3, 4, 5].map((day) => (
             <div key={day} className="rounded-2xl border border-white/10 bg-black/25 px-3 py-4 text-center">
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/25">Day {day}</div>
-              <div className="mt-2 text-sm font-black">{formatMoney(Math.min(10, 2 + (day - 1)))}</div>
+              <div className="mt-2 text-sm font-black">{formatMoneyFromCoins(Math.min(10, 2 + (day - 1)) * COINS_PER_DOLLAR)}</div>
             </div>
           ))}
         </div>
@@ -1725,8 +1788,11 @@ const ProfileView = () => {
           <div className="flex flex-wrap justify-center md:justify-start gap-4">
             <div className="bg-black/40 border border-white/5 rounded-2xl px-6 py-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Total Balance</div>
-              <div className="font-mono font-bold text-[#00FF88] text-xl">{formatMoney(balance)}</div>
-              <div className="text-[10px] text-white/20 font-bold">{user?.currency || 'USD'}</div>
+              <div className="group flex items-center gap-2 font-mono font-bold text-[#00FF88] text-xl">
+                <CurrencyIcon className="rounded-full object-cover" size={18} />
+                <span className="group-hover:hidden">{formatMoneyFromCoins(balance)}</span>
+                <span className="hidden group-hover:inline">{formatMoney(coinsToUsd(balance))}</span>
+              </div>
             </div>
             <div className="bg-black/40 border border-white/5 rounded-2xl px-6 py-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Games Played</div>
@@ -1744,9 +1810,9 @@ const ProfileView = () => {
           </h3>
           <div className="space-y-4">
             {[
-              { label: 'Total Wagered', value: '$904.00' },
-              { label: 'Total Won', value: '$963.00' },
-              { label: 'Net Profit', value: '+$59.00', color: 'text-[#00FF88]' },
+              { label: 'Total Wagered', value: '90,400 Coins' },
+              { label: 'Total Won', value: '96,300 Coins' },
+              { label: 'Net Profit', value: '+5,900 Coins', color: 'text-[#00FF88]' },
               { label: 'Highest Multiplier', value: '1,240x' },
             ].map((stat, i) => (
               <div key={i} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
@@ -2247,7 +2313,7 @@ const AdminView = () => {
         },
         body: JSON.stringify({
           userId: Number(selectedUserId),
-          delta: Number(adjustAmount),
+          delta: usdToCoins(Number(adjustAmount)),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -2365,8 +2431,8 @@ const AdminView = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Users</div><div className="mt-3 text-3xl font-black italic">{overview?.stats.totalUsers ?? 0}</div></div>
-        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Platform Balance</div><div className="mt-3 text-3xl font-black italic">{formatMoney(overview?.stats.totalBalance ?? 0)}</div></div>
-        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Total Wagered</div><div className="mt-3 text-3xl font-black italic">{formatMoney(overview?.stats.totalWagered ?? 0)}</div></div>
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Platform Balance</div><div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(overview?.stats.totalBalance ?? 0)}</div></div>
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Total Wagered</div><div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(overview?.stats.totalWagered ?? 0)}</div></div>
         <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Pending Withdrawals</div><div className="mt-3 text-3xl font-black italic">{overview?.stats.pendingWithdrawals ?? 0}</div></div>
       </div>
 
@@ -2376,7 +2442,7 @@ const AdminView = () => {
           <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none">
             <option value="">Select user</option>
             {(overview?.users || []).map((entry) => (
-              <option key={entry.id} value={entry.id}>{entry.username} ({formatMoney(entry.balance)})</option>
+              <option key={entry.id} value={entry.id}>{entry.username} ({formatMoneyFromCoins(entry.balance)})</option>
             ))}
           </select>
           <input value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} placeholder="Use positive or negative dollars" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
@@ -2396,7 +2462,7 @@ const AdminView = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] uppercase tracking-[0.16em] text-white/25">{entry.role}</div>
-                  <div className="text-sm font-mono text-[#00FF88]">{formatMoney(entry.balance)}</div>
+                  <div className="text-sm font-mono text-[#00FF88]">{formatMoneyFromCoins(entry.balance)}</div>
                 </div>
               </div>
             ))}
@@ -2417,7 +2483,7 @@ const AdminView = () => {
                 <div className="text-sm font-black">{entry.username}</div>
                 <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{entry.status}</div>
               </div>
-              <div className="mt-2 text-sm text-white/55">{formatMoney(entry.amount)} {entry.currency.toUpperCase()}</div>
+              <div className="mt-2 text-sm text-white/55">{formatMoneyFromCoins(entry.amount)} {entry.currency.toUpperCase()}</div>
               <div className="mt-1 text-[11px] text-white/30">{new Date(entry.createdAt).toLocaleString()}</div>
             </button>
           ))}
@@ -2528,13 +2594,13 @@ const AdminView = () => {
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
                     <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Requested Amount</div>
-                    <div className="mt-2 text-lg font-black">{formatMoney(selectedWithdrawal.amount)}</div>
+                    <div className="mt-2 text-lg font-black">{formatMoneyFromCoins(selectedWithdrawal.amount)}</div>
                     <div className="mt-1 text-[11px] text-white/35">Payout currency: {selectedWithdrawal.currency.toUpperCase()}</div>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
                     <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Net After Fee</div>
-                    <div className="mt-2 text-lg font-black">{formatMoney(selectedWithdrawal.netAmount)}</div>
-                    <div className="mt-1 text-[11px] text-white/35">Fee kept by platform: {formatMoney(selectedWithdrawal.feeAmount)}</div>
+                    <div className="mt-2 text-lg font-black">{formatMoneyFromCoins(selectedWithdrawal.netAmount)}</div>
+                    <div className="mt-1 text-[11px] text-white/35">Fee kept by platform: {formatMoneyFromCoins(selectedWithdrawal.feeAmount)}</div>
                   </div>
                 </div>
 
@@ -2743,9 +2809,9 @@ const AffiliateView = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Referred Users', value: overview?.referredUsers ?? 0 },
+          { label: 'Tracked Volume', value: formatMoneyFromCoins(overview?.trackedVolume ?? 0) },
           { label: 'Total Commission', value: formatMoneyFromCoins(overview?.totalCommission ?? 0) },
-          { label: 'Deposit Commission', value: formatMoneyFromCoins(overview?.depositCommission ?? 0) },
-          { label: 'Wager Commission', value: formatMoneyFromCoins(overview?.wagerCommission ?? 0) },
+          { label: 'Affiliate Rakeback', value: formatMoneyFromCoins(overview?.affiliateRakeback ?? 0) },
         ].map((card) => (
           <div key={card.label} className="rounded-3xl border border-white/10 bg-[#141821] p-5">
             <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">{card.label}</div>
@@ -2754,7 +2820,7 @@ const AffiliateView = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Your Code</div>
           <div className="flex gap-3">
@@ -2777,16 +2843,30 @@ const AffiliateView = () => {
               {copied ? 'Copied' : 'Copy Link'}
             </button>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Deposit Commission</div>
+              <div className="mt-2 text-xl font-black text-[#00FF88]">{formatMoneyFromCoins(overview?.depositCommission ?? 0)}</div>
+            </div>
+            <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Wager Commission</div>
+              <div className="mt-2 text-xl font-black text-[#00FF88]">{formatMoneyFromCoins(overview?.wagerCommission ?? 0)}</div>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
-          <div className="text-lg font-black uppercase tracking-tight">Recent Commission</div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-lg font-black uppercase tracking-tight">Recent Commissions</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Last 10</div>
+          </div>
           <div className="space-y-3">
             {(overview?.recentCommissions || []).length ? overview.recentCommissions.map((item: any) => (
               <div key={item.id} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-4 flex items-center justify-between gap-4">
                 <div>
                   <div className="text-sm font-black">{item.username}</div>
-                  <div className="text-[11px] text-white/35 uppercase tracking-[0.16em]">{item.sourceType}</div>
+                  <div className="mt-1 text-[11px] text-white/35 uppercase tracking-[0.16em]">{item.sourceType}</div>
+                  <div className="mt-1 text-[11px] text-white/25">{new Date(item.createdAt).toLocaleString()}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-black text-[#00FF88]">+{formatMoneyFromCoins(Number(item.commissionAmount || 0))}</div>
@@ -2798,6 +2878,123 @@ const AffiliateView = () => {
             )}
           </div>
         </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-lg font-black uppercase tracking-tight">People Using Your Code</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">{overview?.referredUsers ?? 0} total</div>
+          </div>
+          <div className="space-y-3">
+            {(overview?.referredAccounts || []).length ? overview.referredAccounts.map((entry: any) => (
+              <div key={entry.id} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-4 flex items-center justify-between gap-4">
+                <div className="text-sm font-black">{entry.username}</div>
+                <div className="text-[11px] text-white/35">{new Date(entry.createdAt).toLocaleString()}</div>
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">Nobody has registered with your code yet.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Affiliate Rakeback</div>
+          <div className="rounded-2xl border border-[#00FF88]/15 bg-black/30 p-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">2% Of Tracked Affiliate Volume</div>
+            <div className="mt-3 text-3xl font-black italic text-[#00FF88]">{formatMoneyFromCoins(overview?.affiliateRakeback ?? 0)}</div>
+            <div className="mt-2 text-xs text-white/40">
+              Based on {formatMoneyFromCoins(overview?.trackedVolume ?? 0)} generated by players registered through your code.
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Code Uses</div>
+              <div className="mt-2 text-xl font-black">{overview?.referredUsers ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Commission Rate</div>
+              <div className="mt-2 text-xl font-black">5%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const LEADERBOARD_PRIZES = [10000, 5000, 2500, 500];
+
+const LeaderboardView = () => {
+  const [entries, setEntries] = useState<Array<{ rank: number; userId: number; username: string; totalWagered: number }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadLeaderboard = async () => {
+      try {
+        setIsLoading(true);
+        setError('');
+        const response = await fetch('/api/leaderboard');
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load leaderboard.');
+        }
+        setEntries(Array.isArray(data.leaderboard) ? data.leaderboard : []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load leaderboard.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadLeaderboard().catch(() => undefined);
+  }, []);
+
+  return (
+    <div className="p-6 lg:p-10 max-w-5xl mr-auto ml-0 space-y-8">
+      <div className="space-y-2">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Competition</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Leaderboard</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Ranks are based on total wagered volume. Prize amounts are attached to the top four places directly in the list.</p>
+      </div>
+
+      {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div> : null}
+
+      <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-lg font-black uppercase tracking-tight">Top Wagered</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Top 10</div>
+        </div>
+
+        {isLoading ? (
+          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">Loading leaderboard...</div>
+        ) : entries.length ? (
+          <div className="space-y-3">
+            {entries.map((entry) => (
+              <div key={entry.userId} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    'flex h-10 w-10 items-center justify-center rounded-2xl border text-sm font-black',
+                    entry.rank === 1 ? 'border-[#00FF88]/40 bg-[#00FF88]/12 text-[#00FF88]' : entry.rank === 2 ? 'border-white/20 bg-white/5 text-white' : entry.rank === 3 ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-white/10 bg-white/[0.03] text-white/70'
+                  )}>
+                    #{entry.rank}
+                  </div>
+                  <div>
+                    <div className="text-sm font-black">{entry.username}</div>
+                    <div className="text-[11px] text-white/35">
+                      {entry.rank <= LEADERBOARD_PRIZES.length ? `#${entry.rank} prize: ${formatMoneyFromCoins(LEADERBOARD_PRIZES[entry.rank - 1])}` : 'No prize tier'}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-right font-mono font-bold text-[#00FF88]">
+                  <CurrencyIcon className="rounded-full object-cover" size={16} />
+                  <span>{formatMoneyFromCoins(entry.totalWagered)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">No wagered activity yet.</div>
+        )}
       </div>
     </div>
   );
@@ -2858,7 +3055,7 @@ const VipView = () => {
     return () => window.clearInterval(interval);
   }, [loadVipOverview]);
 
-  const vipTier = stats.wagered >= 100000 ? 'Diamond' : stats.wagered >= 25000 ? 'Gold' : stats.wagered >= 5000 ? 'Silver' : 'Bronze';
+  const vipTier = stats.wagered >= usdToCoins(2000) ? 'Diamond' : stats.wagered >= usdToCoins(500) ? 'Gold' : stats.wagered >= usdToCoins(100) ? 'Silver' : 'Bronze';
 
   const claimRakeback = async (period: 'instant' | 'daily' | 'weekly' | 'monthly') => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -2943,10 +3140,10 @@ const VipView = () => {
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Tier Ladder</div>
           {[
-            'Bronze: $0+ wagered',
-            'Silver: $100+ wagered',
-            'Gold: $500+ wagered',
-            'Diamond: $2,000+ wagered',
+            'Bronze: 0+ Coins wagered',
+            'Silver: 10,000+ Coins wagered',
+            'Gold: 50,000+ Coins wagered',
+            'Diamond: 200,000+ Coins wagered',
           ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
         </div>
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
@@ -3276,7 +3473,6 @@ const RightRail = () => {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [tipDraft, setTipDraft] = useState<TipDraft | null>(null);
   const [rainDraft, setRainDraft] = useState<RainDraft | null>(null);
-  const [tipNotifications, setTipNotifications] = useState<TipNotification[]>([]);
 
   const loadRoom = async (silent = false) => {
     if (!silent) {
@@ -3319,14 +3515,6 @@ const RightRail = () => {
           }
         : null;
 
-      const nextTipNotifications = Array.isArray(data.tipNotifications)
-        ? data.tipNotifications.map((notification: any) => ({
-            id: Number(notification.id),
-            senderUsername: String(notification.senderUsername || notification.sender_username || ''),
-            amount: Number(notification.amount || 0),
-            createdAt: String(notification.createdAt || notification.created_at || ''),
-          }))
-        : [];
       const nextOnlineCount = Number(data.onlineCount || 0);
 
       if (lastSeenRainId && nextRain && nextRain.id !== lastSeenRainId) {
@@ -3335,16 +3523,6 @@ const RightRail = () => {
 
       setMessages(nextMessages);
       setRain(nextRain);
-      if (nextTipNotifications.length > 0) {
-        setTipNotifications((current) => {
-          const existingIds = new Set(current.map((notification) => notification.id));
-          const fresh = nextTipNotifications.filter((notification) => !existingIds.has(notification.id));
-          if (fresh.length === 0) {
-            return current;
-          }
-          return [...current, ...fresh];
-        });
-      }
       setLastSeenRainId((prev) => prev ?? nextRain?.id ?? null);
       if (nextRain) {
         setLastSeenRainId(nextRain.id);
@@ -3378,18 +3556,6 @@ const RightRail = () => {
     }, 3000);
     return () => window.clearInterval(timer);
   }, [isAuthenticated, lastSeenRainId]);
-
-  useEffect(() => {
-    if (tipNotifications.length === 0) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setTipNotifications((current) => current.slice(1));
-    }, 5000);
-
-    return () => window.clearTimeout(timer);
-  }, [tipNotifications]);
 
   useEffect(() => {
     const container = chatScrollRef.current;
@@ -3433,7 +3599,7 @@ const RightRail = () => {
     }
 
     if (/^\.rain$/i.test(draft.trim())) {
-      setRainDraft({ amount: '10' });
+      setRainDraft({ amount: String(500 / COINS_PER_DOLLAR) });
       setDraft('');
       return;
     }
@@ -3577,25 +3743,7 @@ const RightRail = () => {
           : 'Join Opens Soon';
 
   return (
-    <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[#0f1115] flex-col h-screen sticky top-0 relative">
-      <AnimatePresence>
-        {tipNotifications.map((notification) => (
-          <motion.div
-            key={notification.id}
-            initial={{ opacity: 0, x: 24, y: -8 }}
-            animate={{ opacity: 1, x: 0, y: 0 }}
-            exit={{ opacity: 0, x: 24, y: -8 }}
-            className="absolute top-4 left-4 right-4 z-40 rounded-3xl border border-[#00FF88]/20 bg-[#111a15]/95 px-5 py-4 shadow-2xl backdrop-blur-xl"
-          >
-            <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Tip Received</div>
-            <div className="mt-2 text-sm text-white/75">
-              <span className="font-black text-white">{notification.senderUsername}</span> tipped you{' '}
-              <span className="font-black text-[#00FF88]">{formatMoney(notification.amount)}</span>
-            </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-
+    <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[linear-gradient(180deg,#171f2b_0%,#142026_100%)] flex-col h-screen sticky top-0 relative">
       <div className="p-5 border-b border-white/5">
         <div className="rounded-3xl border border-[#00FF88]/15 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-5">
           <div className="flex items-center justify-between mb-3">
@@ -3603,7 +3751,7 @@ const RightRail = () => {
               <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Rain Drop</div>
               <div className="text-2xl font-black italic tracking-tight">{formatMoneyFromCoins(rain?.poolAmount || 0)}</div>
             </div>
-            <Gift className="text-[#00FF88]" size={22} />
+            <CurrencyIcon className="rounded-full object-cover" size={22} />
           </div>
           <div className="flex items-center justify-between text-xs text-white/50 mb-4">
             <span>{rain?.participantCount || 0} joined</span>
@@ -3655,37 +3803,70 @@ const RightRail = () => {
               No chat messages yet.
             </div>
           ) : null}
-              {messages.map((message) => (
-            <div key={message.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="flex items-center gap-2 min-w-0">
-                  <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10 bg-white/5 shrink-0">
-                    {message.avatarUrl ? (
+          {messages.map((message) => {
+            const isRainNotice = message.user === 'PasusRain';
+            const isTipNotice = !isRainNotice && /tipped/i.test(message.text);
+
+            if (isRainNotice) {
+              return (
+                <div key={message.id} className="rounded-2xl border border-yellow-400/25 bg-yellow-400/12 px-4 py-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-200">Rain Notice</span>
+                    <span className="text-[10px] text-yellow-100/60">
+                      {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
+                    </span>
+                  </div>
+                  <div className="text-xs leading-relaxed text-yellow-50/90">{message.text}</div>
+                </div>
+              );
+            }
+
+            if (isTipNotice) {
+              return (
+                <div key={message.id} className="rounded-2xl border border-[#00FF88]/20 bg-[#00FF88]/10 px-4 py-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#00FF88]">Tip Notice</span>
+                    <span className="text-[10px] text-white/25">
+                      {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
+                    </span>
+                  </div>
+                  <div className="text-xs leading-relaxed text-white/75">{message.text}</div>
+                </div>
+              );
+            }
+
+            return (
+              <div key={message.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10 bg-white/5 shrink-0">
+                      {message.avatarUrl ? (
+                        <img
+                          src={message.avatarUrl}
+                          alt={message.user}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : null}
+                    </div>
+                    {message.role !== 'user' ? (
                       <img
-                        src={message.avatarUrl}
-                        alt={message.user}
-                        className="w-full h-full object-cover"
+                        src={CHAT_ROLE_ICONS[message.role]}
+                        alt={message.role}
+                        className="w-4 h-4 rounded-full object-cover shrink-0"
                       />
                     ) : null}
-                  </div>
-                  {message.role !== 'user' ? (
-                    <img
-                      src={CHAT_ROLE_ICONS[message.role]}
-                      alt={message.role}
-                      className="w-4 h-4 rounded-full object-cover shrink-0"
-                    />
-                  ) : null}
-                  <span className={cn('text-xs font-black truncate', CHAT_ROLE_STYLES[message.role])}>
-                    {message.user}
+                    <span className={cn('text-xs font-black truncate', CHAT_ROLE_STYLES[message.role])}>
+                      {message.user}
+                    </span>
                   </span>
-                </span>
-                <span className="text-[10px] text-white/20">
-                  {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
-                </span>
+                  <span className="text-[10px] text-white/20">
+                    {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
+                  </span>
+                </div>
+                <div className="text-xs text-white/55 leading-relaxed">{message.text}</div>
               </div>
-              <div className="text-xs text-white/55 leading-relaxed">{message.text}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="p-4 border-t border-white/5">
@@ -3861,7 +4042,7 @@ const AppContent = () => {
   const CurrentGame = activeGame ? GAMES.find(g => g.id === activeGame)?.component : null;
 
   return (
-    <div className="flex min-h-screen bg-[#0a0c10] text-white font-sans selection:bg-[#00FF88] selection:text-black">
+    <div className="flex min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(0,255,136,0.08),transparent_22%),radial-gradient(circle_at_top_right,rgba(67,97,238,0.14),transparent_28%),linear-gradient(180deg,#182028_0%,#141b24_100%)] text-white font-sans selection:bg-[#00FF88] selection:text-black">
       <Sidebar 
         activeGame={activeGame} 
         currentView={currentView}
@@ -3878,6 +4059,39 @@ const AppContent = () => {
           onOpenConnections={() => openView('connections')}
           onOpenSettings={() => openView('settings')}
           onOpenAdmin={() => openView('admin')}
+          onOpenLeaderboard={() => openView('leaderboard')}
+        />
+
+        <div
+          className="fixed inset-0 pointer-events-none z-[-2] opacity-[0.85]"
+          style={{
+            backgroundImage: `
+              radial-gradient(circle at 12% 18%, rgba(255,255,255,0.95) 0 1px, transparent 1.5px),
+              radial-gradient(circle at 22% 72%, rgba(255,255,255,0.7) 0 1px, transparent 1.6px),
+              radial-gradient(circle at 36% 28%, rgba(170,220,255,0.95) 0 1px, transparent 1.8px),
+              radial-gradient(circle at 48% 82%, rgba(255,255,255,0.8) 0 1px, transparent 1.7px),
+              radial-gradient(circle at 57% 16%, rgba(200,255,240,0.9) 0 1px, transparent 1.8px),
+              radial-gradient(circle at 66% 58%, rgba(255,255,255,0.75) 0 1px, transparent 1.6px),
+              radial-gradient(circle at 78% 24%, rgba(255,255,255,0.9) 0 1px, transparent 1.7px),
+              radial-gradient(circle at 84% 68%, rgba(130,190,255,0.85) 0 1px, transparent 1.8px),
+              radial-gradient(circle at 92% 34%, rgba(255,255,255,0.85) 0 1px, transparent 1.6px)
+            `,
+            backgroundRepeat: 'repeat',
+            backgroundSize: '520px 520px',
+          }}
+        />
+        <div
+          className="fixed inset-0 pointer-events-none z-[-1] opacity-[0.22]"
+          style={{
+            backgroundImage: `
+              radial-gradient(circle at 18% 30%, rgba(255,255,255,0.9) 0 1.2px, transparent 1.8px),
+              radial-gradient(circle at 44% 64%, rgba(255,255,255,0.65) 0 1px, transparent 1.7px),
+              radial-gradient(circle at 63% 38%, rgba(120,210,255,0.75) 0 1.2px, transparent 1.9px),
+              radial-gradient(circle at 88% 74%, rgba(255,255,255,0.7) 0 1px, transparent 1.7px)
+            `,
+            backgroundRepeat: 'repeat',
+            backgroundSize: '280px 280px',
+          }}
         />
         
         <main className="flex-1 overflow-y-auto custom-scrollbar">
@@ -3969,6 +4183,15 @@ const AppContent = () => {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <AffiliateView />
+              </motion.div>
+            ) : currentView === 'leaderboard' ? (
+              <motion.div
+                key="leaderboard"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <LeaderboardView />
               </motion.div>
             ) : currentView === 'provably-fair' ? (
               <motion.div
@@ -4079,7 +4302,6 @@ const AppContent = () => {
       </AnimatePresence>
 
       {/* Global Background Texture */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-[-1]" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/carbon-fibre.png")' }} />
     </div>
   );
 };

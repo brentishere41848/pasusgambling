@@ -22,6 +22,7 @@ interface WalletResponse {
 const BalanceContext = createContext<BalanceContextType | undefined>(undefined);
 
 const TOKEN_STORAGE_KEY = 'pasus_auth_token';
+const COINS_PER_DOLLAR = 100;
 
 async function parseApiResponse(response: Response) {
   const data = await response.json().catch(() => ({}));
@@ -160,7 +161,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     updateBalance(amount);
   };
 
-  const coinsToUsd = (amount: number) => amount;
+  const coinsToUsd = (amount: number) => Number(amount || 0) / COINS_PER_DOLLAR;
 
   return (
     <BalanceContext.Provider value={{ balance, totalDeposited, addBalance, subtractBalance, setBalance, refreshWallet: syncWallet, coinsToUsd }}>
