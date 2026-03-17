@@ -19,6 +19,7 @@ const nowPaymentsApiKey = process.env.NOWPAYMENTS_API_KEY;
 const nowPaymentsIpnSecret = process.env.NOWPAYMENTS_IPN_SECRET;
 const nowPaymentsBaseUrl = process.env.NOWPAYMENTS_BASE_URL || 'https://api.nowpayments.io/v1';
 const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+const apiBaseUrl = process.env.API_BASE_URL || appBaseUrl;
 const discordClientId = process.env.DISCORD_CLIENT_ID;
 const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
 const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/api/discord/connect/callback`;
@@ -2793,7 +2794,7 @@ app.post('/api/payments/nowpayments/create', requireAuth, async (req: AuthedRequ
     }
 
     const orderId = `pasus-${req.auth!.user.id}-${Date.now()}`;
-    const callbackUrl = `${appBaseUrl.replace(/\/$/, '')}/api/payments/nowpayments/ipn`;
+    const callbackUrl = `${apiBaseUrl.replace(/\/$/, '')}/api/payments/nowpayments/ipn`;
     const successUrl = `${appBaseUrl.replace(/\/$/, '')}/wallet?deposit=success`;
     const cancelUrl = `${appBaseUrl.replace(/\/$/, '')}/wallet?deposit=cancelled`;
 
