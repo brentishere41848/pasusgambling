@@ -11,6 +11,7 @@ dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1);
 const port = Number(process.env.PORT || 3001);
 const databaseUrl = process.env.DATABASE_URL;
 const jwtSecret = process.env.JWT_SECRET || 'pasus-dev-secret-change-me';
@@ -34,6 +35,22 @@ const siteAccessToken = crypto
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../dist');
+const allowedOrigins = new Set(
+  [
+    appBaseUrl,
+    'https://www.pasus.xyz',
+    'https://pasus.xyz',
+    'http://localhost:3000',
+  ]
+    .map((value) => {
+      try {
+        return new URL(value).origin;
+      } catch {
+        return null;
+      }
+    })
+    .filter((value): value is string => Boolean(value))
+);
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required');
@@ -74,6 +91,55 @@ function hasSiteAccess(req: express.Request) {
   );
 }
 
+function getRequestOrigin(req: express.Request) {
+  const originHeader = req.headers.origin;
+  if (!originHeader) {
+    return null;
+  }
+
+  try {
+    return new URL(originHeader).origin;
+  } catch {
+    return null;
+  }
+}
+
+function applyCorsHeaders(req: express.Request, res: express.Response) {
+  const origin = getRequestOrigin(req);
+  if (!origin || !allowedOrigins.has(origin)) {
+    return;
+  }
+
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization,Content-Type');
+  res.setHeader('Vary', 'Origin');
+}
+
+function isSecureRequest(req: express.Request) {
+  return req.secure || String(req.headers['x-forwarded-proto'] || '').includes('https');
+}
+
+function buildCookieAttributes(req: express.Request) {
+  if (isSecureRequest(req)) {
+    return 'Path=/; SameSite=None; Secure; Max-Age=2592000';
+  }
+
+  return 'Path=/; SameSite=Lax; Max-Age=2592000';
+}
+
+app.use((req, res, next) => {
+  applyCorsHeaders(req, res);
+
+  if (req.method === 'OPTIONS' && req.path.startsWith('/api/')) {
+    res.status(204).end();
+    return;
+  }
+
+  next();
+});
+
 app.use(express.json({
   verify: (req, _res, buf) => {
     (req as express.Request & { rawBody?: string }).rawBody = buf.toString('utf8');
@@ -93,9 +159,10 @@ app.post('/api/site-access/login', (req, res) => {
     return;
   }
 
+  const cookieAttributes = buildCookieAttributes(req);
   res.setHeader('Set-Cookie', [
-    `${siteAccessCookieName}=${siteAccessToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`,
-    `${siteAccessClientCookieName}=${siteAccessToken}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`,
+    `${siteAccessCookieName}=${siteAccessToken}; HttpOnly; ${cookieAttributes}`,
+    `${siteAccessClientCookieName}=${siteAccessToken}; ${cookieAttributes}`,
   ]);
   res.json({ authenticated: true });
 });
