@@ -6,7 +6,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
 
-const LANE_COUNT = 12;
+const LANE_COUNT = 30;
 const SCENE_WIDTH = 100;
 const LANE_HEIGHT = 58;
 const START_ZONE_HEIGHT = 190;
@@ -17,13 +17,11 @@ const TRAFFIC_LEFT_START = 115;
 const TRAFFIC_LEFT_END = -26;
 const TRAFFIC_RIGHT_START = -26;
 const TRAFFIC_RIGHT_END = 115;
-const BASE_LANE_MULTIPLIERS = [1.12, 1.24, 1.38, 1.56, 1.78, 2.04, 2.36, 2.78, 3.34, 4.08, 5.02, 6.4];
-
 const DIFFICULTIES = {
-  easy: { label: 'Easy', payoutBoost: 0.92, speedFactor: 1.24 },
-  medium: { label: 'Medium', payoutBoost: 1, speedFactor: 1 },
-  hard: { label: 'Hard', payoutBoost: 1.16, speedFactor: 0.8 },
-  extreme: { label: 'Extreme', payoutBoost: 1.32, speedFactor: 0.64 },
+  easy: { label: 'Easy', payoutBoost: 0.94, speedFactor: 1.24 },
+  medium: { label: 'Medium', payoutBoost: 1.08, speedFactor: 1 },
+  hard: { label: 'Hard', payoutBoost: 1.45, speedFactor: 0.68 },
+  extreme: { label: 'Extreme', payoutBoost: 2.4, speedFactor: 0.42 },
 } as const;
 
 type TrafficCar = {
@@ -77,9 +75,17 @@ function laneTrafficCount() {
   return 1;
 }
 
+function baseMultiplierForLane(index: number) {
+  const laneNumber = index + 1;
+  const ramp = 1 + laneNumber / 9.5;
+  return Number(Math.pow(ramp, 1.78).toFixed(2));
+}
+
 function laneSpeedForIndex(index: number, difficulty: DifficultyKey) {
   const baseSpeed = durationForLabel(speedLabelForLane(index)) * DIFFICULTIES[difficulty].speedFactor;
-  return Math.max(1.45, baseSpeed * Math.max(0.48, 1 - index * 0.045));
+  const laneRamp = Math.max(0.32, 1 - index * 0.055);
+  const speedFloor = difficulty === 'extreme' ? 0.9 : difficulty === 'hard' ? 1.15 : 1.45;
+  return Math.max(speedFloor, baseSpeed * laneRamp);
 }
 
 const CAR_STYLES = [
@@ -211,7 +217,10 @@ export const CrossyRoadGame: React.FC = () => {
   const progress = Math.max(0, resolvedLane + 1);
   const nextLaneIndex = resolvedLane + 1;
   const laneMultipliers = useMemo(
-    () => BASE_LANE_MULTIPLIERS.map((value) => Number((value * DIFFICULTIES[difficulty].payoutBoost).toFixed(2))),
+    () =>
+      Array.from({ length: LANE_COUNT }, (_, index) =>
+        Number((baseMultiplierForLane(index) * DIFFICULTIES[difficulty].payoutBoost).toFixed(2))
+      ),
     [difficulty]
   );
   const currentMultiplier = useMemo(() => {
@@ -472,7 +481,7 @@ export const CrossyRoadGame: React.FC = () => {
         <div className="mt-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#121922_0%,#0f141b_100%)] px-4 py-4">
           <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Top Lane Pays</div>
           <div className="mt-2 text-2xl font-black text-[#00FF88]">{topPayout}</div>
-           <div className="mt-1 text-[11px] text-white/35">Hit all 12 jumps and the final lane pays {laneMultipliers[laneMultipliers.length - 1].toFixed(2)}x.</div>
+           <div className="mt-1 text-[11px] text-white/35">Hit all 30 jumps and the final lane pays {laneMultipliers[laneMultipliers.length - 1].toFixed(2)}x.</div>
          </div>
       </div>
 
@@ -494,7 +503,7 @@ export const CrossyRoadGame: React.FC = () => {
           ref={sceneRef}
           animate={screenShake ? { x: [0, -10, 8, -6, 0], y: [0, 4, -3, 2, 0] } : { x: 0, y: 0 }}
           transition={{ duration: 0.38, ease: 'easeOut' }}
-          className="relative min-h-[900px] overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,#112538_0%,#0b1219_34%,#0b0f14_100%)]"
+          className="relative min-h-[1100px] overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,#112538_0%,#0b1219_34%,#0b0f14_100%)]"
         >
           <div className="absolute inset-x-0 top-0 h-[34%] bg-[radial-gradient(circle_at_50%_0%,rgba(130,200,255,0.26),transparent_58%)]" />
           <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
@@ -523,7 +532,7 @@ export const CrossyRoadGame: React.FC = () => {
               <div className="absolute right-[10%] top-[34px] rounded-[20px] border border-[#9BE7FF]/20 bg-[#0b1015]/40 px-5 py-4 text-right shadow-[0_16px_32px_rgba(0,0,0,0.24)] backdrop-blur-sm">
                 <div className="text-[9px] font-black uppercase tracking-[0.24em] text-[#9BE7FF]">Jackpot Lane</div>
                 <div className="mt-1 text-lg font-black text-white">{laneMultipliers[laneMultipliers.length - 1].toFixed(2)}x</div>
-                <div className="text-[10px] text-white/35">12 jumps clean</div>
+                <div className="text-[10px] text-white/35">30 jumps clean</div>
               </div>
               {Array.from({ length: 7 }).map((_, index) => (
                 <div
