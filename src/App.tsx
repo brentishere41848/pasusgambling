@@ -4309,12 +4309,10 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <SiteAccessGate>
-      <AuthProvider>
-        <BalanceProvider>
-          <AppContent />
-        </BalanceProvider>
-      </AuthProvider>
-    </SiteAccessGate>
+    <AuthProvider>
+      <BalanceProvider>
+        <AppContent />
+      </BalanceProvider>
+    </AuthProvider>
   );
 }

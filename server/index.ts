@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import express from 'express';
 import bcrypt from 'bcryptjs';
@@ -24,14 +24,6 @@ const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
 const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/api/discord/connect/callback`;
 const COINS_PER_DOLLAR = 100;
 const DEFAULT_RAIN_POOL_COINS = 500;
-const siteAccessUsername = 'PASUSEARLY';
-const siteAccessPassword = 'password123';
-const siteAccessCookieName = 'pasus_site_access';
-const siteAccessClientCookieName = 'pasus_site_access_client';
-const siteAccessToken = crypto
-  .createHash('sha256')
-  .update(`${siteAccessUsername}:${siteAccessPassword}:${jwtSecret}`)
-  .digest('hex');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../dist');
@@ -61,36 +53,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-function parseCookies(header: string | undefined) {
-  const cookies: Record<string, string> = {};
-  if (!header) {
-    return cookies;
-  }
-
-  for (const part of header.split(';')) {
-    const [name, ...valueParts] = part.trim().split('=');
-    if (!name) {
-      continue;
-    }
-    const rawValue = valueParts.join('=') || '';
-    try {
-      cookies[name] = decodeURIComponent(rawValue);
-    } catch {
-      cookies[name] = rawValue;
-    }
-  }
-
-  return cookies;
-}
-
-function hasSiteAccess(req: express.Request) {
-  const cookies = parseCookies(req.headers.cookie);
-  return (
-    cookies[siteAccessCookieName] === siteAccessToken ||
-    cookies[siteAccessClientCookieName] === siteAccessToken
-  );
-}
-
 function getRequestOrigin(req: express.Request) {
   const originHeader = req.headers.origin;
   if (!originHeader) {
@@ -117,18 +79,6 @@ function applyCorsHeaders(req: express.Request, res: express.Response) {
   res.setHeader('Vary', 'Origin');
 }
 
-function isSecureRequest(req: express.Request) {
-  return req.secure || String(req.headers['x-forwarded-proto'] || '').includes('https');
-}
-
-function buildCookieAttributes(req: express.Request) {
-  if (isSecureRequest(req)) {
-    return 'Path=/; SameSite=None; Secure; Max-Age=2592000';
-  }
-
-  return 'Path=/; SameSite=Lax; Max-Age=2592000';
-}
-
 app.use((req, res, next) => {
   applyCorsHeaders(req, res);
 
@@ -145,46 +95,6 @@ app.use(express.json({
     (req as express.Request & { rawBody?: string }).rawBody = buf.toString('utf8');
   },
 }));
-
-app.get('/api/site-access/status', (req, res) => {
-  res.json({ authenticated: hasSiteAccess(req) });
-});
-
-app.post('/api/site-access/login', (req, res) => {
-  const username = String(req.body?.username || '');
-  const password = String(req.body?.password || '');
-
-  if (username !== siteAccessUsername || password !== siteAccessPassword) {
-    res.status(401).json({ error: 'Invalid early access credentials.' });
-    return;
-  }
-
-  const cookieAttributes = buildCookieAttributes(req);
-  res.setHeader('Set-Cookie', [
-    `${siteAccessCookieName}=${siteAccessToken}; HttpOnly; ${cookieAttributes}`,
-    `${siteAccessClientCookieName}=${siteAccessToken}; ${cookieAttributes}`,
-  ]);
-  res.json({ authenticated: true });
-});
-
-app.use((req, res, next) => {
-  if (!req.path.startsWith('/api')) {
-    next();
-    return;
-  }
-
-  if (req.path === '/api/site-access/status' || req.path === '/api/site-access/login' || req.path === '/api/payments/nowpayments/ipn') {
-    next();
-    return;
-  }
-
-  if (hasSiteAccess(req)) {
-    next();
-    return;
-  }
-
-  res.status(401).json({ error: 'Early access authentication required.' });
-});
 
 type AuthUser = {
   id: number;
