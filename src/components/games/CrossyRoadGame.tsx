@@ -32,7 +32,7 @@ type TrafficCar = {
   width: number;
   speed: number;
   startX: number;
-  color: string;
+  styleIndex: number;
 };
 
 type Lane = {
@@ -83,15 +83,43 @@ function laneTrafficCount(index: number, difficulty: DifficultyKey) {
   return 3 + DIFFICULTIES[difficulty].extraCars;
 }
 
-function carColor(index: number) {
-  const palette = [
-    'from-[#8ec5ff] to-[#346bff]',
-    'from-[#ffd36a] to-[#ff8a3d]',
-    'from-[#ff88ae] to-[#ff4f6f]',
-    'from-[#9be7ff] to-[#14b8a6]',
-  ];
-  return palette[index % palette.length];
-}
+const CAR_STYLES = [
+  {
+    body: 'from-[#7dd7ff] via-[#3a8fff] to-[#1d4bce]',
+    roof: 'bg-[#d9f5ff]',
+    glass: 'from-[#e9fbff] to-[#7bd6ff]',
+    accent: 'bg-[#77f3ff]',
+    underglow: 'shadow-[0_14px_28px_rgba(64,143,255,0.32)]',
+  },
+  {
+    body: 'from-[#ffe36a] via-[#ffb649] to-[#ff7b2f]',
+    roof: 'bg-[#fff5cb]',
+    glass: 'from-[#fff8dc] to-[#ffd27d]',
+    accent: 'bg-[#ffd054]',
+    underglow: 'shadow-[0_14px_28px_rgba(255,166,74,0.32)]',
+  },
+  {
+    body: 'from-[#ff9dc3] via-[#ff6e8c] to-[#e63562]',
+    roof: 'bg-[#ffe1ec]',
+    glass: 'from-[#fff0f6] to-[#ffa7bf]',
+    accent: 'bg-[#ffcade]',
+    underglow: 'shadow-[0_14px_28px_rgba(255,99,143,0.28)]',
+  },
+  {
+    body: 'from-[#8ef5d6] via-[#27d3b1] to-[#0b9c85]',
+    roof: 'bg-[#d8fff3]',
+    glass: 'from-[#edfff9] to-[#87f5d8]',
+    accent: 'bg-[#72f0cd]',
+    underglow: 'shadow-[0_14px_28px_rgba(39,211,177,0.28)]',
+  },
+  {
+    body: 'from-[#c8a5ff] via-[#9463ff] to-[#5a2bd8]',
+    roof: 'bg-[#efe5ff]',
+    glass: 'from-[#f6f1ff] to-[#cbaeff]',
+    accent: 'bg-[#d5c0ff]',
+    underglow: 'shadow-[0_14px_28px_rgba(125,88,255,0.28)]',
+  },
+];
 
 function createRunLanes(difficulty: DifficultyKey) {
   return Array.from({ length: LANE_COUNT }, (_, laneIndex) => {
@@ -109,7 +137,7 @@ function createRunLanes(difficulty: DifficultyKey) {
         width,
         speed: durationForLabel(speedLabel) * DIFFICULTIES[difficulty].speedFactor,
         startX: baseStart,
-        color: carColor(laneIndex + carIndex),
+        styleIndex: (laneIndex + carIndex) % CAR_STYLES.length,
       };
     });
 
@@ -147,6 +175,29 @@ function chickenIsHitByTraffic(lane: Lane, elapsedSeconds: number) {
 
 function roadOffsetForProgress(progress: number) {
   return progress * LANE_HEIGHT;
+}
+
+function TrafficVehicle({ car, direction }: { car: TrafficCar; direction: Lane['direction'] }) {
+  const style = CAR_STYLES[car.styleIndex];
+
+  return (
+    <div className={cn('relative h-full w-full', direction === 'right' ? 'scale-x-[-1]' : '')}>
+      <div className="absolute inset-x-[10%] bottom-[-5px] h-3 rounded-full bg-black/55 blur-[2px]" />
+      <div className={cn('absolute inset-x-0 top-[3px] bottom-[4px] rounded-[16px] border border-white/20 bg-gradient-to-br', style.body, style.underglow)}>
+        <div className="absolute inset-x-[14%] top-[5px] h-[11px] rounded-full bg-white/16 blur-[1px]" />
+        <div className="absolute left-[18%] right-[18%] top-[6px] h-[15px] rounded-[12px] border border-white/35 bg-gradient-to-b shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]" style={{ backgroundImage: `linear-gradient(180deg, var(--tw-gradient-stops))` }} />
+        <div className={cn('absolute left-[23%] right-[23%] top-[6px] h-[14px] rounded-[11px] border border-white/25 bg-gradient-to-b', style.glass)} />
+        <div className={cn('absolute left-[31%] right-[31%] top-[2px] h-[8px] rounded-full', style.roof)} />
+        <div className={cn('absolute inset-y-[12px] left-[14%] w-[7%] rounded-full shadow-[0_0_12px_rgba(255,245,196,0.85)]', style.accent)} />
+        <div className="absolute inset-y-[12px] right-[12%] w-[6%] rounded-full bg-[#ff8b74] shadow-[0_0_10px_rgba(255,122,107,0.55)]" />
+        <div className="absolute left-[12%] right-[12%] bottom-[8px] h-[4px] rounded-full bg-black/20" />
+        <div className="absolute left-[10%] top-[19px] h-[3px] w-[14%] rounded-full bg-black/18" />
+        <div className="absolute right-[10%] top-[19px] h-[3px] w-[12%] rounded-full bg-black/18" />
+      </div>
+      <div className="absolute bottom-0 left-[15%] h-[8px] w-[16%] rounded-full bg-[#0b0c10]" />
+      <div className="absolute bottom-0 right-[15%] h-[8px] w-[16%] rounded-full bg-[#0b0c10]" />
+    </div>
+  );
 }
 
 export const CrossyRoadGame: React.FC = () => {
@@ -305,8 +356,8 @@ export const CrossyRoadGame: React.FC = () => {
   const roadTranslateY = roadOffsetForProgress(Math.max(activeLandingLane, -1));
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 lg:grid lg:grid-cols-4">
+      <div className="flex flex-col gap-4 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#141922_0%,#0d1117_100%)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.28)] lg:col-span-1">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
           <input
@@ -419,11 +470,11 @@ export const CrossyRoadGame: React.FC = () => {
          </div>
       </div>
 
-      <div className="lg:col-span-3 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#10151c_0%,#0b0f15_100%)] p-5 md:p-7">
+      <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,#10151c_0%,#0b0f15_100%)] p-5 shadow-[0_28px_70px_rgba(0,0,0,0.3)] md:p-7 lg:col-span-3">
         <div className="mb-5 flex items-center justify-between gap-4">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-[#9BE7FF] font-black">Chicken Road</div>
-            <div className="mt-1 text-sm text-white/45">The chicken stays in frame. Traffic streams past. Every jump locks the next lane result.</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#9BE7FF]">Chicken Road</div>
+            <div className="mt-1 text-sm text-white/45">Arcade-style sprint with heavier traffic, neon-laced roads, and cleaner visual reads on every jump.</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-right">
             <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Next Lane</div>
@@ -437,30 +488,64 @@ export const CrossyRoadGame: React.FC = () => {
           ref={sceneRef}
           animate={screenShake ? { x: [0, -10, 8, -6, 0], y: [0, 4, -3, 2, 0] } : { x: 0, y: 0 }}
           transition={{ duration: 0.38, ease: 'easeOut' }}
-          className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,#1c3042_0%,#0d1218_36%,#11161d_100%)] min-h-[640px]"
+          className="relative min-h-[640px] overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,#112538_0%,#0b1219_34%,#0b0f14_100%)]"
         >
           <div className="absolute inset-x-0 top-0 h-[34%] bg-[radial-gradient(circle_at_50%_0%,rgba(130,200,255,0.26),transparent_58%)]" />
+          <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
           <div className="absolute inset-x-0 top-0 h-[34%] opacity-70" style={{ backgroundImage: 'radial-gradient(circle at 12% 18%, rgba(255,255,255,0.92) 0 1px, transparent 1.4px), radial-gradient(circle at 72% 28%, rgba(255,255,255,0.8) 0 1px, transparent 1.5px), radial-gradient(circle at 48% 48%, rgba(155,231,255,0.9) 0 1px, transparent 1.5px)', backgroundSize: '260px 160px' }} />
+          <div className="absolute left-6 top-8 h-20 w-20 rounded-full bg-[#7de7ff]/10 blur-3xl" />
+          <div className="absolute right-6 top-20 h-24 w-24 rounded-full bg-[#00FF88]/8 blur-3xl" />
+          <div className="absolute inset-x-[8%] top-[32px] flex items-start justify-between text-[10px] font-black uppercase tracking-[0.28em] text-white/35">
+            <div className="rounded-full border border-white/10 bg-black/20 px-4 py-2">Night Run</div>
+            <div className="rounded-full border border-[#00FF88]/20 bg-[#00FF88]/8 px-4 py-2 text-[#9effcb]">Traffic Hot</div>
+          </div>
 
           <motion.div
             className="absolute inset-x-0 top-0"
             animate={{ y: CHICKEN_Y - roadTranslateY }}
             transition={{ duration: runState === 'jumping' ? 0.52 : 0.48, ease: [0.2, 0.8, 0.2, 1] }}
           >
-              <div className="absolute inset-x-0 top-0 h-[250px] bg-[linear-gradient(180deg,#254f36_0%,#162d1f_100%)]" />
-              <div className="absolute inset-x-0 top-[146px] h-[20px] bg-[linear-gradient(180deg,#b8c2cc_0%,#8d9aa6_100%)] shadow-[0_8px_16px_rgba(0,0,0,0.25)]" />
-              <div className="absolute inset-x-0 top-0 h-[146px] bg-[linear-gradient(180deg,#2b5a3d_0%,#183122_100%)]" />
-              <div className="absolute left-1/2 top-[34px] h-[72px] w-[182px] -translate-x-1/2 rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,#375842_0%,#223627_100%)] shadow-[0_18px_30px_rgba(0,0,0,0.22)]" />
-              <div className="absolute left-1/2 top-[112px] h-8 w-[3px] -translate-x-1/2 bg-white/20" />
+              <div className="absolute inset-x-0 top-0 h-[250px] bg-[linear-gradient(180deg,#244f38_0%,#13271a_100%)]" />
+              <div className="absolute inset-x-0 top-0 h-[146px] bg-[linear-gradient(180deg,#2f6e49_0%,#1a3624_100%)]" />
+              <div className="absolute inset-x-0 top-[146px] h-[20px] bg-[linear-gradient(180deg,#bcc6cf_0%,#8794a0_100%)] shadow-[0_8px_16px_rgba(0,0,0,0.25)]" />
+              <div className="absolute left-1/2 top-[30px] h-[84px] w-[210px] -translate-x-1/2 rounded-[38px] border border-white/10 bg-[linear-gradient(180deg,#334e3a_0%,#1b2e22_100%)] shadow-[0_18px_30px_rgba(0,0,0,0.22)]" />
+              <div className="absolute left-1/2 top-[54px] h-[18px] w-[112px] -translate-x-1/2 rounded-full bg-[#0a0f13]/30 blur-sm" />
+              <div className="absolute left-1/2 top-[112px] h-9 w-[3px] -translate-x-1/2 bg-white/20" />
+              <div className="absolute left-[10%] top-[42px] h-16 w-16 rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,#355745_0%,#1a2a21_100%)] shadow-[0_14px_30px_rgba(0,0,0,0.24)]" />
+              <div className="absolute left-[11.6%] top-[50px] h-6 w-6 rounded-full bg-[#f7d66a] shadow-[0_0_20px_rgba(255,215,106,0.38)]" />
+              <div className="absolute left-[18%] top-[48px] h-4 w-10 rounded-full bg-[#0a1117]/40" />
+              <div className="absolute right-[10%] top-[34px] rounded-[20px] border border-[#9BE7FF]/20 bg-[#0b1015]/40 px-5 py-4 text-right shadow-[0_16px_32px_rgba(0,0,0,0.24)] backdrop-blur-sm">
+                <div className="text-[9px] font-black uppercase tracking-[0.24em] text-[#9BE7FF]">Jackpot Lane</div>
+                <div className="mt-1 text-lg font-black text-white">{laneMultipliers[laneMultipliers.length - 1].toFixed(2)}x</div>
+                <div className="text-[10px] text-white/35">8 jumps clean</div>
+              </div>
+              {Array.from({ length: 7 }).map((_, index) => (
+                <div
+                  key={`tree-${index}`}
+                  className="absolute rounded-full bg-[linear-gradient(180deg,#5ad28f_0%,#218857_100%)] shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
+                  style={{
+                    left: `${8 + index * 13}%`,
+                    top: `${22 + (index % 2) * 18}px`,
+                    width: `${20 + (index % 3) * 8}px`,
+                    height: `${20 + (index % 3) * 8}px`,
+                  }}
+                />
+              ))}
 
              {lanes.map((lane, index) => {
                const laneTop = START_ZONE_HEIGHT + index * LANE_HEIGHT;
                const laneState = index < progress ? 'cleared' : index === nextLaneIndex && (runState === 'playing' || runState === 'jumping') ? 'active' : 'idle';
+               const laneMultiplier = laneMultipliers[index];
 
                return (
                   <div key={lane.index} className="absolute left-0 right-0 h-[52px]" style={{ top: laneTop }}>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,#292e35_0%,#1f242b_100%)] border-y border-white/5" />
-                  <div className="absolute inset-y-[22px] left-0 right-0 border-t border-dashed border-white/10" />
+                  <div className="absolute inset-x-0 top-0 h-[4px] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,#2b3139_0%,#20262d_100%)] border-y border-white/5" />
+                  <div className="absolute inset-y-[7px] left-[3%] w-[3px] rounded-full bg-[#ffd766]/55 shadow-[0_0_14px_rgba(255,215,102,0.28)]" />
+                  <div className="absolute inset-y-[7px] right-[3%] w-[3px] rounded-full bg-[#ffd766]/55 shadow-[0_0_14px_rgba(255,215,102,0.28)]" />
+                  <div className="absolute inset-y-[24px] left-0 right-0 border-t border-dashed border-white/10" />
+                  <div className="absolute left-[10%] top-1/2 h-[4px] w-[14%] -translate-y-1/2 rounded-full bg-white/10" />
+                  <div className="absolute right-[10%] top-1/2 h-[4px] w-[14%] -translate-y-1/2 rounded-full bg-white/10" />
                   <div
                     className={cn(
                       'absolute inset-0 rounded-2xl transition-all duration-300',
@@ -468,6 +553,12 @@ export const CrossyRoadGame: React.FC = () => {
                       runState === 'lost' && nextLaneIndex === index ? 'bg-red-500/12' : ''
                     )}
                   />
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white/35">
+                    Lane {index + 1}
+                  </div>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-[#9BE7FF]">
+                    {laneMultiplier.toFixed(2)}x
+                  </div>
 
                   {index < progress ? (
                     <div className="absolute inset-0">
@@ -482,18 +573,13 @@ export const CrossyRoadGame: React.FC = () => {
                     return (
                       <motion.div
                         key={car.id}
-                        className="absolute top-[8px] h-[36px]"
+                        className="absolute top-[6px] h-[40px]"
                         style={{ width: `${car.width}%` }}
                         initial={{ left: `${car.startX}%` }}
                         animate={{ left: [travelStart, travelEnd] }}
                         transition={{ duration: car.speed, repeat: Infinity, ease: 'linear', delay: (car.laneIndex + Number(car.id.split('-')[1])) * 0.18 }}
                       >
-                        <div className={cn('relative h-full w-full rounded-[14px] bg-gradient-to-r shadow-[0_12px_24px_rgba(0,0,0,0.28)]', car.color)}>
-                          <div className="absolute inset-y-[10px] left-[10%] w-2 rounded-full bg-white/95 shadow-[0_0_12px_rgba(255,255,255,0.8)]" />
-                          <div className="absolute inset-y-[10px] right-[10%] w-2 rounded-full bg-red-200/80 shadow-[0_0_10px_rgba(255,120,120,0.35)]" />
-                          <div className="absolute bottom-[-3px] left-[16%] h-2 w-3 rounded-full bg-black/80" />
-                          <div className="absolute bottom-[-3px] right-[16%] h-2 w-3 rounded-full bg-black/80" />
-                        </div>
+                        <TrafficVehicle car={car} direction={lane.direction} />
                       </motion.div>
                     );
                   })}
@@ -503,6 +589,10 @@ export const CrossyRoadGame: React.FC = () => {
           </motion.div>
 
           <div className="absolute inset-x-0 top-[160px] h-[4px] bg-white/5" />
+          <div className="absolute inset-x-[6%] bottom-5 flex items-center justify-between rounded-[22px] border border-white/10 bg-black/18 px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white/35 backdrop-blur-sm">
+            <span>Use jump to lock the next lane</span>
+            <span className="text-[#00FF88]">Cash out any time after lane 1</span>
+          </div>
 
           <div className="absolute left-1/2 top-[52px] -translate-x-1/2">
             <motion.div
@@ -523,19 +613,22 @@ export const CrossyRoadGame: React.FC = () => {
               <div className="absolute left-1/2 top-[68px] h-4 w-10 -translate-x-1/2 rounded-full bg-black/35 blur-md" />
               <div
                 className={cn(
-                  'relative h-[70px] w-[72px] rounded-[24px] border shadow-[0_18px_35px_rgba(0,0,0,0.32)]',
+                  'relative h-[76px] w-[78px] rounded-[28px] border shadow-[0_18px_35px_rgba(0,0,0,0.32)]',
                   runState === 'lost'
                     ? 'border-red-300/40 bg-[linear-gradient(180deg,#ffb0b0_0%,#ff5555_100%)]'
                     : 'border-yellow-100/50 bg-[linear-gradient(180deg,#fff7b7_0%,#ffd95c_100%)]'
                 )}
               >
-                <div className="absolute left-[14px] top-[16px] h-2.5 w-2.5 rounded-full bg-[#20180b]" />
-                <div className="absolute right-[14px] top-[16px] h-2.5 w-2.5 rounded-full bg-[#20180b]" />
-                <div className="absolute left-1/2 top-[30px] h-3 w-4 -translate-x-1/2 rounded-full bg-[#f7921e]/85" />
-                <div className="absolute left-[6px] top-[22px] h-5 w-4 rounded-full bg-[#fffbe0]/70" />
-                <div className="absolute right-[6px] top-[22px] h-5 w-4 rounded-full bg-[#fffbe0]/70" />
-                <div className="absolute left-[8px] top-[-5px] h-4 w-4 rounded-[8px] bg-[#ffea91]" />
-                <div className="absolute right-[8px] top-[-5px] h-4 w-4 rounded-[8px] bg-[#ffea91]" />
+                <div className="absolute left-[16px] top-[18px] h-2.5 w-2.5 rounded-full bg-[#20180b]" />
+                <div className="absolute right-[16px] top-[18px] h-2.5 w-2.5 rounded-full bg-[#20180b]" />
+                <div className="absolute left-1/2 top-[33px] h-3.5 w-4 -translate-x-1/2 rounded-full bg-[#f7921e]/90" />
+                <div className="absolute left-[8px] top-[24px] h-6 w-4 rounded-full bg-[#fffbe0]/72" />
+                <div className="absolute right-[8px] top-[24px] h-6 w-4 rounded-full bg-[#fffbe0]/72" />
+                <div className="absolute left-[11px] top-[-6px] h-4 w-4 rounded-[8px] bg-[#ffea91]" />
+                <div className="absolute right-[11px] top-[-6px] h-4 w-4 rounded-[8px] bg-[#ffea91]" />
+                <div className="absolute left-[18px] top-[52px] h-[10px] w-[8px] rounded-b-full bg-[#d88934]" />
+                <div className="absolute right-[18px] top-[52px] h-[10px] w-[8px] rounded-b-full bg-[#d88934]" />
+                <div className="absolute left-1/2 top-[8px] h-2 w-5 -translate-x-1/2 rounded-full bg-white/25 blur-[1px]" />
               </div>
             </motion.div>
           </div>

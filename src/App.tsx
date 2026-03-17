@@ -170,7 +170,7 @@ const GAMES = [
     bg: 'bg-lime-300/10',
     component: CrossyRoadGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-crossy/800/600'
+    image: '/assets/crossy-road.svg'
   }
 ];
 

@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+wasmer-static-deploy-*/
+wasmer-frontend-deploy-*/
+wasmer-static-template/
