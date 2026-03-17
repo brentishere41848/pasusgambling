@@ -1026,7 +1026,7 @@ async function getOnlineUserCount(client: Pool | PoolClient, windowMinutes = 5) 
 
 async function creditDepositIfNeeded(client: PoolClient, transactionId: number) {
   const transactionResult = await client.query(
-    `SELECT id, user_id, payment_status, credited_at, outcome_amount
+    `SELECT id, user_id, payment_status, credited_at, price_amount, outcome_amount
      FROM payment_transactions
      WHERE id = $1
      LIMIT 1
@@ -1043,7 +1043,7 @@ async function creditDepositIfNeeded(client: PoolClient, transactionId: number) 
     return;
   }
 
-  const coins = dollarsToCoins(tx.outcome_amount || 0);
+  const coins = dollarsToCoins(tx.price_amount || 0);
   if (coins <= 0) {
     return;
   }
