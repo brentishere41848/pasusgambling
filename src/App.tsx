@@ -667,6 +667,11 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
       return;
     }
 
+    if (activeTab === 'deposit' && val < 1) {
+      setError('Minimum deposit is $1.00.');
+      return;
+    }
+
     if (activeTab === 'withdraw') {
       if (!withdrawAddress.trim()) {
         setError('Please enter a withdrawal address.');

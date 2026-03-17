@@ -23,6 +23,7 @@ const discordClientId = process.env.DISCORD_CLIENT_ID;
 const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
 const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/api/discord/connect/callback`;
 const COINS_PER_DOLLAR = 100;
+const MIN_DEPOSIT_USD = 1;
 const DEFAULT_RAIN_POOL_COINS = 500;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2781,6 +2782,10 @@ app.post('/api/payments/nowpayments/create', requireAuth, async (req: AuthedRequ
 
     if (!priceAmount || !payCurrency) {
       return res.status(400).json({ error: 'Deposit amount and currency are required.' });
+    }
+
+    if (priceAmount < MIN_DEPOSIT_USD) {
+      return res.status(400).json({ error: `Minimum deposit is $${MIN_DEPOSIT_USD.toFixed(2)}.` });
     }
 
     if (!nowPaymentsApiKey) {
