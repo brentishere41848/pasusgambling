@@ -3,7 +3,12 @@ const productionApiFallback =
   typeof window !== 'undefined' && window.location.hostname === 'www.pasus.xyz'
     ? 'https://pasusgambling.onrender.com'
     : '';
-const apiBaseUrl = configuredApiBaseUrl || productionApiFallback;
+const apiBaseUrl =
+  typeof window !== 'undefined' &&
+  window.location.hostname === 'www.pasus.xyz' &&
+  configuredApiBaseUrl === 'https://api.pasus.xyz'
+    ? productionApiFallback
+    : configuredApiBaseUrl || productionApiFallback;
 
 export function apiUrl(path: string) {
   if (!path.startsWith('/')) {
