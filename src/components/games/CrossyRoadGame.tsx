@@ -20,10 +20,10 @@ const TRAFFIC_RIGHT_END = 115;
 const BASE_LANE_MULTIPLIERS = [1.16, 1.38, 1.68, 2.05, 2.55, 3.3, 4.55, 6.8];
 
 const DIFFICULTIES = {
-  easy: { label: 'Easy', payoutBoost: 0.92, speedFactor: 0.9, extraCars: 0 },
-  medium: { label: 'Medium', payoutBoost: 1, speedFactor: 1, extraCars: 0 },
-  hard: { label: 'Hard', payoutBoost: 1.16, speedFactor: 0.84, extraCars: 1 },
-  extreme: { label: 'Extreme', payoutBoost: 1.32, speedFactor: 0.72, extraCars: 2 },
+  easy: { label: 'Easy', payoutBoost: 0.92, speedFactor: 1.24 },
+  medium: { label: 'Medium', payoutBoost: 1, speedFactor: 1 },
+  hard: { label: 'Hard', payoutBoost: 1.16, speedFactor: 0.8 },
+  extreme: { label: 'Extreme', payoutBoost: 1.32, speedFactor: 0.64 },
 } as const;
 
 type TrafficCar = {
@@ -39,6 +39,7 @@ type Lane = {
   index: number;
   direction: 'left' | 'right';
   speedLabel: string;
+  phaseOffset: number;
   cars: TrafficCar[];
 };
 
@@ -73,14 +74,8 @@ function durationForLabel(label: string) {
   return 3.1;
 }
 
-function laneTrafficCount(index: number, difficulty: DifficultyKey) {
-  if (index < 2) {
-    return 1 + DIFFICULTIES[difficulty].extraCars;
-  }
-  if (index < 5) {
-    return 2 + DIFFICULTIES[difficulty].extraCars;
-  }
-  return 3 + DIFFICULTIES[difficulty].extraCars;
+function laneTrafficCount() {
+  return 1;
 }
 
 const CAR_STYLES = [
@@ -125,17 +120,19 @@ function createRunLanes(difficulty: DifficultyKey) {
   return Array.from({ length: LANE_COUNT }, (_, laneIndex) => {
     const direction = laneIndex % 2 === 0 ? 'left' : 'right';
     const speedLabel = speedLabelForLane(laneIndex);
-    const carCount = laneTrafficCount(laneIndex, difficulty);
+    const carCount = laneTrafficCount();
     const spacing = SCENE_WIDTH / carCount;
     const laneOffset = randomBetween(-8, 8);
+    const laneSpeed = durationForLabel(speedLabel) * DIFFICULTIES[difficulty].speedFactor;
+    const phaseOffset = randomBetween(0, laneSpeed * 0.82);
     const cars = Array.from({ length: carCount }, (_, carIndex) => {
-      const width = randomBetween(16, 19);
+      const width = randomBetween(18, 22);
       const baseStart = (carIndex * spacing + laneOffset + SCENE_WIDTH) % SCENE_WIDTH;
       return {
         id: `${laneIndex}-${carIndex}-${Math.round(Math.random() * 100000)}`,
         laneIndex,
         width,
-        speed: durationForLabel(speedLabel) * DIFFICULTIES[difficulty].speedFactor,
+        speed: laneSpeed,
         startX: baseStart,
         styleIndex: (laneIndex + carIndex) % CAR_STYLES.length,
       };
@@ -145,13 +142,14 @@ function createRunLanes(difficulty: DifficultyKey) {
       index: laneIndex,
       direction,
       speedLabel,
+      phaseOffset,
       cars,
     };
   });
 }
 
 function currentCarLeft(lane: Lane, car: TrafficCar, elapsedSeconds: number) {
-  const delay = (car.laneIndex + Number(car.id.split('-')[1])) * 0.18;
+  const delay = lane.phaseOffset;
   if (elapsedSeconds <= delay) {
     return car.startX;
   }
@@ -577,7 +575,7 @@ export const CrossyRoadGame: React.FC = () => {
                         style={{ width: `${car.width}%` }}
                         initial={{ left: `${car.startX}%` }}
                         animate={{ left: [travelStart, travelEnd] }}
-                        transition={{ duration: car.speed, repeat: Infinity, ease: 'linear', delay: (car.laneIndex + Number(car.id.split('-')[1])) * 0.18 }}
+                        transition={{ duration: car.speed, repeat: Infinity, ease: 'linear', delay: lane.phaseOffset }}
                       >
                         <TrafficVehicle car={car} direction={lane.direction} />
                       </motion.div>
