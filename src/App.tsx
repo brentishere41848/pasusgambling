@@ -58,6 +58,7 @@ import { HiloGame } from './components/games/HiloGame';
 import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
 import { CrossyRoadGame } from './components/games/CrossyRoadGame';
+import { apiFetch } from './lib/api';
 import { cn } from './lib/utils';
 
 function CurrencyIcon({ className = '', size = 18 }: { className?: string; size?: number }) {
@@ -262,7 +263,7 @@ const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const response = await fetch('/api/site-access/status', {
+        const response = await apiFetch('/api/site-access/status', {
           credentials: 'include',
         });
         const data = await response.json().catch(() => ({}));
@@ -295,7 +296,7 @@ const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/site-access/login', {
+      const response = await apiFetch('/api/site-access/login', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -613,7 +614,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 
     const poller = window.setInterval(async () => {
       try {
-        const response = await fetch(`/api/payments/transactions/${depositTransaction.id}`, {
+        const response = await apiFetch(`/api/payments/transactions/${depositTransaction.id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -687,7 +688,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 
     try {
       if (activeTab === 'deposit') {
-        const response = await fetch('/api/payments/nowpayments/create', {
+        const response = await apiFetch('/api/payments/nowpayments/create', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -708,7 +709,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
         setDepositTransaction(data.transaction as DepositTransaction);
         setSuccess('Deposit invoice created. Send the exact amount to the address below.');
       } else {
-        const response = await fetch('/api/payments/withdrawals/request', {
+        const response = await apiFetch('/api/payments/withdrawals/request', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1340,7 +1341,7 @@ const RecentActivity = () => {
         setIsLoading(true);
       }
       try {
-        const response = await fetch(`/api/activity/bets?tab=${activeTab}&limit=5`);
+        const response = await apiFetch(`/api/activity/bets?tab=${activeTab}&limit=5`);
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !isMounted) {
           return;
@@ -1473,7 +1474,7 @@ const DailyRewardsCard = () => {
       return;
     }
 
-    const response = await fetch('/api/rewards/daily/status', {
+    const response = await apiFetch('/api/rewards/daily/status', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -1498,7 +1499,7 @@ const DailyRewardsCard = () => {
       setIsClaiming(true);
       setStatus('');
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch('/api/rewards/daily/claim', {
+      const response = await apiFetch('/api/rewards/daily/claim', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1573,7 +1574,7 @@ const LiveBetsStrip = () => {
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
-      const response = await fetch('/api/activity/bets?tab=all&limit=8');
+      const response = await apiFetch('/api/activity/bets?tab=all&limit=8');
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !isMounted) {
         return;
@@ -1667,7 +1668,7 @@ const ProfileView = () => {
       return;
     }
 
-    fetch('/api/roblox/link/status', {
+    apiFetch('/api/roblox/link/status', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -1698,7 +1699,7 @@ const ProfileView = () => {
       setRobloxError('');
       setRobloxSuccess('');
 
-      const response = await fetch('/api/roblox/link/start', {
+      const response = await apiFetch('/api/roblox/link/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1735,7 +1736,7 @@ const ProfileView = () => {
       setRobloxError('');
       setRobloxSuccess('');
 
-      const response = await fetch('/api/roblox/link/verify', {
+      const response = await apiFetch('/api/roblox/link/verify', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1980,8 +1981,8 @@ const ConnectionsView = () => {
     }
 
     Promise.all([
-      fetch('/api/roblox/link/status', { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json().catch(() => ({}))),
-      fetch('/api/discord/link/status', { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json().catch(() => ({}))),
+      apiFetch('/api/roblox/link/status', { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json().catch(() => ({}))),
+      apiFetch('/api/discord/link/status', { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json().catch(() => ({}))),
     ])
       .then(([robloxData, discordData]) => {
         if (robloxData.roblox) {
@@ -2025,7 +2026,7 @@ const ConnectionsView = () => {
       setIsLoading(true);
       setError('');
       setSuccess('');
-      const response = await fetch('/api/roblox/link/start', {
+      const response = await apiFetch('/api/roblox/link/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ username: robloxUsernameInput.trim() }),
@@ -2051,7 +2052,7 @@ const ConnectionsView = () => {
       setIsLoading(true);
       setError('');
       setSuccess('');
-      const response = await fetch('/api/roblox/link/verify', {
+      const response = await apiFetch('/api/roblox/link/verify', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -2075,7 +2076,7 @@ const ConnectionsView = () => {
       setIsLoading(true);
       setError('');
       setSuccess('');
-      const response = await fetch('/api/discord/link/start', {
+      const response = await apiFetch('/api/discord/link/start', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json().catch(() => ({}));
@@ -2254,7 +2255,7 @@ const AdminView = () => {
 
   const loadOverview = useCallback(async () => {
     const token = localStorage.getItem('pasus_auth_token');
-    const response = await fetch('/api/admin/overview', {
+    const response = await apiFetch('/api/admin/overview', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -2268,7 +2269,7 @@ const AdminView = () => {
 
   const loadSupportTickets = useCallback(async () => {
     const token = localStorage.getItem('pasus_auth_token');
-    const response = await fetch('/api/admin/support/tickets', {
+    const response = await apiFetch('/api/admin/support/tickets', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -2305,7 +2306,7 @@ const AdminView = () => {
       setIsSubmitting(true);
       setStatus('');
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch('/api/admin/wallet/adjust', {
+      const response = await apiFetch('/api/admin/wallet/adjust', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2343,7 +2344,7 @@ const AdminView = () => {
       setIsReplyingToSupport(true);
       setStatus('');
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch(`/api/admin/support/tickets/${selectedSupportTicket.id}/reply`, {
+      const response = await apiFetch(`/api/admin/support/tickets/${selectedSupportTicket.id}/reply`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2392,7 +2393,7 @@ const AdminView = () => {
       setIsUpdatingWithdrawal(true);
       setStatus('');
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}/status`, {
+      const response = await apiFetch(`/api/admin/withdrawals/${selectedWithdrawal.id}/status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2731,7 +2732,7 @@ const AffiliateView = () => {
     }
 
     try {
-      const response = await fetch('/api/affiliate/overview', {
+      const response = await apiFetch('/api/affiliate/overview', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -2761,7 +2762,7 @@ const AffiliateView = () => {
     }
 
     try {
-      const response = await fetch('/api/affiliate/code', {
+      const response = await apiFetch('/api/affiliate/code', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2933,7 +2934,7 @@ const LeaderboardView = () => {
       try {
         setIsLoading(true);
         setError('');
-        const response = await fetch('/api/leaderboard');
+        const response = await apiFetch('/api/leaderboard');
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(data.error || 'Failed to load leaderboard.');
@@ -3024,7 +3025,7 @@ const VipView = () => {
       return Promise.resolve();
     }
 
-    return fetch('/api/vip/overview', {
+    return apiFetch('/api/vip/overview', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -3065,7 +3066,7 @@ const VipView = () => {
 
     try {
       setIsClaiming(period);
-      const response = await fetch('/api/vip/rakeback/claim', {
+      const response = await apiFetch('/api/vip/rakeback/claim', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3208,7 +3209,7 @@ const SupportView = () => {
     if (!token) {
       return;
     }
-    const response = await fetch('/api/support/tickets', {
+    const response = await apiFetch('/api/support/tickets', {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json().catch(() => ({}));
@@ -3242,7 +3243,7 @@ const SupportView = () => {
     }
     try {
       setIsSubmitting(true);
-      const response = await fetch('/api/support/tickets', {
+      const response = await apiFetch('/api/support/tickets', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3276,7 +3277,7 @@ const SupportView = () => {
 
     try {
       setIsSubmitting(true);
-      const response = await fetch(`/api/support/tickets/${selectedTicket.id}/reply`, {
+      const response = await apiFetch(`/api/support/tickets/${selectedTicket.id}/reply`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3481,7 +3482,7 @@ const RightRail = () => {
 
     try {
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch('/api/chat/room', {
+      const response = await apiFetch('/api/chat/room', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await response.json().catch(() => ({}));
@@ -3607,7 +3608,7 @@ const RightRail = () => {
     try {
       setIsSubmitting(true);
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch('/api/chat/messages', {
+      const response = await apiFetch('/api/chat/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3638,7 +3639,7 @@ const RightRail = () => {
     try {
       setIsSubmitting(true);
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch('/api/chat/tip', {
+      const response = await apiFetch('/api/chat/tip', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3671,7 +3672,7 @@ const RightRail = () => {
     try {
       setIsSubmitting(true);
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch('/api/rain/contribute', {
+      const response = await apiFetch('/api/rain/contribute', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3703,7 +3704,7 @@ const RightRail = () => {
     try {
       setIsJoiningRain(true);
       const token = localStorage.getItem('pasus_auth_token');
-      const response = await fetch('/api/rain/join', {
+      const response = await apiFetch('/api/rain/join', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

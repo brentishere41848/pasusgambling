@@ -14,7 +14,7 @@ export async function logBetActivity(input: LogBetActivityInput) {
   }
 
   try {
-    await fetch('/api/activity/bets', {
+    await apiFetch('/api/activity/bets', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -30,3 +30,4 @@ export async function logBetActivity(input: LogBetActivityInput) {
     return;
   }
 }
+import { apiFetch } from './api';

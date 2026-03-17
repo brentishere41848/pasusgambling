@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
+import { apiFetch } from '../lib/api';
 
 interface BalanceContextType {
   balance: number;
@@ -67,7 +68,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     try {
       const data = await parseApiResponse(
-        await fetch('/api/wallet/me', {
+        await apiFetch('/api/wallet/me', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -111,7 +112,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const url = isDeposit ? '/api/wallet/deposit' : '/api/wallet/adjust';
     const body = isDeposit ? { amount: normalizedAmount } : { delta: normalizedAmount };
 
-    fetch(url, {
+    apiFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -140,7 +141,7 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return false;
     }
 
-    fetch('/api/wallet/adjust', {
+    apiFetch('/api/wallet/adjust', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { apiFetch } from '../lib/api';
 
 interface User {
   id: number;
@@ -61,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const data = await parseApiResponse(
-      await fetch('/api/auth/me', {
+      await apiFetch('/api/auth/me', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -106,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string) => {
     const data = await parseApiResponse(
-      await fetch('/api/auth/login', {
+      await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const register = async (username: string, email: string, password: string, affiliateCode?: string) => {
     const data = await parseApiResponse(
-      await fetch('/api/auth/register', {
+      await apiFetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -144,7 +145,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY);
 
     if (token) {
-      fetch('/api/auth/logout', {
+      apiFetch('/api/auth/logout', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
