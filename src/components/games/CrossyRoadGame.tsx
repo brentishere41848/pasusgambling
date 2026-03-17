@@ -6,7 +6,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
 
-const LANE_COUNT = 8;
+const LANE_COUNT = 12;
 const SCENE_WIDTH = 100;
 const LANE_HEIGHT = 58;
 const START_ZONE_HEIGHT = 190;
@@ -17,7 +17,7 @@ const TRAFFIC_LEFT_START = 115;
 const TRAFFIC_LEFT_END = -26;
 const TRAFFIC_RIGHT_START = -26;
 const TRAFFIC_RIGHT_END = 115;
-const BASE_LANE_MULTIPLIERS = [1.16, 1.38, 1.68, 2.05, 2.55, 3.3, 4.55, 6.8];
+const BASE_LANE_MULTIPLIERS = [1.12, 1.24, 1.38, 1.56, 1.78, 2.04, 2.36, 2.78, 3.34, 4.08, 5.02, 6.4];
 
 const DIFFICULTIES = {
   easy: { label: 'Easy', payoutBoost: 0.92, speedFactor: 1.24 },
@@ -31,7 +31,6 @@ type TrafficCar = {
   laneIndex: number;
   width: number;
   speed: number;
-  startX: number;
   styleIndex: number;
 };
 
@@ -55,10 +54,10 @@ function randomInt(min: number, max: number) {
 }
 
 function speedLabelForLane(index: number) {
-  if (index < 2) {
+  if (index < 3) {
     return 'slow';
   }
-  if (index < 5) {
+  if (index < 8) {
     return 'medium';
   }
   return 'fast';
@@ -76,6 +75,11 @@ function durationForLabel(label: string) {
 
 function laneTrafficCount() {
   return 1;
+}
+
+function laneSpeedForIndex(index: number, difficulty: DifficultyKey) {
+  const baseSpeed = durationForLabel(speedLabelForLane(index)) * DIFFICULTIES[difficulty].speedFactor;
+  return Math.max(1.45, baseSpeed * Math.max(0.48, 1 - index * 0.045));
 }
 
 const CAR_STYLES = [
@@ -121,19 +125,15 @@ function createRunLanes(difficulty: DifficultyKey) {
     const direction = laneIndex % 2 === 0 ? 'left' : 'right';
     const speedLabel = speedLabelForLane(laneIndex);
     const carCount = laneTrafficCount();
-    const spacing = SCENE_WIDTH / carCount;
-    const laneOffset = randomBetween(-8, 8);
-    const laneSpeed = durationForLabel(speedLabel) * DIFFICULTIES[difficulty].speedFactor;
-    const phaseOffset = randomBetween(0, laneSpeed * 0.82);
+    const laneSpeed = laneSpeedForIndex(laneIndex, difficulty);
+    const phaseOffset = laneIndex * 0.47 + randomBetween(0.18, 1.05);
     const cars = Array.from({ length: carCount }, (_, carIndex) => {
       const width = randomBetween(18, 22);
-      const baseStart = (carIndex * spacing + laneOffset + SCENE_WIDTH) % SCENE_WIDTH;
       return {
         id: `${laneIndex}-${carIndex}-${Math.round(Math.random() * 100000)}`,
         laneIndex,
         width,
         speed: laneSpeed,
-        startX: baseStart,
         styleIndex: (laneIndex + carIndex) % CAR_STYLES.length,
       };
     });
@@ -149,14 +149,9 @@ function createRunLanes(difficulty: DifficultyKey) {
 }
 
 function currentCarLeft(lane: Lane, car: TrafficCar, elapsedSeconds: number) {
-  const delay = lane.phaseOffset;
-  if (elapsedSeconds <= delay) {
-    return car.startX;
-  }
-
   const from = lane.direction === 'left' ? TRAFFIC_LEFT_START : TRAFFIC_RIGHT_START;
   const to = lane.direction === 'left' ? TRAFFIC_LEFT_END : TRAFFIC_RIGHT_END;
-  const progress = ((elapsedSeconds - delay) % car.speed) / car.speed;
+  const progress = ((elapsedSeconds + lane.phaseOffset) % car.speed) / car.speed;
   return from + (to - from) * progress;
 }
 
@@ -209,8 +204,9 @@ export const CrossyRoadGame: React.FC = () => {
   const [flashTone, setFlashTone] = useState<'safe' | 'hit' | 'win' | null>(null);
   const [showImpact, setShowImpact] = useState(false);
   const sceneRef = useRef<HTMLDivElement | null>(null);
+  const animationEpochRef = useRef(typeof performance !== 'undefined' ? performance.now() : Date.now());
   const [screenShake, setScreenShake] = useState(false);
-  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const progress = Math.max(0, resolvedLane + 1);
   const nextLaneIndex = resolvedLane + 1;
@@ -245,6 +241,19 @@ export const CrossyRoadGame: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [showImpact]);
 
+  useEffect(() => {
+    let frameId = 0;
+
+    const tick = () => {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      setElapsedSeconds((now - animationEpochRef.current) / 1000);
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
   const startRun = () => {
     if (!subtractBalance(bet)) {
       return;
@@ -255,7 +264,6 @@ export const CrossyRoadGame: React.FC = () => {
     setResolvedLane(-1);
     setFlashTone(null);
     setShowImpact(false);
-    setRunStartedAt(Date.now());
     setStatus(`${DIFFICULTIES[difficulty].label} traffic is live. Jump into lane 1 when you are ready.`);
   };
 
@@ -265,7 +273,6 @@ export const CrossyRoadGame: React.FC = () => {
     setResolvedLane(-1);
     setFlashTone(null);
     setShowImpact(false);
-    setRunStartedAt(null);
     setStatus('Start a run, jump lane by lane, and cash out before traffic hits the chicken.');
   };
 
@@ -280,8 +287,9 @@ export const CrossyRoadGame: React.FC = () => {
 
     window.setTimeout(() => {
       const lane = lanes[nextLaneIndex];
-      const elapsedSeconds = runStartedAt ? (Date.now() - runStartedAt) / 1000 : 0;
-      const survived = !chickenIsHitByTraffic(lane, elapsedSeconds);
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const currentElapsedSeconds = (now - animationEpochRef.current) / 1000;
+      const survived = !chickenIsHitByTraffic(lane, currentElapsedSeconds);
 
       if (!survived) {
         setRunState('lost');
@@ -464,7 +472,7 @@ export const CrossyRoadGame: React.FC = () => {
         <div className="mt-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#121922_0%,#0f141b_100%)] px-4 py-4">
           <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Top Lane Pays</div>
           <div className="mt-2 text-2xl font-black text-[#00FF88]">{topPayout}</div>
-           <div className="mt-1 text-[11px] text-white/35">Hit all 8 jumps and the final lane pays {laneMultipliers[laneMultipliers.length - 1].toFixed(2)}x.</div>
+           <div className="mt-1 text-[11px] text-white/35">Hit all 12 jumps and the final lane pays {laneMultipliers[laneMultipliers.length - 1].toFixed(2)}x.</div>
          </div>
       </div>
 
@@ -486,7 +494,7 @@ export const CrossyRoadGame: React.FC = () => {
           ref={sceneRef}
           animate={screenShake ? { x: [0, -10, 8, -6, 0], y: [0, 4, -3, 2, 0] } : { x: 0, y: 0 }}
           transition={{ duration: 0.38, ease: 'easeOut' }}
-          className="relative min-h-[640px] overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,#112538_0%,#0b1219_34%,#0b0f14_100%)]"
+          className="relative min-h-[900px] overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,#112538_0%,#0b1219_34%,#0b0f14_100%)]"
         >
           <div className="absolute inset-x-0 top-0 h-[34%] bg-[radial-gradient(circle_at_50%_0%,rgba(130,200,255,0.26),transparent_58%)]" />
           <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
@@ -515,7 +523,7 @@ export const CrossyRoadGame: React.FC = () => {
               <div className="absolute right-[10%] top-[34px] rounded-[20px] border border-[#9BE7FF]/20 bg-[#0b1015]/40 px-5 py-4 text-right shadow-[0_16px_32px_rgba(0,0,0,0.24)] backdrop-blur-sm">
                 <div className="text-[9px] font-black uppercase tracking-[0.24em] text-[#9BE7FF]">Jackpot Lane</div>
                 <div className="mt-1 text-lg font-black text-white">{laneMultipliers[laneMultipliers.length - 1].toFixed(2)}x</div>
-                <div className="text-[10px] text-white/35">8 jumps clean</div>
+                <div className="text-[10px] text-white/35">12 jumps clean</div>
               </div>
               {Array.from({ length: 7 }).map((_, index) => (
                 <div
@@ -565,20 +573,14 @@ export const CrossyRoadGame: React.FC = () => {
                       <div className="absolute left-[22%] right-[22%] top-1/2 h-[14px] -translate-y-1/2 rounded-full border border-[#ffd76a]/50 bg-[repeating-linear-gradient(-45deg,#ffcb45_0_12px,#10151c_12px_24px)] shadow-[0_10px_24px_rgba(255,207,77,0.2)]" />
                     </div>
                   ) : lane.cars.map((car) => {
-                    const travelStart = lane.direction === 'left' ? `${TRAFFIC_LEFT_START}%` : `${TRAFFIC_RIGHT_START}%`;
-                    const travelEnd = lane.direction === 'left' ? `${TRAFFIC_LEFT_END}%` : `${TRAFFIC_RIGHT_END}%`;
-
                     return (
-                      <motion.div
+                      <div
                         key={car.id}
                         className="absolute top-[6px] h-[40px]"
-                        style={{ width: `${car.width}%` }}
-                        initial={{ left: `${car.startX}%` }}
-                        animate={{ left: [travelStart, travelEnd] }}
-                        transition={{ duration: car.speed, repeat: Infinity, ease: 'linear', delay: lane.phaseOffset }}
+                        style={{ width: `${car.width}%`, left: `${currentCarLeft(lane, car, elapsedSeconds)}%` }}
                       >
                         <TrafficVehicle car={car} direction={lane.direction} />
-                      </motion.div>
+                      </div>
                     );
                   })}
                 </div>
@@ -589,7 +591,7 @@ export const CrossyRoadGame: React.FC = () => {
           <div className="absolute inset-x-0 top-[160px] h-[4px] bg-white/5" />
           <div className="absolute inset-x-[6%] bottom-5 flex items-center justify-between rounded-[22px] border border-white/10 bg-black/18 px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white/35 backdrop-blur-sm">
             <span>Use jump to lock the next lane</span>
-            <span className="text-[#00FF88]">Cash out any time after lane 1</span>
+            <span className="text-[#00FF88]">Higher lanes run faster</span>
           </div>
 
           <div className="absolute left-1/2 top-[52px] -translate-x-1/2">
