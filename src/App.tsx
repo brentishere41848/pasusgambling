@@ -57,7 +57,6 @@ import { BlackjackGame } from './components/games/BlackjackGame';
 import { HiloGame } from './components/games/HiloGame';
 import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
-import { CrossyRoadGame } from './components/games/CrossyRoadGame';
 import { apiFetch } from './lib/api';
 import { cn } from './lib/utils';
 
@@ -160,17 +159,6 @@ const GAMES = [
     component: WheelGame,
     featured: false,
     image: 'https://picsum.photos/seed/casino-wheel/800/600'
-  },
-  {
-    id: 'crossy-road',
-    name: 'Crossy Road',
-    description: 'Run the chicken across traffic and cash out before you get hit.',
-    icon: ArrowUpRight,
-    color: 'text-lime-300',
-    bg: 'bg-lime-300/10',
-    component: CrossyRoadGame,
-    featured: false,
-    image: '/assets/crossy-road.svg'
   }
 ];
 
