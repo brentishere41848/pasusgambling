@@ -25,6 +25,16 @@ const SEGMENTS = [
   { mult: 1.2, color: 'bg-[#00FF88]', text: '1.2x' },
 ];
 
+const WEIGHTED_WHEEL_INDICES = SEGMENTS.flatMap((segment, index) => {
+  if (segment.mult === 0) {
+    return Array(5).fill(index);
+  }
+  if (segment.mult === 1.2) {
+    return Array(2).fill(index);
+  }
+  return [index];
+});
+
 export const WheelGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const [bet, setBet] = useState(10);
@@ -36,7 +46,8 @@ export const WheelGame: React.FC = () => {
     if (subtractBalance(bet)) {
       setIsSpinning(true);
       setResultIndex(null);
-      const landedIndex = Math.floor(Math.random() * SEGMENTS.length);
+      const resolvedIndex = WEIGHTED_WHEEL_INDICES[Math.floor(Math.random() * WEIGHTED_WHEEL_INDICES.length)];
+      const landedIndex = (SEGMENTS.length - resolvedIndex) % SEGMENTS.length;
       const rotations = 10;
       const anglePerSegment = 360 / SEGMENTS.length;
       const targetAngle = rotations * 360 + (landedIndex * anglePerSegment) + anglePerSegment / 2;
@@ -47,7 +58,6 @@ export const WheelGame: React.FC = () => {
         transition: { duration: 6.2, ease: [0.08, 0.78, 0.16, 1] }
       });
 
-      const resolvedIndex = (SEGMENTS.length - landedIndex) % SEGMENTS.length;
       const winMult = SEGMENTS[resolvedIndex].mult;
       setResultIndex(resolvedIndex);
       if (winMult > 0) {

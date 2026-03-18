@@ -8,6 +8,7 @@ import { logBetActivity } from '../../lib/activity';
 type CoinSide = 'heads' | 'tails';
 
 const HOUSE_EDGE_MULTIPLIER = 1.96;
+const PLAYER_WIN_CHANCE = 0.46;
 
 export const CoinflipGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -29,7 +30,8 @@ export const CoinflipGame: React.FC = () => {
     }
 
     setIsFlipping(true);
-    const landed: CoinSide = Math.random() < 0.5 ? 'heads' : 'tails';
+    const didWinRoll = Math.random() < PLAYER_WIN_CHANCE;
+    const landed: CoinSide = didWinRoll ? selectedSide : selectedSide === 'heads' ? 'tails' : 'heads';
     const extraSpins = isFast ? 6 : 9;
     const targetFaceRotation = landed === 'heads' ? 0 : 180;
     setCoinRotation((current) => {
@@ -202,7 +204,7 @@ export const CoinflipGame: React.FC = () => {
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-white/40">Win Chance</span>
-            <span className="text-white font-mono">50.00%</span>
+            <span className="text-white font-mono">{(PLAYER_WIN_CHANCE * 100).toFixed(2)}%</span>
           </div>
         </div>
       </div>

@@ -42,7 +42,7 @@ export const MinesGame: React.FC = () => {
       prob *= (n - m - i) / (n - i);
     }
     
-    const houseEdge = 0.18;
+    const houseEdge = 0.28;
     return (1 / prob) * (1 - houseEdge);
   };
 
