@@ -1,9 +1,9 @@
 [general]
-root = "./dist"
+root = "/public"
 compression = true
 compression-static = true
 cache-control-headers = true
-page404 = "./404.html"
-page-fallback = "/index.html"
+page404 = "/public/404.html"
+page-fallback = "/public/index.html"
 health = true
 redirect-trailing-slash = true

@@ -24,3 +24,8 @@ This repo now deploys to Wasmer from the project root. Do not deploy from `wasme
 
 Local Wasmer test:
 `wasmer run . -- --port 9000`
+
+The Wasmer package uses:
+- `dist/` as the mounted static site directory
+- `settings/config.toml` for the static web server config
+- SPA fallback to `index.html` so client routes can refresh

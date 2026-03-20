@@ -2,9 +2,19 @@
 name = "brentishere41848/pasusgambling"
 version = "0.1.0"
 description = "Pasus frontend static site for Wasmer Edge"
+entrypoint = "webserver"
 
 [dependencies]
 "wasmer/static-web-server" = "2"
 
 [fs]
-public = "dist"
+"/public" = "dist"
+"/settings" = "settings"
+
+[[command]]
+name = "webserver"
+module = "wasmer/static-web-server:webserver"
+runner = "https://webc.org/runner/wasi"
+
+[command.annotations.wasi]
+main-args = ["-w", "/settings/config.toml"]
