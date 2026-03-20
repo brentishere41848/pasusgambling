@@ -39,7 +39,6 @@ import {
   Check,
   User,
   Trophy,
-  Swords,
   LogIn,
   UserPlus,
   LogOut,
@@ -58,7 +57,6 @@ import { BlackjackGame } from './components/games/BlackjackGame';
 import { HiloGame } from './components/games/HiloGame';
 import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
-import { CaseBattlesGame } from './components/games/CaseBattlesGame';
 import { apiFetch } from './lib/api';
 import { cn } from './lib/utils';
 
@@ -106,17 +104,6 @@ const GAMES = [
     component: MinesGame,
     featured: true,
     image: '/assets/mines.png'
-  },
-  {
-    id: 'case-battles',
-    name: 'Case Battles',
-    description: 'Create image-first case battles, fill slots with bots, and run free join rooms.',
-    icon: Swords,
-    color: 'text-pink-300',
-    bg: 'bg-pink-300/10',
-    component: CaseBattlesGame,
-    featured: true,
-    image: '/assets/case-battles/case-neon-district.svg'
   },
   {
     id: 'coinflip',
