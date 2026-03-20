@@ -1,0 +1,9 @@
+[general]
+root = "./dist"
+compression = true
+compression-static = true
+cache-control-headers = true
+page404 = "./404.html"
+page-fallback = "/index.html"
+health = true
+redirect-trailing-slash = true

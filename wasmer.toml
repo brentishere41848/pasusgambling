@@ -1,0 +1,10 @@
+[package]
+name = "brentishere41848/pasusgambling"
+version = "0.1.0"
+description = "Pasus frontend static site for Wasmer Edge"
+
+[dependencies]
+"wasmer/static-web-server" = "2"
+
+[fs]
+public = "dist"
