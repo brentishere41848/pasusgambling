@@ -971,6 +971,9 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">
               {activeTab === 'deposit' ? 'Deposit Amount (USD)' : 'Withdraw Amount (USD)'}
             </label>
+            {activeTab === 'deposit' ? (
+              <div className="text-[11px] text-white/35 ml-2">Minimum deposit: $1.00</div>
+            ) : null}
             <div className="relative">
               <input
                 type="number"
