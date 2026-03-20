@@ -459,11 +459,12 @@ export const RouletteGame: React.FC = () => {
               <div
                 key={`${value}-${index}`}
                 className={cn(
-                  'w-8 h-8 rounded flex items-center justify-center text-xs font-bold',
+                  'w-12 h-12 rounded flex flex-col items-center justify-center text-[10px] font-bold leading-none',
                   getColor(value) === 'red' ? 'bg-red-500' : getColor(value) === 'green' ? 'bg-[#00FF88] text-black' : 'bg-white text-black'
                 )}
               >
-                {value}
+                <span>{value}</span>
+                <span className="mt-1 uppercase opacity-80">{getColor(value)}</span>
               </div>
             ))}
           </div>

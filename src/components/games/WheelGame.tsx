@@ -35,6 +35,16 @@ const WEIGHTED_WHEEL_INDICES = SEGMENTS.flatMap((segment, index) => {
   return [index];
 });
 
+function normalizeAngle(angle: number) {
+  return ((angle % 360) + 360) % 360;
+}
+
+function getLandedIndexFromRotation(rotation: number) {
+  const anglePerSegment = 360 / SEGMENTS.length;
+  const pointerAngle = normalizeAngle(-rotation);
+  return Math.round(pointerAngle / anglePerSegment) % SEGMENTS.length;
+}
+
 export const WheelGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const [bet, setBet] = useState(10);
@@ -47,10 +57,10 @@ export const WheelGame: React.FC = () => {
       setIsSpinning(true);
       setResultIndex(null);
       const resolvedIndex = WEIGHTED_WHEEL_INDICES[Math.floor(Math.random() * WEIGHTED_WHEEL_INDICES.length)];
-      const landedIndex = (SEGMENTS.length - resolvedIndex) % SEGMENTS.length;
       const rotations = 10;
       const anglePerSegment = 360 / SEGMENTS.length;
-      const targetAngle = rotations * 360 + (landedIndex * anglePerSegment) + anglePerSegment / 2;
+      const safeOffset = (Math.random() - 0.5) * anglePerSegment * 0.24;
+      const targetAngle = rotations * 360 - (resolvedIndex * anglePerSegment) + safeOffset;
 
       await controls.start({
         rotate: targetAngle,
@@ -58,15 +68,16 @@ export const WheelGame: React.FC = () => {
         transition: { duration: 6.2, ease: [0.08, 0.78, 0.16, 1] }
       });
 
-      const winMult = SEGMENTS[resolvedIndex].mult;
-      setResultIndex(resolvedIndex);
+      const landedIndex = getLandedIndexFromRotation(targetAngle);
+      const winMult = SEGMENTS[landedIndex].mult;
+      setResultIndex(landedIndex);
       if (winMult > 0) {
         const payout = bet * winMult;
         addBalance(payout);
-        logBetActivity({ gameKey: 'wheel', wager: bet, payout, multiplier: winMult, outcome: 'win', detail: `Segment ${SEGMENTS[resolvedIndex].text}` });
+        logBetActivity({ gameKey: 'wheel', wager: bet, payout, multiplier: winMult, outcome: 'win', detail: `Segment ${SEGMENTS[landedIndex].text}` });
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       } else {
-        logBetActivity({ gameKey: 'wheel', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Segment ${SEGMENTS[resolvedIndex].text}` });
+        logBetActivity({ gameKey: 'wheel', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Segment ${SEGMENTS[landedIndex].text}` });
       }
 
       setIsSpinning(false);
