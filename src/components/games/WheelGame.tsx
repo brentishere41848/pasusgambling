@@ -51,16 +51,21 @@ export const WheelGame: React.FC = () => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [resultIndex, setResultIndex] = useState<number | null>(null);
   const controls = useAnimation();
+  const currentRotationRef = React.useRef(0);
 
   const spin = async () => {
     if (subtractBalance(bet)) {
       setIsSpinning(true);
       setResultIndex(null);
       const resolvedIndex = WEIGHTED_WHEEL_INDICES[Math.floor(Math.random() * WEIGHTED_WHEEL_INDICES.length)];
-      const rotations = 10;
       const anglePerSegment = 360 / SEGMENTS.length;
-      const safeOffset = (Math.random() - 0.5) * anglePerSegment * 0.24;
-      const targetAngle = rotations * 360 - (resolvedIndex * anglePerSegment) + safeOffset;
+      const rotations = 8 + Math.floor(Math.random() * 4);
+      const currentNormalized = normalizeAngle(currentRotationRef.current);
+      const segmentCenterOffset = anglePerSegment / 2;
+      const innerWobble = (Math.random() - 0.5) * anglePerSegment * 0.18;
+      const desiredNormalized = normalizeAngle(-(resolvedIndex * anglePerSegment + segmentCenterOffset + innerWobble));
+      const forwardDelta = ((desiredNormalized - currentNormalized) + 360) % 360;
+      const targetAngle = currentRotationRef.current + rotations * 360 + forwardDelta;
 
       await controls.start({
         rotate: targetAngle,
@@ -68,7 +73,8 @@ export const WheelGame: React.FC = () => {
         transition: { duration: 6.2, ease: [0.08, 0.78, 0.16, 1] }
       });
 
-      const landedIndex = getLandedIndexFromRotation(targetAngle);
+      currentRotationRef.current = targetAngle;
+      const landedIndex = getLandedIndexFromRotation(currentRotationRef.current);
       const winMult = SEGMENTS[landedIndex].mult;
       setResultIndex(landedIndex);
       if (winMult > 0) {
@@ -81,8 +87,7 @@ export const WheelGame: React.FC = () => {
       }
 
       setIsSpinning(false);
-      // Reset rotation for next spin
-      controls.set({ rotate: targetAngle % 360 });
+      controls.set({ rotate: normalizeAngle(currentRotationRef.current) });
     }
   };
 
