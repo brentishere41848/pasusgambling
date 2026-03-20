@@ -12,6 +12,7 @@ const NUMBERS = [
 
 const TABLE_LAYOUT = Array.from({ length: 12 }, (_, row) => [3 + row * 3, 2 + row * 3, 1 + row * 3]);
 const SLOT_ANGLE = 360 / NUMBERS.length;
+const ZERO_WEIGHT = 0.2;
 
 type BetType =
   | { kind: 'straight'; value: number; label: string; payout: number }
@@ -48,6 +49,30 @@ const isBetWinner = (bet: BetType, result: number) => {
       return false;
   }
 };
+
+function normalizeAngle(angle: number) {
+  return ((angle % 360) + 360) % 360;
+}
+
+function chooseWeightedPocketIndex() {
+  const weights = NUMBERS.map((value) => (value === 0 ? ZERO_WEIGHT : 1));
+  const total = weights.reduce((sum, value) => sum + value, 0);
+  let roll = Math.random() * total;
+
+  for (let index = 0; index < weights.length; index += 1) {
+    roll -= weights[index];
+    if (roll <= 0) {
+      return index;
+    }
+  }
+
+  return weights.length - 1;
+}
+
+function getPocketIndexFromAngles(wheelRotation: number, ballRotation: number) {
+  const relativeAngle = normalizeAngle(ballRotation - wheelRotation);
+  return Math.round(relativeAngle / SLOT_ANGLE) % NUMBERS.length;
+}
 
 export const RouletteGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -86,12 +111,18 @@ export const RouletteGame: React.FC = () => {
     setIsSpinning(true);
     setStatusText(`Spinning for ${selectedBet.label}`);
 
-    const resultIndex = Math.floor(Math.random() * NUMBERS.length);
-    const result = NUMBERS[resultIndex];
+    const chosenPocketIndex = chooseWeightedPocketIndex();
     const wheelTurns = isFast ? 4 : 7;
     const ballTurns = isFast ? 6 : 10;
-    const targetWheel = wheelRotationRef.current - wheelTurns * 360 - resultIndex * SLOT_ANGLE;
-    const targetBall = ballRotationRef.current + ballTurns * 360 - resultIndex * SLOT_ANGLE;
+    const wheelDrift = Math.random() * 360;
+    const pocketJitter = (Math.random() - 0.5) * SLOT_ANGLE * 0.24;
+    const targetWheel = wheelRotationRef.current - wheelTurns * 360 - wheelDrift;
+    const targetBall =
+      ballRotationRef.current +
+      ballTurns * 360 +
+      wheelDrift +
+      chosenPocketIndex * SLOT_ANGLE +
+      pocketJitter;
 
     await Promise.all([
       wheelControls.start({
@@ -112,6 +143,8 @@ export const RouletteGame: React.FC = () => {
 
     wheelRotationRef.current = targetWheel;
     ballRotationRef.current = targetBall;
+    const landedPocketIndex = getPocketIndexFromAngles(targetWheel, targetBall);
+    const result = NUMBERS[landedPocketIndex];
 
     const won = isBetWinner(selectedBet, result);
     const payout = won ? bet * selectedBet.payout : 0;

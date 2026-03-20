@@ -19,6 +19,7 @@ type Ball = {
 
 const ROW_OPTIONS = [8, 10, 12, 14, 16] as const;
 const MAX_ACTIVE_BALLS = 3;
+const MAX_AUTO_BALLS = 15;
 
 const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
   8: {
@@ -182,11 +183,13 @@ export const PlinkoGame: React.FC = () => {
   }, [isAuto, remainingRounds, dropBall, isFast]);
 
   const startAuto = () => {
+    const rounds = Math.min(MAX_AUTO_BALLS, Math.max(1, autoRounds));
     setAutoArmed(true);
     isAutoRef.current = true;
-    remainingRoundsRef.current = autoRounds;
+    remainingRoundsRef.current = rounds;
     setIsAuto(true);
-    setRemainingRounds(autoRounds);
+    setRemainingRounds(rounds);
+    setAutoRounds(rounds);
   };
 
   useEffect(() => {
@@ -466,10 +469,13 @@ export const PlinkoGame: React.FC = () => {
               <input
                 type="number"
                 value={autoRounds}
-                onChange={(e) => setAutoRounds(Math.max(1, Number(e.target.value)))}
+                min={1}
+                max={MAX_AUTO_BALLS}
+                onChange={(e) => setAutoRounds(Math.min(MAX_AUTO_BALLS, Math.max(1, Number(e.target.value))))}
                 disabled={isAuto}
                 className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#00FF88]/50"
               />
+              <div className="text-[10px] text-white/25">Max {MAX_AUTO_BALLS} queued balls.</div>
             </div>
           )}
 

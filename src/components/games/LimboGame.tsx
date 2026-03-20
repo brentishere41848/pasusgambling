@@ -6,6 +6,16 @@ import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
 
+const MIN_TARGET = 1.01;
+const MAX_TARGET = 1000;
+
+function clampTarget(value: number) {
+  if (!Number.isFinite(value)) {
+    return 2;
+  }
+  return Math.min(MAX_TARGET, Math.max(MIN_TARGET, Math.round(value * 100) / 100));
+}
+
 function rollLimboMultiplier() {
   const edge = 0.99;
   const roll = Math.max(Math.random(), 1e-6);
@@ -36,6 +46,7 @@ export const LimboGame: React.FC = () => {
   useEffect(() => clearTicker, []);
 
   const runRound = () => {
+    const resolvedTarget = clampTarget(target);
     if (!subtractBalance(bet)) {
       setIsAuto(false);
       setRemainingRounds(0);
@@ -59,8 +70,8 @@ export const LimboGame: React.FC = () => {
       clearTicker();
       setDisplayValue(landed);
       setResult(landed);
-      const won = landed >= target;
-      const payout = won ? Math.round(bet * target) : 0;
+      const won = landed >= resolvedTarget;
+      const payout = won ? Math.round(bet * resolvedTarget) : 0;
 
       if (won) {
         addBalance(payout);
@@ -68,11 +79,11 @@ export const LimboGame: React.FC = () => {
           gameKey: 'limbo',
           wager: bet,
           payout,
-          multiplier: target,
+          multiplier: resolvedTarget,
           outcome: 'win',
-          detail: `Target ${target.toFixed(2)}x, landed ${landed.toFixed(2)}x`,
+          detail: `Target ${resolvedTarget.toFixed(2)}x, landed ${landed.toFixed(2)}x`,
         });
-        if (landed >= target * 2) {
+        if (landed >= resolvedTarget * 2) {
           confetti({ particleCount: 60, spread: 60, origin: { y: 0.58 } });
         }
       } else {
@@ -82,7 +93,7 @@ export const LimboGame: React.FC = () => {
           payout: 0,
           multiplier: 0,
           outcome: 'loss',
-          detail: `Target ${target.toFixed(2)}x, landed ${landed.toFixed(2)}x`,
+          detail: `Target ${resolvedTarget.toFixed(2)}x, landed ${landed.toFixed(2)}x`,
         });
       }
 
@@ -135,19 +146,21 @@ export const LimboGame: React.FC = () => {
             <input
               type="number"
               step="0.01"
-              min="1.01"
+              min={MIN_TARGET}
+              max={MAX_TARGET}
               value={target}
-              onChange={(e) => setTarget(Math.max(1.01, Number(e.target.value)))}
+              onChange={(e) => setTarget(clampTarget(Number(e.target.value)))}
               disabled={isRolling || isAuto}
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
             />
+            <div className="mt-2 text-[11px] text-white/30">Custom target supported up to {MAX_TARGET.toFixed(0)}x.</div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {[1.5, 2, 5].map((value) => (
+          <div className="grid grid-cols-5 gap-2">
+            {[1.5, 2, 5, 100, 1000].map((value) => (
               <button
                 key={value}
-                onClick={() => setTarget(value)}
+                onClick={() => setTarget(clampTarget(value))}
                 disabled={isRolling || isAuto}
                 className="rounded-xl bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40"
               >
@@ -214,11 +227,11 @@ export const LimboGame: React.FC = () => {
         <div className="mt-auto space-y-3">
           <div className="flex justify-between text-xs">
             <span className="text-white/40">Target</span>
-            <span className="text-white font-mono">{target.toFixed(2)}x</span>
+            <span className="text-white font-mono">{clampTarget(target).toFixed(2)}x</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-white/40">Potential Payout</span>
-            <span className="text-[#00FF88] font-mono">{Math.round(bet * target).toLocaleString()}</span>
+            <span className="text-[#00FF88] font-mono">{Math.round(bet * clampTarget(target)).toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -233,7 +246,7 @@ export const LimboGame: React.FC = () => {
           transition={{ duration: isFast ? 0.42 : 1.2 }}
           className="rounded-full border border-[#00FF88]/25 bg-[radial-gradient(circle_at_center,rgba(0,255,136,0.14),rgba(255,255,255,0.02))] shadow-[0_0_90px_rgba(0,255,136,0.08)] px-16 py-14"
         >
-          <div className={cn('text-7xl md:text-8xl font-black tracking-tight', result !== null && result >= target ? 'text-[#00FF88]' : 'text-white')}>
+          <div className={cn('text-7xl md:text-8xl font-black tracking-tight', result !== null && result >= clampTarget(target) ? 'text-[#00FF88]' : 'text-white')}>
             {displayValue.toFixed(2)}x
           </div>
         </motion.div>
@@ -241,7 +254,7 @@ export const LimboGame: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl">
           <div className="rounded-3xl border border-white/10 bg-[#11161d] p-5">
             <div className="text-[10px] uppercase tracking-[0.18em] text-white/20 font-black">Target</div>
-            <div className="mt-3 text-2xl font-black">{target.toFixed(2)}x</div>
+            <div className="mt-3 text-2xl font-black">{clampTarget(target).toFixed(2)}x</div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-[#11161d] p-5">
             <div className="text-[10px] uppercase tracking-[0.18em] text-white/20 font-black">Last Result</div>
@@ -249,8 +262,8 @@ export const LimboGame: React.FC = () => {
           </div>
           <div className="rounded-3xl border border-white/10 bg-[#11161d] p-5">
             <div className="text-[10px] uppercase tracking-[0.18em] text-white/20 font-black">Outcome</div>
-            <div className={cn('mt-3 text-2xl font-black uppercase', result === null ? 'text-white/40' : result >= target ? 'text-[#00FF88]' : 'text-red-400')}>
-              {result === null ? (isRolling ? 'Rolling' : 'Ready') : result >= target ? 'Win' : 'Loss'}
+            <div className={cn('mt-3 text-2xl font-black uppercase', result === null ? 'text-white/40' : result >= clampTarget(target) ? 'text-[#00FF88]' : 'text-red-400')}>
+              {result === null ? (isRolling ? 'Rolling' : 'Ready') : result >= clampTarget(target) ? 'Win' : 'Loss'}
             </div>
           </div>
         </div>

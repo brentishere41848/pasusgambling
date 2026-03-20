@@ -14,7 +14,7 @@ export async function logBetActivity(input: LogBetActivityInput) {
   }
 
   try {
-    await apiFetch('/api/activity/bets', {
+    const response = await apiFetch('/api/activity/bets', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -26,6 +26,9 @@ export async function logBetActivity(input: LogBetActivityInput) {
         payout: Math.round(input.payout),
       }),
     });
+    if (response.ok) {
+      window.dispatchEvent(new CustomEvent('pasus:bet-recorded'));
+    }
   } catch {
     return;
   }

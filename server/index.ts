@@ -129,15 +129,16 @@ type AffiliateOverview = {
   referredUsers: number;
   trackedVolume: number;
   totalCommission: number;
-  depositCommission: number;
-  wagerCommission: number;
-  affiliateRakeback: number;
+  claimedCommission: number;
+  claimableCommission: number;
+  winCommission: number;
   recentCommissions: Array<{
     id: number;
     username: string;
     sourceType: string;
     baseAmount: number;
     commissionAmount: number;
+    claimedAt: string | null;
     createdAt: string;
   }>;
   referredAccounts: Array<{
@@ -219,6 +220,17 @@ type RainRoundState = {
   poolAmount: number;
   startsAt: string;
   joinOpensAt: string;
+  endsAt: string;
+  participantCount: number;
+  joined: boolean;
+  hasEnded: boolean;
+};
+
+type CustomRainState = {
+  id: number;
+  creatorUsername: string;
+  creatorAvatarUrl?: string;
+  poolAmount: number;
   endsAt: string;
   participantCount: number;
   joined: boolean;
@@ -491,6 +503,19 @@ function mapRainRound(row: any, joined = false): RainRoundState {
   };
 }
 
+function mapCustomRain(row: any, joined = false): CustomRainState {
+  return {
+    id: Number(row.id),
+    creatorUsername: String(row.creator_username || ''),
+    creatorAvatarUrl: row.creator_avatar_url || undefined,
+    poolAmount: Number(row.pool_amount || 0),
+    endsAt: row.ends_at,
+    participantCount: Number(row.participant_count || 0),
+    joined,
+    hasEnded: new Date(row.ends_at).getTime() <= Date.now(),
+  };
+}
+
 function mapTipNotification(row: any): TipNotification {
   return {
     id: Number(row.id),
@@ -709,6 +734,95 @@ async function settleFinishedRainRounds(client: Pool | PoolClient) {
   }
 }
 
+async function settleFinishedCustomRains(client: Pool | PoolClient) {
+  const rains = await client.query(
+    `SELECT id, pool_amount
+     FROM custom_rains
+     WHERE status = 'active'
+       AND ends_at <= NOW()
+     ORDER BY ends_at ASC
+     FOR UPDATE`
+  );
+
+  for (const rain of rains.rows) {
+    const participants = await client.query(
+      `SELECT user_id
+       FROM custom_rain_participants
+       WHERE custom_rain_id = $1`,
+      [rain.id]
+    );
+
+    const count = participants.rowCount || 0;
+    const totalPool = Number(rain.pool_amount || 0);
+
+    if (count > 0 && totalPool > 0) {
+      const share = Math.max(1, Math.floor(totalPool / count));
+      for (const participant of participants.rows) {
+        await client.query(
+          `UPDATE wallets
+           SET balance = balance + $1,
+               updated_at = NOW()
+           WHERE user_id = $2`,
+          [share, participant.user_id]
+        );
+      }
+    }
+
+    await client.query(
+      `UPDATE custom_rains
+       SET status = 'settled',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [rain.id]
+    );
+
+    await client.query(
+      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
+       VALUES (NULL, $1, $2, 'win', 'moderator', NULL)`,
+      [
+        'PasusRain',
+        count > 0
+          ? `custom rain ended with ${formatCoinsLabel(totalPool)} shared by ${count} ${count === 1 ? 'person' : 'people'}`
+          : `custom rain ended with ${formatCoinsLabel(totalPool)} and nobody joined`,
+      ]
+    );
+  }
+}
+
+async function getActiveCustomRain(client: Pool | PoolClient, userId?: number | null) {
+  await settleFinishedCustomRains(client);
+
+  const result = await client.query(
+    `SELECT r.id, r.creator_username, r.creator_avatar_url, r.pool_amount, r.ends_at, r.status,
+            COUNT(p.id)::int AS participant_count
+     FROM custom_rains r
+     LEFT JOIN custom_rain_participants p ON p.custom_rain_id = r.id
+     WHERE r.status = 'active'
+     GROUP BY r.id
+     ORDER BY r.created_at DESC
+     LIMIT 1`
+  );
+
+  if (!result.rowCount) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  let joined = false;
+  if (userId) {
+    const joinedResult = await client.query(
+      `SELECT 1
+       FROM custom_rain_participants
+       WHERE custom_rain_id = $1 AND user_id = $2
+       LIMIT 1`,
+      [row.id, userId]
+    );
+    joined = Boolean(joinedResult.rowCount);
+  }
+
+  return mapCustomRain(row, joined);
+}
+
 function getCurrentRainWindow(now = new Date()) {
   const startsAt = new Date(now);
   startsAt.setMinutes(0, 0, 0);
@@ -823,7 +937,7 @@ async function ensureAffiliateCode(client: Pool | PoolClient, userId: number, us
 async function applyAffiliateCommission(
   client: Pool | PoolClient,
   referredUserId: number,
-  sourceType: 'deposit' | 'wager',
+  sourceType: 'win',
   sourceRef: string,
   baseAmount: number
 ) {
@@ -846,7 +960,7 @@ async function applyAffiliateCommission(
   }
 
   const referrerUserId = Number(referralResult.rows[0].referred_by_user_id);
-  const commissionAmount = Math.max(1, Math.floor(normalizedBase * 0.05));
+  const commissionAmount = Math.max(1, Math.floor(normalizedBase * 0.01));
 
   try {
     await client.query(
@@ -862,14 +976,6 @@ async function applyAffiliateCommission(
     }
     throw error;
   }
-
-  await client.query(
-    `UPDATE wallets
-     SET balance = balance + $1,
-         updated_at = NOW()
-     WHERE user_id = $2`,
-    [commissionAmount, referrerUserId]
-  );
 
   return commissionAmount;
 }
@@ -888,8 +994,9 @@ async function getAffiliateOverview(client: Pool | PoolClient, userId: number): 
        COUNT(DISTINCT u.id)::int AS referred_users,
        COALESCE(SUM(ac.base_amount), 0)::bigint AS tracked_volume,
        COALESCE(SUM(ac.commission_amount), 0)::bigint AS total_commission,
-       COALESCE(SUM(CASE WHEN ac.source_type = 'deposit' THEN ac.commission_amount ELSE 0 END), 0)::bigint AS deposit_commission,
-       COALESCE(SUM(CASE WHEN ac.source_type = 'wager' THEN ac.commission_amount ELSE 0 END), 0)::bigint AS wager_commission
+       COALESCE(SUM(CASE WHEN ac.claimed_at IS NOT NULL THEN ac.commission_amount ELSE 0 END), 0)::bigint AS claimed_commission,
+       COALESCE(SUM(CASE WHEN ac.claimed_at IS NULL THEN ac.commission_amount ELSE 0 END), 0)::bigint AS claimable_commission,
+       COALESCE(SUM(CASE WHEN ac.source_type = 'win' THEN ac.commission_amount ELSE 0 END), 0)::bigint AS win_commission
      FROM users u
      LEFT JOIN affiliate_commissions ac ON ac.referrer_user_id = $1
      WHERE u.referred_by_user_id = $1`,
@@ -897,7 +1004,7 @@ async function getAffiliateOverview(client: Pool | PoolClient, userId: number): 
   );
 
   const recentResult = await client.query(
-    `SELECT ac.id, u.username, ac.source_type, ac.base_amount, ac.commission_amount, ac.created_at
+    `SELECT ac.id, u.username, ac.source_type, ac.base_amount, ac.commission_amount, ac.claimed_at, ac.created_at
      FROM affiliate_commissions ac
      JOIN users u ON u.id = ac.referred_user_id
      WHERE ac.referrer_user_id = $1
@@ -924,15 +1031,16 @@ async function getAffiliateOverview(client: Pool | PoolClient, userId: number): 
     referredUsers: Number(stats.referred_users || 0),
     trackedVolume: Number(stats.tracked_volume || 0),
     totalCommission: Number(stats.total_commission || 0),
-    depositCommission: Number(stats.deposit_commission || 0),
-    wagerCommission: Number(stats.wager_commission || 0),
-    affiliateRakeback: Math.floor(Number(stats.tracked_volume || 0) * 0.02),
+    claimedCommission: Number(stats.claimed_commission || 0),
+    claimableCommission: Number(stats.claimable_commission || 0),
+    winCommission: Number(stats.win_commission || 0),
     recentCommissions: recentResult.rows.map((row) => ({
       id: Number(row.id),
       username: row.username,
       sourceType: row.source_type,
       baseAmount: Number(row.base_amount || 0),
       commissionAmount: Number(row.commission_amount || 0),
+      claimedAt: row.claimed_at || null,
       createdAt: row.created_at,
     })),
     referredAccounts: referredAccountsResult.rows.map((row) => ({
@@ -1063,8 +1171,6 @@ async function creditDepositIfNeeded(client: PoolClient, transactionId: number) 
      WHERE id = $1`,
     [transactionId]
   );
-
-  await applyAffiliateCommission(client, Number(tx.user_id), 'deposit', `payment:${transactionId}`, coins);
 }
 
 async function initDb() {
@@ -1132,6 +1238,7 @@ async function initDb() {
       UNIQUE (source_type, source_ref)
     )
   `);
+  await pool.query(`ALTER TABLE affiliate_commissions ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS support_tickets (
@@ -1308,6 +1415,30 @@ async function initDb() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS custom_rains (
+      id BIGSERIAL PRIMARY KEY,
+      creator_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      creator_username TEXT NOT NULL,
+      creator_avatar_url TEXT,
+      pool_amount BIGINT NOT NULL,
+      ends_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS custom_rain_participants (
+      id BIGSERIAL PRIMARY KEY,
+      custom_rain_id BIGINT NOT NULL REFERENCES custom_rains(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (custom_rain_id, user_id)
+    )
+  `);
+
+  await pool.query(`
     INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn)
     SELECT id, 50, 50, 0
     FROM users
@@ -1393,6 +1524,7 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
 
     await client.query('BEGIN');
     const roundRow = await ensureCurrentRainRound(client);
+    const customRain = await getActiveCustomRain(client, authedUserId);
 
     if (authedUserId) {
       const joinedResult = await client.query(
@@ -1442,6 +1574,7 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
     return res.json({
       messages: messagesResult.rows.reverse().map(mapChatMessage),
       rain: mapRainRound(roundRow, joined),
+      customRain,
       tipNotifications,
       onlineCount,
     });
@@ -1601,6 +1734,169 @@ app.post('/api/rain/contribute', requireAuth, async (req: AuthedRequest, res) =>
   }
 });
 
+app.post('/api/custom-rain', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const amount = normalizeCoins(req.body.amount);
+    if (amount <= 0) {
+      return res.status(400).json({ error: 'Custom rain amount is required.' });
+    }
+
+    await client.query('BEGIN');
+    await settleFinishedCustomRains(client);
+    const existingRain = await client.query(
+      `SELECT id
+       FROM custom_rains
+       WHERE status = 'active'
+       ORDER BY created_at DESC
+       LIMIT 1`
+    );
+
+    if (existingRain.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'A custom rain is already active.' });
+    }
+
+    await ensureWallet(client, req.auth!.user.id);
+    const walletResult = await client.query(
+      `UPDATE wallets
+       SET balance = balance - $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+         AND balance >= $1
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [amount, req.auth!.user.id]
+    );
+
+    if (!walletResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Insufficient balance.' });
+    }
+
+    const avatarUrl = req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null;
+    const insertResult = await client.query(
+      `INSERT INTO custom_rains (creator_user_id, creator_username, creator_avatar_url, pool_amount, ends_at, status)
+       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '5 minutes', 'active')
+       RETURNING id, creator_username, creator_avatar_url, pool_amount, ends_at, 0::int AS participant_count`,
+      [req.auth!.user.id, req.auth!.user.username, avatarUrl, amount]
+    );
+
+    await client.query(
+      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
+       VALUES ($1, $2, $3, 'win', $4, $5)`,
+      [
+        req.auth!.user.id,
+        req.auth!.user.username,
+        `created a custom rain with ${formatCoinsLabel(amount)}`,
+        req.auth!.user.role,
+        avatarUrl,
+      ]
+    );
+
+    await client.query('COMMIT');
+    return res.status(201).json({
+      customRain: mapCustomRain(insertResult.rows[0], false),
+      wallet: sanitizeWallet(walletResult.rows[0]),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to create custom rain.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/custom-rain/join', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const activeRain = await getActiveCustomRain(client, req.auth!.user.id);
+    if (!activeRain || activeRain.hasEnded) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'No active custom rain found.' });
+    }
+
+    if (activeRain.joined) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'You already joined this custom rain.' });
+    }
+
+    await client.query(
+      `INSERT INTO custom_rain_participants (custom_rain_id, user_id)
+       VALUES ($1, $2)`,
+      [activeRain.id, req.auth!.user.id]
+    );
+
+    const refreshed = await getActiveCustomRain(client, req.auth!.user.id);
+    await client.query('COMMIT');
+    return res.status(201).json({ customRain: refreshed });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to join custom rain.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/custom-rain/tip', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const amount = normalizeCoins(req.body.amount);
+    if (amount <= 0) {
+      return res.status(400).json({ error: 'Tip amount is required.' });
+    }
+
+    await client.query('BEGIN');
+    const activeRain = await getActiveCustomRain(client, req.auth!.user.id);
+    if (!activeRain || activeRain.hasEnded) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'No active custom rain found.' });
+    }
+
+    await ensureWallet(client, req.auth!.user.id);
+    const walletResult = await client.query(
+      `UPDATE wallets
+       SET balance = balance - $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+         AND balance >= $1
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [amount, req.auth!.user.id]
+    );
+
+    if (!walletResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Insufficient balance.' });
+    }
+
+    await client.query(
+      `UPDATE custom_rains
+       SET pool_amount = pool_amount + $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [amount, activeRain.id]
+    );
+
+    const refreshed = await getActiveCustomRain(client, req.auth!.user.id);
+    await client.query('COMMIT');
+    return res.status(201).json({
+      customRain: refreshed,
+      wallet: sanitizeWallet(walletResult.rows[0]),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to tip custom rain.' });
+  } finally {
+    client.release();
+  }
+});
+
 app.post('/api/auth/register', async (req, res) => {
   const client = await pool.connect();
 
@@ -1707,7 +2003,9 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
     );
 
     const rainUpdate = await addRainContributionFromWager(client, wager);
-    await applyAffiliateCommission(client, req.auth!.user.id, 'wager', `bet:${inserted.rows[0]?.id || Date.now()}`, wager);
+    if (outcome === 'win' && payout > 0) {
+      await applyAffiliateCommission(client, req.auth!.user.id, 'win', `bet:${inserted.rows[0]?.id || Date.now()}`, payout);
+    }
     await client.query('COMMIT');
 
     return res.status(201).json({
@@ -2080,16 +2378,67 @@ app.post('/api/affiliate/code', requireAuth, async (req: AuthedRequest, res) => 
   }
 });
 
+app.post('/api/affiliate/claim', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    await ensureWallet(client, req.auth!.user.id);
+
+    const claimableResult = await client.query(
+      `SELECT COALESCE(SUM(commission_amount), 0)::bigint AS amount
+       FROM affiliate_commissions
+       WHERE referrer_user_id = $1
+         AND claimed_at IS NULL`,
+      [req.auth!.user.id]
+    );
+
+    const amount = Number(claimableResult.rows[0]?.amount || 0);
+    if (amount <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'No affiliate rewards available to claim.' });
+    }
+
+    await client.query(
+      `UPDATE affiliate_commissions
+       SET claimed_at = NOW()
+       WHERE referrer_user_id = $1
+         AND claimed_at IS NULL`,
+      [req.auth!.user.id]
+    );
+
+    const walletResult = await client.query(
+      `UPDATE wallets
+       SET balance = balance + $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [amount, req.auth!.user.id]
+    );
+
+    await client.query('COMMIT');
+    return res.json({
+      claimed: amount,
+      wallet: sanitizeWallet(walletResult.rows[0]),
+      overview: await getAffiliateOverview(pool, req.auth!.user.id),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to claim affiliate rewards.' });
+  } finally {
+    client.release();
+  }
+});
+
 app.get('/api/support/tickets', requireAuth, async (req: AuthedRequest, res) => {
   try {
     const ticketsResult = await pool.query(
       `SELECT st.id, st.user_id, u.username, st.subject, st.status, st.created_at, st.updated_at
        FROM support_tickets st
        JOIN users u ON u.id = st.user_id
-       WHERE st.user_id = $1
        ORDER BY st.updated_at DESC, st.created_at DESC
-       LIMIT 20`,
-      [req.auth!.user.id]
+       LIMIT 100`
     );
 
     const ticketIds = ticketsResult.rows.map((row) => Number(row.id));
