@@ -147,7 +147,7 @@ function getTargetRotation(currentRotation: number, segmentIndex: number, segmen
   const segmentAngle = 360 / segmentCount;
   const currentNormalized = normalizeAngle(currentRotation);
   const segmentCenter = segmentIndex * segmentAngle + segmentAngle / 2;
-  const inSegmentOffset = (Math.random() - 0.5) * segmentAngle * 0.14;
+  const inSegmentOffset = (Math.random() - 0.5) * segmentAngle * 0.04;
   const desiredNormalized = normalizeAngle(-segmentCenter + inSegmentOffset);
   const forwardDelta = ((desiredNormalized - currentNormalized) + 360) % 360;
   const extraTurns = (8 + Math.floor(Math.random() * 5)) * 360;
@@ -611,6 +611,20 @@ export const WheelGame: React.FC = () => {
                   <div className="w-1.5 h-8 rounded-full bg-black/20" />
                 </div>
               </motion.div>
+
+              <div className="absolute left-1/2 top-[38px] -translate-x-1/2 z-20 pointer-events-none">
+                <div className="relative h-[146px] w-[92px]">
+                  <div
+                    className="absolute inset-x-0 top-0 h-full rounded-b-[999px] opacity-60"
+                    style={{
+                      background:
+                        'linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 34%, rgba(255,255,255,0) 100%)',
+                      clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)',
+                    }}
+                  />
+                  <div className="absolute left-1/2 top-0 h-full w-[3px] -translate-x-1/2 rounded-full bg-white/65 shadow-[0_0_18px_rgba(255,255,255,0.25)]" />
+                </div>
+              </div>
 
               <motion.div
                 animate={controls}
