@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, useAnimation } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
@@ -90,14 +90,45 @@ function getTargetRotation(currentRotation: number, segmentIndex: number) {
   return currentRotation + extraTurns + forwardDelta;
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export const WheelGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const [bet, setBet] = useState(10);
   const [isSpinning, setIsSpinning] = useState(false);
   const [resultIndex, setResultIndex] = useState<number | null>(null);
   const [history, setHistory] = useState<number[]>([]);
+  const [pointerKick, setPointerKick] = useState(0);
+  const [glowLevel, setGlowLevel] = useState(0);
   const controls = useAnimation();
   const rotationRef = useRef(0);
+  const pointerIntervalRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isSpinning) {
+      if (pointerIntervalRef.current !== null) {
+        window.clearInterval(pointerIntervalRef.current);
+        pointerIntervalRef.current = null;
+      }
+      setPointerKick(0);
+      setGlowLevel(0);
+      return;
+    }
+
+    setGlowLevel(1);
+    pointerIntervalRef.current = window.setInterval(() => {
+      setPointerKick((current) => (current === 0 ? -18 : 0));
+    }, 78);
+
+    return () => {
+      if (pointerIntervalRef.current !== null) {
+        window.clearInterval(pointerIntervalRef.current);
+        pointerIntervalRef.current = null;
+      }
+    };
+  }, [isSpinning]);
 
   const spin = async () => {
     if (isSpinning) {
@@ -113,14 +144,30 @@ export const WheelGame: React.FC = () => {
 
     const resolvedIndex = WEIGHTED_WHEEL_INDICES[Math.floor(Math.random() * WEIGHTED_WHEEL_INDICES.length)];
     const targetRotation = getTargetRotation(rotationRef.current, resolvedIndex);
+    const overshootRotation = targetRotation + SEGMENT_ANGLE * 0.22;
+    const settleBackRotation = targetRotation - SEGMENT_ANGLE * 0.05;
 
     await controls.start({
-      rotate: targetRotation,
+      rotate: [rotationRef.current, overshootRotation, settleBackRotation, targetRotation],
+      scale: [1, 1.015, 1.005, 1],
       transition: {
-        duration: 5.8,
-        ease: [0.08, 0.82, 0.16, 1],
+        duration: 5.4,
+        times: [0, 0.84, 0.93, 1],
+        ease: ['easeIn', [0.1, 0.82, 0.16, 1], [0.22, 0.9, 0.22, 1]],
       },
     });
+
+    if (pointerIntervalRef.current !== null) {
+      window.clearInterval(pointerIntervalRef.current);
+      pointerIntervalRef.current = null;
+    }
+    setPointerKick(-10);
+    setGlowLevel(0.45);
+    await wait(80);
+    setPointerKick(6);
+    await wait(80);
+    setPointerKick(0);
+    setGlowLevel(0);
 
     rotationRef.current = targetRotation;
     const landedIndex = getLandedIndexFromRotation(rotationRef.current);
@@ -235,11 +282,22 @@ export const WheelGame: React.FC = () => {
 
       <div className="rounded-[28px] border border-white/10 bg-[#0e1218] p-6 md:p-8 flex items-center justify-center relative overflow-hidden min-h-[560px]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,255,136,0.07),transparent_30%),radial-gradient(circle_at_bottom,rgba(59,130,246,0.08),transparent_28%)]" />
+        <div
+          className="absolute inset-0 transition-opacity duration-300"
+          style={{
+            opacity: glowLevel,
+            background:
+              'radial-gradient(circle at center, rgba(255,255,255,0.08), transparent 42%), radial-gradient(circle at center, rgba(0,255,136,0.12), transparent 58%)',
+          }}
+        />
 
         <div className="relative w-[380px] h-[380px] md:w-[420px] md:h-[420px]">
           <motion.div
-            animate={isSpinning ? { y: [0, -10, 0, -6, 0] } : { y: 0 }}
-            transition={{ duration: 0.85, repeat: isSpinning ? Infinity : 0, ease: 'easeInOut' }}
+            animate={{
+              y: pointerKick,
+              rotate: pointerKick === 0 ? 0 : -8,
+            }}
+            transition={{ duration: 0.08, ease: 'easeOut' }}
             className="absolute -top-4 left-1/2 -translate-x-1/2 z-30"
           >
             <div className="w-10 h-14 rounded-b-[20px] bg-white shadow-[0_10px_32px_rgba(255,255,255,0.18)] flex items-center justify-center">
@@ -247,8 +305,14 @@ export const WheelGame: React.FC = () => {
             </div>
           </motion.div>
 
-          <motion.div animate={controls} className="absolute inset-0">
-            <svg viewBox="0 0 400 400" className="w-full h-full drop-shadow-[0_24px_70px_rgba(0,0,0,0.55)]">
+          <motion.div
+            animate={controls}
+            className="absolute inset-0"
+            style={{
+              filter: isSpinning ? 'drop-shadow(0 26px 84px rgba(0,0,0,0.62)) blur(0.15px)' : 'drop-shadow(0 24px 70px rgba(0,0,0,0.55))',
+            }}
+          >
+            <svg viewBox="0 0 400 400" className="w-full h-full">
               <circle cx="200" cy="200" r="194" fill="#0a0d12" stroke="#1b212a" strokeWidth="10" />
               {SEGMENTS.map((segment, index) => {
                 const start = index * SEGMENT_ANGLE;
@@ -261,8 +325,8 @@ export const WheelGame: React.FC = () => {
                     <path
                       d={describeSegmentPath(200, 200, WHEEL_RADIUS, INNER_RADIUS, start, end)}
                       fill={segment.fill}
-                      stroke="#242a34"
-                      strokeWidth="2"
+                      stroke={resultIndex === index ? '#ffffff' : '#242a34'}
+                      strokeWidth={resultIndex === index ? '3' : '2'}
                     />
                     <text
                       x={labelPoint.x}
