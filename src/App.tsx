@@ -57,6 +57,11 @@ import { BlackjackGame } from './components/games/BlackjackGame';
 import { HiloGame } from './components/games/HiloGame';
 import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
+import { PlinkoGame } from './components/games/PlinkoGame';
+import { RouletteGame } from './components/games/RouletteGame';
+import { SlotsGame } from './components/games/SlotsGame';
+import { LimboGame } from './components/games/LimboGame';
+import { KenoGame } from './components/games/KenoGame';
 import { apiFetch } from './lib/api';
 import { cn } from './lib/utils';
 
@@ -128,6 +133,28 @@ const GAMES = [
     image: 'https://picsum.photos/seed/casino-dice/800/600'
   },
   {
+    id: 'limbo',
+    name: 'Limbo',
+    description: 'Set a target multiplier and hope the roll lands higher.',
+    icon: Flame,
+    color: 'text-orange-300',
+    bg: 'bg-orange-300/10',
+    component: LimboGame,
+    featured: true,
+    image: 'https://picsum.photos/seed/casino-limbo/800/600'
+  },
+  {
+    id: 'keno',
+    name: 'Keno',
+    description: 'Pick your numbers and catch the draw.',
+    icon: Dices,
+    color: 'text-emerald-300',
+    bg: 'bg-emerald-300/10',
+    component: KenoGame,
+    featured: true,
+    image: 'https://picsum.photos/seed/casino-keno/800/600'
+  },
+  {
     id: 'hilo',
     name: 'HiLo',
     description: 'Call higher or lower and build the streak.',
@@ -150,6 +177,28 @@ const GAMES = [
     image: 'https://picsum.photos/seed/casino-baccarat/800/600'
   },
   {
+    id: 'plinko',
+    name: 'Plinko',
+    description: 'Drop balls through pegs and chase the high multiplier buckets.',
+    icon: Plus,
+    color: 'text-sky-300',
+    bg: 'bg-sky-300/10',
+    component: PlinkoGame,
+    featured: true,
+    image: 'https://picsum.photos/seed/casino-plinko/800/600'
+  },
+  {
+    id: 'roulette',
+    name: 'Roulette',
+    description: 'Cover the board and spin a full European wheel.',
+    icon: Disc,
+    color: 'text-rose-300',
+    bg: 'bg-rose-300/10',
+    component: RouletteGame,
+    featured: true,
+    image: 'https://picsum.photos/seed/casino-roulette/800/600'
+  },
+  {
     id: 'wheel',
     name: 'Wheel',
     description: 'Simple wheel game with high multipliers.',
@@ -159,6 +208,17 @@ const GAMES = [
     component: WheelGame,
     featured: false,
     image: 'https://picsum.photos/seed/casino-wheel/800/600'
+  },
+  {
+    id: 'slots',
+    name: 'Slots',
+    description: 'Three-reel slot machine with simple jackpot hits.',
+    icon: Star,
+    color: 'text-yellow-300',
+    bg: 'bg-yellow-300/10',
+    component: SlotsGame,
+    featured: false,
+    image: 'https://picsum.photos/seed/casino-slots/800/600'
   }
 ];
 
@@ -2229,6 +2289,7 @@ const SettingsView = () => {
 const AdminView = () => {
   const { user } = useAuth();
   const { refreshWallet } = useBalance();
+  const [adminSection, setAdminSection] = useState<'overview' | 'history' | 'payments' | 'support'>('overview');
   const [selectedWithdrawalId, setSelectedWithdrawalId] = useState<number | null>(null);
   const [withdrawalStatusDraft, setWithdrawalStatusDraft] = useState<'pending' | 'processing' | 'completed'>('pending');
   const [isUpdatingWithdrawal, setIsUpdatingWithdrawal] = useState(false);
@@ -2241,6 +2302,8 @@ const AdminView = () => {
   const [adjustAmount, setAdjustAmount] = useState('');
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activityFeed, setActivityFeed] = useState<Array<{ id: number; gameKey: string; username: string; wager: number; payout: number; multiplier: number; outcome: string; createdAt: string }>>([]);
+  const [activityTab, setActivityTab] = useState<'all' | 'high' | 'lucky'>('all');
   const [supportTickets, setSupportTickets] = useState<SupportThread[]>([]);
   const [selectedSupportTicketId, setSelectedSupportTicketId] = useState<number | null>(null);
   const [supportReply, setSupportReply] = useState('');
@@ -2281,11 +2344,30 @@ const AdminView = () => {
     });
   }, []);
 
+  const loadActivity = useCallback(async (tab: 'all' | 'high' | 'lucky' = activityTab) => {
+    const response = await apiFetch(`/api/activity/bets?tab=${tab}&limit=18`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load game history.');
+    }
+    const activities = Array.isArray(data.activities) ? data.activities : [];
+    setActivityFeed(activities.map((entry: any) => ({
+      id: Number(entry.id),
+      gameKey: String(entry.gameKey || entry.game_key || ''),
+      username: String(entry.username || ''),
+      wager: Number(entry.wager || 0),
+      payout: Number(entry.payout || 0),
+      multiplier: Number(entry.multiplier || 0),
+      outcome: String(entry.outcome || ''),
+      createdAt: String(entry.createdAt || entry.created_at || ''),
+    })));
+  }, [activityTab]);
+
   useEffect(() => {
-    Promise.all([loadOverview(), loadSupportTickets()]).catch((error) => {
+    Promise.all([loadOverview(), loadSupportTickets(), loadActivity(activityTab)]).catch((error) => {
       setStatus(error instanceof Error ? error.message : 'Failed to load admin overview.');
     });
-  }, [loadOverview, loadSupportTickets]);
+  }, [activityTab, loadActivity, loadOverview, loadSupportTickets]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -2430,6 +2512,28 @@ const AdminView = () => {
         <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Pending Withdrawals</div><div className="mt-3 text-3xl font-black italic">{overview?.stats.pendingWithdrawals ?? 0}</div></div>
       </div>
 
+      <div className="flex flex-wrap gap-3">
+        {[
+          ['overview', 'Overview'],
+          ['history', 'Game History'],
+          ['payments', 'Payments'],
+          ['support', 'Support'],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setAdminSection(value as 'overview' | 'history' | 'payments' | 'support')}
+            className={cn(
+              'rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] transition-all',
+              adminSection === value ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/55 hover:text-white'
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {adminSection === 'overview' ? (
+      <>
       <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Wallet Adjustment</div>
@@ -2483,7 +2587,108 @@ const AdminView = () => {
           ))}
         </div>
       </div>
+      </>
+      ) : null}
 
+      {adminSection === 'payments' ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Recent Withdrawals</div>
+          <div className="grid grid-cols-1 gap-3">
+            {(overview?.withdrawals || []).map((entry) => (
+              <button
+                key={entry.id}
+                onClick={() => setSelectedWithdrawalId(entry.id)}
+                className="rounded-2xl border border-white/5 bg-black/25 px-4 py-4 text-left transition-all hover:border-[#00FF88]/35 hover:bg-black/35"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-sm font-black">{entry.username}</div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{entry.status}</div>
+                </div>
+                <div className="mt-2 text-sm text-white/55">{formatMoneyFromCoins(entry.amount)} {entry.currency.toUpperCase()}</div>
+                <div className="mt-1 text-[11px] text-white/30">{new Date(entry.createdAt).toLocaleString()}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Payment Operations</div>
+          <div className="rounded-2xl border border-white/5 bg-black/25 p-5 space-y-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Review Flow</div>
+              <div className="mt-2 text-sm text-white/55 leading-relaxed">
+                Inspect withdrawal requests, mark them processing or completed, or decline and refund directly from the detail modal.
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Pending</div>
+                <div className="mt-2 text-2xl font-black">{overview?.withdrawals.filter((entry) => entry.status === 'pending').length ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Processing</div>
+                <div className="mt-2 text-2xl font-black">{overview?.withdrawals.filter((entry) => entry.status === 'processing').length ?? 0}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      ) : null}
+
+      {adminSection === 'history' ? (
+      <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="text-lg font-black uppercase tracking-tight">Game History</div>
+            <div className="text-sm text-white/45">Modeled after the reference repo’s history-heavy admin area, using live Pasus activity data.</div>
+          </div>
+          <div className="flex gap-2">
+            {([
+              ['all', 'Recent'],
+              ['high', 'High Wins'],
+              ['lucky', 'Lucky'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setActivityTab(value)}
+                className={cn(
+                  'rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em]',
+                  activityTab === value ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/55'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-3">
+          {activityFeed.map((entry) => (
+            <div key={entry.id} className="rounded-2xl border border-white/5 bg-black/25 px-4 py-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-black">{entry.username}</div>
+                  <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/30">{entry.gameKey}</div>
+                </div>
+                <div className="text-right">
+                  <div className={cn('text-[10px] uppercase tracking-[0.16em] font-black', entry.outcome === 'win' ? 'text-[#00FF88]' : entry.outcome === 'push' ? 'text-blue-300' : 'text-red-300')}>
+                    {entry.outcome}
+                  </div>
+                  <div className="mt-1 text-[11px] text-white/30">{new Date(entry.createdAt).toLocaleString()}</div>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+                <div><span className="text-white/35">Wager</span><div className="font-mono">{formatMoneyFromCoins(entry.wager)}</div></div>
+                <div><span className="text-white/35">Payout</span><div className="font-mono">{formatMoneyFromCoins(entry.payout)}</div></div>
+                <div><span className="text-white/35">Multiplier</span><div className="font-mono">{entry.multiplier.toFixed(2)}x</div></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      ) : null}
+
+      {adminSection === 'support' ? (
       <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Support Inbox</div>
@@ -2549,6 +2754,7 @@ const AdminView = () => {
           </div>
         </div>
       </div>
+      ) : null}
 
       <AnimatePresence>
         {selectedWithdrawal ? (
@@ -3428,6 +3634,13 @@ type TipNotification = {
   createdAt: string;
 };
 
+type LocalCommandNotification = {
+  id: number;
+  title: string;
+  lines: string[];
+  createdAt: string;
+};
+
 const CHAT_ROLE_STYLES: Record<ChatMessage['role'], string> = {
   owner: 'text-[#FF9F1C]',
   moderator: 'text-[#00FF88]',
@@ -3467,6 +3680,7 @@ const RightRail = () => {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [tipDraft, setTipDraft] = useState<TipDraft | null>(null);
   const [rainDraft, setRainDraft] = useState<RainDraft | null>(null);
+  const [commandNotifications, setCommandNotifications] = useState<LocalCommandNotification[]>([]);
 
   const loadRoom = async (silent = false) => {
     if (!silent) {
@@ -3566,20 +3780,18 @@ const RightRail = () => {
     }
 
     if (/^\.commands$/i.test(draft.trim())) {
-      const commandLines = ['Commands: .commands, .tip <username>, .rain'];
+      const commandLines = ['.commands shows this private help card.', '.tip <username> opens the tip modal.', '.rain opens the rain contribution modal.'];
       if (user?.role === 'owner' || user?.role === 'moderator') {
-        commandLines.push('Staff access: admin panel support inbox, wallet tools, and staff chat badge.');
+        commandLines.push('Staff: admin panel access, support inbox, wallet tools, and staff chat badge.');
       }
-      setMessages((current) => [
-        ...current,
+      setCommandNotifications((current) => [
         {
           id: Date.now(),
-          user: 'PasusHelp',
-          text: commandLines.join(' '),
-          tone: 'normal',
-          role: user?.role === 'owner' || user?.role === 'moderator' ? user.role : 'user',
+          title: 'Private Commands',
+          lines: commandLines,
           createdAt: new Date().toISOString(),
         },
+        ...current,
       ]);
       setDraft('');
       return;
@@ -3782,6 +3994,31 @@ const RightRail = () => {
           }}
           className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-3"
         >
+          {commandNotifications.map((notification) => (
+            <div key={notification.id} className="rounded-2xl border border-sky-400/25 bg-sky-400/10 px-4 py-3">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-200">{notification.title}</div>
+                  <div className="text-[10px] text-sky-100/55">
+                    {new Date(notification.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCommandNotifications((current) => current.filter((entry) => entry.id !== notification.id))}
+                  className="rounded-full p-1 text-sky-100/70 hover:bg-white/10"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="space-y-1">
+                {notification.lines.map((line) => (
+                  <div key={line} className="text-xs leading-relaxed text-sky-50/90">
+                    {line}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
           {roomError ? (
             <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-200">
               {roomError}
