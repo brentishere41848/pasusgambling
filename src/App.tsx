@@ -4861,9 +4861,8 @@ const AppContent = () => {
               </div>
               <div className="text-xs space-y-2">
                 <div className="font-black uppercase tracking-widest mb-4">Social</div>
-                <div>Twitter / X</div>
-                <div>Discord</div>
-                <div>Telegram</div>
+                <a href="https://x.com/PasusInc" target="_blank" rel="noreferrer" className="block hover:text-white transition-colors">Twitter / X</a>
+                <a href="https://discord.gg/zRhFqK4kgk" target="_blank" rel="noreferrer" className="block hover:text-white transition-colors">Discord</a>
               </div>
             </div>
           </footer>
