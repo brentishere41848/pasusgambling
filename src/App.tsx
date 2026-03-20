@@ -3975,7 +3975,7 @@ const RightRail = () => {
     }
 
     if (/^\.rain$/i.test(draft.trim())) {
-      setCustomRainDraft({ amount: String(500 / COINS_PER_DOLLAR) });
+      setCustomRainDraft({ amount: '500' });
       setDraft('');
       return;
     }
@@ -4054,7 +4054,7 @@ const RightRail = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount: usdToCoins(Number(rainDraft.amount || 0)),
+          amount: Math.max(1, Math.round(Number(rainDraft.amount || 0))),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -4086,7 +4086,7 @@ const RightRail = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount: usdToCoins(Number(customRainDraft.amount || 0)),
+          amount: Math.max(1, Math.round(Number(customRainDraft.amount || 0))),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -4145,7 +4145,7 @@ const RightRail = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount: usdToCoins(Number(rainDraft.amount || 0)),
+          amount: Math.max(1, Math.round(Number(rainDraft.amount || 0))),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -4232,7 +4232,7 @@ const RightRail = () => {
             {isJoiningRain ? 'Joining...' : rainButtonLabel}
           </button>
           <button
-            onClick={() => setRainDraft({ amount: String(100 / COINS_PER_DOLLAR), target: 'main' })}
+            onClick={() => setRainDraft({ amount: '100', target: 'main' })}
             disabled={!isAuthenticated || isSubmitting}
             className="mt-2 w-full rounded-2xl bg-white/8 text-white py-3 text-xs font-black uppercase tracking-[0.2em] disabled:opacity-40"
           >
@@ -4263,7 +4263,7 @@ const RightRail = () => {
                 {customRain.joined ? 'Joined' : 'Join'}
               </button>
               <button
-                onClick={() => setRainDraft({ amount: String(100 / COINS_PER_DOLLAR), target: 'custom' })}
+                onClick={() => setRainDraft({ amount: '100', target: 'custom' })}
                 disabled={!isAuthenticated || isSubmitting}
                 className="flex-1 rounded-xl bg-white/8 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white disabled:opacity-40"
               >
@@ -4495,11 +4495,13 @@ const RightRail = () => {
                 type="number"
                 value={rainDraft.amount}
                 onChange={(e) => setRainDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
-                placeholder="Amount"
+                placeholder="Amount in coins"
                 className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
               />
               <div className="text-[11px] text-white/40">
-                {rainDraft.target === 'custom' ? 'This increases the current custom rain amount immediately.' : 'This contributes directly to the current hourly rain pool.'}
+                {rainDraft.target === 'custom'
+                  ? 'This increases the current custom rain amount immediately. Enter the amount in coins.'
+                  : 'This contributes directly to the current hourly rain pool. Enter the amount in coins.'}
               </div>
               <div className="flex gap-3">
                 <button
@@ -4542,11 +4544,11 @@ const RightRail = () => {
                 type="number"
                 value={customRainDraft.amount}
                 onChange={(e) => setCustomRainDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
-                placeholder="Amount"
+                placeholder="Amount in coins"
                 className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
               />
               <div className="text-[11px] text-white/40">
-                This creates a 5-minute custom rain card under the main rain with your username and amount.
+                This creates a 5-minute custom rain card under the main rain with your username and amount. Enter the amount in coins.
               </div>
               <div className="flex gap-3">
                 <button

@@ -721,16 +721,6 @@ async function settleFinishedRainRounds(client: Pool | PoolClient) {
       [round.id]
     );
 
-    await client.query(
-      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
-       VALUES (NULL, $1, $2, 'win', 'moderator', NULL)`,
-      [
-        'PasusRain',
-        count > 0
-          ? `rain ended with ${formatCoinsLabel(totalPool)} claimed by ${count} ${count === 1 ? 'person' : 'people'}`
-          : `rain ended with ${formatCoinsLabel(totalPool)} and nobody claimed it`,
-      ]
-    );
   }
 }
 
@@ -776,16 +766,6 @@ async function settleFinishedCustomRains(client: Pool | PoolClient) {
       [rain.id]
     );
 
-    await client.query(
-      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
-       VALUES (NULL, $1, $2, 'win', 'moderator', NULL)`,
-      [
-        'PasusRain',
-        count > 0
-          ? `custom rain ended with ${formatCoinsLabel(totalPool)} shared by ${count} ${count === 1 ? 'person' : 'people'}`
-          : `custom rain ended with ${formatCoinsLabel(totalPool)} and nobody joined`,
-      ]
-    );
   }
 }
 
@@ -1707,18 +1687,6 @@ app.post('/api/rain/contribute', requireAuth, async (req: AuthedRequest, res) =>
       [amount, roundRow.id]
     );
 
-    await client.query(
-      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
-       VALUES ($1, $2, $3, 'win', $4, $5)`,
-      [
-        req.auth!.user.id,
-        req.auth!.user.username,
-        `started a rain with ${formatCoinsLabel(amount)}`,
-        req.auth!.user.role,
-        req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
-      ]
-    );
-
     await client.query('COMMIT');
     return res.status(201).json({
       rain: mapRainRound({ ...updatedRain.rows[0], participant_count: roundRow.participant_count || 0 }, false),
@@ -1780,18 +1748,6 @@ app.post('/api/custom-rain', requireAuth, async (req: AuthedRequest, res) => {
        VALUES ($1, $2, $3, $4, NOW() + INTERVAL '5 minutes', 'active')
        RETURNING id, creator_username, creator_avatar_url, pool_amount, ends_at, 0::int AS participant_count`,
       [req.auth!.user.id, req.auth!.user.username, avatarUrl, amount]
-    );
-
-    await client.query(
-      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
-       VALUES ($1, $2, $3, 'win', $4, $5)`,
-      [
-        req.auth!.user.id,
-        req.auth!.user.username,
-        `created a custom rain with ${formatCoinsLabel(amount)}`,
-        req.auth!.user.role,
-        avatarUrl,
-      ]
     );
 
     await client.query('COMMIT');
@@ -2142,18 +2098,6 @@ app.post('/api/rewards/daily/claim', requireAuth, async (req: AuthedRequest, res
            daily_reward_last_claimed = NOW()
        WHERE id = $2`,
       [nextStreak, req.auth!.user.id]
-    );
-
-    await client.query(
-      `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
-       VALUES ($1, $2, $3, 'win', $4, $5)`,
-      [
-        req.auth!.user.id,
-        req.auth!.user.username,
-        `claimed a daily reward of ${formatCoinsLabel(reward.rewardAmount)} on a ${nextStreak}-day streak`,
-        req.auth!.user.role,
-        req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
-      ]
     );
 
     await client.query('COMMIT');
