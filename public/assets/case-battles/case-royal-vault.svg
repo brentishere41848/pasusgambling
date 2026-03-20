@@ -1,0 +1,20 @@
+<svg width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="24" y1="16" x2="596" y2="396" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E1420"/>
+      <stop offset="1" stop-color="#100C13"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="160" y1="102" x2="462" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8D374"/>
+      <stop offset="1" stop-color="#C78A21"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="36" fill="url(#bg)"/>
+  <circle cx="560" cy="76" r="90" fill="#F2B84A" fill-opacity="0.15"/>
+  <circle cx="92" cy="346" r="112" fill="#AD6B2D" fill-opacity="0.16"/>
+  <rect x="136" y="90" width="368" height="242" rx="34" fill="#2B1A13" stroke="url(#metal)" stroke-width="14"/>
+  <rect x="184" y="138" width="272" height="146" rx="18" fill="#16110E" stroke="#F3C76A" stroke-opacity="0.36"/>
+  <circle cx="320" cy="211" r="42" fill="#2D241D" stroke="#F6D37A" stroke-width="12"/>
+  <circle cx="320" cy="211" r="11" fill="#F7D175"/>
+  <text x="72" y="374" fill="#FFF7E5" font-size="42" font-family="Arial, sans-serif" font-weight="700">ROYAL VAULT</text>
+</svg>

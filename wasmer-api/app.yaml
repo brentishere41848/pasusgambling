@@ -1,0 +1,4 @@
+kind: wasmer.io/App.v0
+name: pasus-api
+owner: brentishere41848
+package: .

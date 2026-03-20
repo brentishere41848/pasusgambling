@@ -1,0 +1,19 @@
+<svg width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="60" y1="16" x2="578" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#261411"/>
+      <stop offset="1" stop-color="#140B0E"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="178" y1="100" x2="470" y2="306" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD978"/>
+      <stop offset="0.55" stop-color="#FF8A49"/>
+      <stop offset="1" stop-color="#FF5A5F"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="36" fill="url(#bg)"/>
+  <circle cx="538" cy="80" r="96" fill="#FF8A49" fill-opacity="0.15"/>
+  <circle cx="106" cy="338" r="116" fill="#FF5A5F" fill-opacity="0.12"/>
+  <path d="M214 320C191 264 195 219 230 177C254 148 287 130 302 97C331 126 343 156 343 186C373 170 397 141 410 110C445 155 459 202 450 248C439 303 396 334 322 334C270 334 231 330 214 320Z" fill="url(#flame)"/>
+  <path d="M318 142C338 174 334 201 309 232C295 250 286 268 293 296C252 269 245 229 273 190C286 172 302 156 318 142Z" fill="#FFF4BF"/>
+  <text x="86" y="376" fill="#FFF2E8" font-size="42" font-family="Arial, sans-serif" font-weight="700">EMBER RUSH</text>
+</svg>

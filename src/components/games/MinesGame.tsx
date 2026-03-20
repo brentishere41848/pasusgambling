@@ -1,0 +1,190 @@
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { useBalance } from '../../context/BalanceContext';
+import { cn } from '../../lib/utils';
+import { Bomb, Gem, Play, RotateCcw } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { logBetActivity } from '../../lib/activity';
+
+export const MinesGame: React.FC = () => {
+  const { balance, addBalance, subtractBalance } = useBalance();
+  const [bet, setBet] = useState(10);
+  const [minesCount, setMinesCount] = useState(5);
+  const [grid, setGrid] = useState<(null | 'gem' | 'bomb')[]>(Array(25).fill(null));
+  const [gameState, setGameState] = useState<'idle' | 'playing' | 'ended'>('idle');
+  const [revealedCount, setRevealedCount] = useState(0);
+  const [minesPositions, setMinesPositions] = useState<number[]>([]);
+
+  const startGame = () => {
+    if (subtractBalance(bet)) {
+      const positions: number[] = [];
+      while (positions.length < minesCount) {
+        const r = Math.floor(Math.random() * 25);
+        if (!positions.includes(r)) positions.push(r);
+      }
+      setMinesPositions(positions);
+      setGrid(Array(25).fill(null));
+      setGameState('playing');
+      setRevealedCount(0);
+    }
+  };
+
+  const calculateMultiplier = (revealed: number) => {
+    // Simplified multiplier formula
+    const n = 25;
+    const m = minesCount;
+    const k = revealed;
+    
+    // Probability of picking k gems in a row
+    // P = (n-m)/n * (n-m-1)/(n-1) * ... * (n-m-k+1)/(n-k+1)
+    let prob = 1;
+    for (let i = 0; i < k; i++) {
+      prob *= (n - m - i) / (n - i);
+    }
+    
+    const houseEdge = 0.28;
+    return (1 / prob) * (1 - houseEdge);
+  };
+
+  const handleCellClick = (index: number) => {
+    if (gameState !== 'playing' || grid[index] !== null) return;
+
+    if (minesPositions.includes(index)) {
+      // Hit a bomb
+      const newGrid = [...grid];
+      minesPositions.forEach(pos => {
+        newGrid[pos] = 'bomb';
+      });
+      setGrid(newGrid);
+      setGameState('ended');
+      logBetActivity({ gameKey: 'mines', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Hit bomb after ${revealedCount} gems` });
+    } else {
+      // Hit a gem
+      const newGrid = [...grid];
+      newGrid[index] = 'gem';
+      setGrid(newGrid);
+      setRevealedCount(prev => prev + 1);
+    }
+  };
+
+  const cashOut = () => {
+    if (gameState === 'playing' && revealedCount > 0) {
+      const multiplier = calculateMultiplier(revealedCount);
+      const winAmount = bet * multiplier;
+      addBalance(winAmount);
+      logBetActivity({ gameKey: 'mines', wager: bet, payout: winAmount, multiplier, outcome: 'win', detail: `${revealedCount} gems revealed` });
+      setGameState('ended');
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#00FF88', '#ffffff']
+      });
+    }
+  };
+
+  const currentMultiplier = revealedCount > 0 ? calculateMultiplier(revealedCount) : 1.0;
+  const nextMultiplier = calculateMultiplier(revealedCount + 1);
+
+  return (
+    <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
+      {/* Control Panel */}
+      <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+        <div>
+          <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
+          <input
+            type="number"
+            value={bet}
+            onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
+            disabled={gameState === 'playing'}
+            className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
+          />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => setBet((prev) => Math.max(1, Math.min(Math.floor(balance), prev * 2)))} disabled={gameState === 'playing' || balance < 1} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">x2</button>
+            <button onClick={() => setBet(Math.max(1, Math.floor(balance)))} disabled={gameState === 'playing' || balance < 1} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">Max</button>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Mines</label>
+          <select
+            value={minesCount}
+            onChange={(e) => setMinesCount(Number(e.target.value))}
+            disabled={gameState === 'playing'}
+            className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
+          >
+            {[3, 5, 7, 10, 15, 20, 24].map(n => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+
+        {gameState === 'playing' ? (
+          <button
+            onClick={cashOut}
+            disabled={revealedCount === 0}
+            className="w-full bg-[#00FF88] hover:bg-[#00FF88]/90 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50"
+          >
+            CASH OUT ({(bet * currentMultiplier).toFixed(2)})
+          </button>
+        ) : (
+          <button
+            onClick={startGame}
+            disabled={balance < bet}
+            className="w-full bg-white hover:bg-white/90 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Play size={18} fill="currentColor" />
+            PLAY
+          </button>
+        )}
+
+        {gameState === 'ended' && (
+          <button
+            onClick={() => setGameState('idle')}
+            className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2"
+          >
+            <RotateCcw size={18} />
+            RESET
+          </button>
+        )}
+
+        <div className="mt-auto p-4 bg-black/50 rounded-xl border border-white/5">
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-white/40">Current Multiplier</span>
+            <span className="text-[#00FF88] font-mono">{currentMultiplier.toFixed(2)}x</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-white/40">Next Gem</span>
+            <span className="text-white font-mono">{nextMultiplier.toFixed(2)}x</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid Display */}
+      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-8 flex items-center justify-center">
+        <div className="grid grid-cols-5 gap-3 w-full max-w-[500px] aspect-square">
+          {grid.map((cell, i) => (
+            <motion.button
+              key={i}
+              whileHover={gameState === 'playing' && cell === null ? { scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' } : {}}
+              whileTap={gameState === 'playing' && cell === null ? { scale: 0.95 } : {}}
+              onClick={() => handleCellClick(i)}
+              className={cn(
+                "rounded-xl transition-all flex items-center justify-center relative overflow-hidden",
+                cell === null ? "bg-[#1a1a1a] border-b-4 border-black/40" : 
+                cell === 'gem' ? "bg-[#00FF88]/20 border-[#00FF88]/50 border-2" : 
+                "bg-red-500/20 border-red-500/50 border-2"
+              )}
+            >
+              {cell === 'gem' && <Gem className="text-[#00FF88]" size={32} />}
+              {cell === 'bomb' && <Bomb className="text-red-500" size={32} />}
+              {cell === null && gameState === 'ended' && minesPositions.includes(i) && (
+                <Bomb className="text-white/10" size={24} />
+              )}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
