@@ -156,13 +156,13 @@ export const LimboGame: React.FC = () => {
             <div className="mt-2 text-[11px] text-white/30">Custom target supported up to {MAX_TARGET.toFixed(0)}x.</div>
           </div>
 
-          <div className="grid grid-cols-5 gap-2">
+          <div className="flex flex-wrap gap-2">
             {[1.5, 2, 5, 100, 1000].map((value) => (
               <button
                 key={value}
                 onClick={() => setTarget(clampTarget(value))}
                 disabled={isRolling || isAuto}
-                className="rounded-xl bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40"
+                className="min-w-[54px] flex-1 rounded-xl bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40 sm:flex-none"
               >
                 {value}x
               </button>
