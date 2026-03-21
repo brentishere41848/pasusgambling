@@ -36,12 +36,12 @@ async function parseApiResponse(response: Response) {
 }
 
 function normalizeAmount(value: number) {
-  let amount = Math.round(value);
-  if (!Number.isFinite(amount)) {
+  if (!Number.isFinite(value)) {
     return 0;
   }
+  let amount = Math.round(value);
   if (!Number.isSafeInteger(amount)) {
-    amount = Math.max(Number.MIN_SAFE_INTEGER, Math.min(Number.MAX_SAFE_INTEGER, amount));
+    amount = Math.sign(amount) * Math.min(Math.abs(amount), Number.MAX_SAFE_INTEGER);
   }
   return amount;
 }

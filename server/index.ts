@@ -3024,8 +3024,8 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Invalid adjustment.' });
     }
 
-    const MAX_SAFE_AMOUNT = Number.MAX_SAFE_INTEGER;
-    if (Math.abs(delta) > MAX_SAFE_AMOUNT) {
+    const MAX_DB_BALANCE = 9000000000000000000;
+    if (delta > MAX_DB_BALANCE || delta < -MAX_DB_BALANCE) {
       return res.status(400).json({ error: 'Amount exceeds safe limits.' });
     }
 
@@ -3038,8 +3038,9 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
            updated_at = NOW()
        WHERE user_id = $2
          AND balance + $1 >= 0
+         AND balance + $1 <= $3
        RETURNING balance, total_deposited, total_withdrawn`,
-      [delta, req.auth!.user.id]
+      [delta, req.auth!.user.id, MAX_DB_BALANCE]
     );
 
     if (!result.rowCount) {
