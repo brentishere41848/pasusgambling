@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Play, RotateCcw, X, Minus, Plus, Flame, ArrowLeft } from 'lucide-react';
+import { Play, RotateCcw, X, Minus, Plus, Flame } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
@@ -43,7 +43,6 @@ type BonusState = {
   expandingSymbol?: SymbolId;
 };
 type EvalResult = { payout: number; hits: LineHit[]; bonusCount: number; note?: string };
-type CatalogItem = { id: string; name: string; provider: string; accent: string };
 type SymbolMeta = { label: string; accent: string; bg: string; weight: number; textClass?: string; isIcon?: boolean };
 type SlotVariant = {
   id: VariantId;
@@ -476,12 +475,6 @@ const slotVariants: Record<VariantId, SlotVariant> = {
   },
 };
 
-const catalogItems: CatalogItem[] = [
-  { id: 'lucky-pasus', name: 'Lucky Pasus', provider: 'Pasus', accent: '#ff9a54' },
-  { id: 'starburst-net', name: 'StarBurstNET', provider: 'NET', accent: '#7ef2ff' },
-  { id: 'book-of-darkness-bs', name: 'BookOfDarknessBS', provider: 'BS', accent: '#b58bff' },
-];
-
 function renderSymbol(cell: ReelCell, meta: SymbolMeta) {
   if (meta.isIcon) {
     return <img src={coinIcon} alt="Pasus" className="relative z-10 h-10 w-10 rounded-full object-cover ring-2 ring-white/40" />;
@@ -898,48 +891,5 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
 };
 
 export const SlotsGame: React.FC = () => {
-  const [selectedGame, setSelectedGame] = useState<CatalogItem | null>(null);
-
-  if (selectedGame) {
-    const variant = slotVariants[selectedGame.id as VariantId];
-    return (
-      <div className="space-y-4">
-        <div className="mx-auto max-w-7xl px-4">
-          <button onClick={() => setSelectedGame(null)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-white/70 hover:bg-white/10">
-            <ArrowLeft size={14} />
-            Back To Slots
-          </button>
-          <div className="mt-3 text-sm text-white/45">{selectedGame.name} | {selectedGame.provider}</div>
-        </div>
-        <SlotMachine variant={variant} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4">
-      <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-8">
-        <div className="text-[11px] font-black uppercase tracking-[0.28em] text-white/30">Casino Library</div>
-        <h2 className="mt-3 text-5xl font-black italic tracking-tight text-white">Slots</h2>
-        <p className="mt-3 max-w-2xl text-sm text-white/45">
-          The catalog now opens machines with different boards, hit rules, bonus systems, and visual themes instead of reskinning one slot.
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {catalogItems.map((item) => (
-          <button key={item.id} onClick={() => setSelectedGame(item)} className="group rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,12,18,0.96),rgba(13,10,14,0.92))] p-6 text-left shadow-[0_0_30px_rgba(0,0,0,0.22)] transition-all hover:-translate-y-1 hover:border-white/20">
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/30">slot</div>
-              <div className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: item.accent, borderColor: `${item.accent}55` }}>
-                {item.provider}
-              </div>
-            </div>
-            <div className="mt-5 text-3xl font-black italic tracking-tight" style={{ color: item.accent }}>{item.name}</div>
-            <div className="mt-3 text-sm text-white/40">{slotVariants[item.id as VariantId].flavor}</div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return <SlotMachine variant={slotVariants['lucky-pasus']} />;
 };

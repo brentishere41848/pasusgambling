@@ -211,8 +211,8 @@ const GAMES = [
   },
   {
     id: 'slots',
-    name: 'Slots',
-    description: 'Browse slot and wheel titles, then open one to play.',
+    name: 'Lucky Pasus',
+    description: 'Bonus-heavy slot machine with Pasus-triggered free spins.',
     icon: Star,
     color: 'text-yellow-300',
     bg: 'bg-yellow-300/10',
