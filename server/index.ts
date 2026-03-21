@@ -3072,7 +3072,7 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
     const result = await pool.query(
       `UPDATE wallets
        SET balance = $1,
-           total_withdrawn = total_withdrawn + $2,
+           total_withdrawn = (total_withdrawn::numeric + $2)::bigint,
            updated_at = NOW()
        WHERE user_id = $3
        RETURNING balance::text as balance, total_deposited::text as total_deposited, total_withdrawn::text as total_withdrawn`,
