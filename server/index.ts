@@ -3067,14 +3067,16 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Balance would exceed safe limits.' });
     }
 
+    const totalWithdrawnDelta = delta < 0 ? Math.abs(delta) : 0;
+
     const result = await pool.query(
       `UPDATE wallets
        SET balance = $1,
-           total_withdrawn = total_withdrawn + CASE WHEN $2 < 0 THEN ABS($2) ELSE 0 END,
+           total_withdrawn = total_withdrawn + $2,
            updated_at = NOW()
        WHERE user_id = $3
        RETURNING balance::text as balance, total_deposited::text as total_deposited, total_withdrawn::text as total_withdrawn`,
-      [newBalanceBigInt.toString(), delta, req.auth!.user.id]
+      [newBalanceBigInt.toString(), totalWithdrawnDelta, req.auth!.user.id]
     );
 
     if (!result.rowCount) {
