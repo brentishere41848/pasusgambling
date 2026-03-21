@@ -3031,16 +3031,30 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
 
     await ensureWallet(pool, req.auth!.user.id);
 
+    const walletCheck = await pool.query(
+      `SELECT balance FROM wallets WHERE user_id = $1`,
+      [req.auth!.user.id]
+    );
+
+    if (!walletCheck.rowCount) {
+      return res.status(400).json({ error: 'Wallet not found.' });
+    }
+
+    const currentBalance = Number(walletCheck.rows[0].balance);
+    const newBalance = currentBalance + delta;
+
+    if (newBalance < 0 || newBalance > MAX_DB_BALANCE) {
+      return res.status(400).json({ error: 'Balance would exceed safe limits.' });
+    }
+
     const result = await pool.query(
       `UPDATE wallets
-       SET balance = balance + $1,
-           total_withdrawn = total_withdrawn + CASE WHEN $1 < 0 THEN ABS($1) ELSE 0 END,
+       SET balance = $1,
+           total_withdrawn = total_withdrawn + CASE WHEN $2 < 0 THEN ABS($2) ELSE 0 END,
            updated_at = NOW()
-       WHERE user_id = $2
-         AND balance + $1 >= 0
-         AND balance + $1 <= $3
+       WHERE user_id = $3
        RETURNING balance, total_deposited, total_withdrawn`,
-      [delta, req.auth!.user.id, MAX_DB_BALANCE]
+      [newBalance, delta, req.auth!.user.id]
     );
 
     if (!result.rowCount) {
