@@ -3019,6 +3019,8 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Invalid adjustment.' });
     }
 
+    await ensureWallet(pool, req.auth!.user.id);
+
     const result = await pool.query(
       `UPDATE wallets
        SET balance = balance + $1,
