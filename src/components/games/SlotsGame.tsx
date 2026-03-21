@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { Play, RotateCcw, Trophy, X, Minus, Plus, Flame } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
+import { WheelGame } from './WheelGame';
 
 type SymbolId = 'seven' | 'plum' | 'lemon' | 'orange' | 'cherry' | 'melon' | 'wild' | 'pasus';
 type ReelCell = { id: number; symbol: SymbolId };
@@ -18,6 +19,7 @@ type BonusState = {
   screensLeft: number;
   totalWin: number;
 };
+type CatalogItem = { id: string; name: string; kind: 'slot' | 'wheel'; provider: string; accent: string };
 
 const REEL_COUNT = 5;
 const ROW_COUNT = 8;
@@ -176,7 +178,21 @@ function CoinAmount({ value, className = '', iconSize = 18 }: { value: number | 
   );
 }
 
-export const SlotsGame: React.FC = () => {
+const CATALOG_ITEMS: CatalogItem[] = [
+  { id: 'lucky-pasus', name: 'Lucky Pasus', kind: 'slot', provider: 'Pasus', accent: '#ff9a54' },
+  { id: 'starburst-net', name: 'StarBurstNET', kind: 'slot', provider: 'NET', accent: '#ffd34f' },
+  { id: 'book-of-darkness-bs', name: 'BookOfDarknessBS', kind: 'slot', provider: 'BS', accent: '#b36dff' },
+  { id: 'aztec-gems-pm', name: 'AztecGemsPM', kind: 'slot', provider: 'PM', accent: '#73ff84' },
+  { id: 'fruit-shop-net', name: 'FruitShopNET', kind: 'slot', provider: 'NET', accent: '#ff5a8b' },
+  { id: 'vegas777-ka', name: 'Vegas777KA', kind: 'slot', provider: 'KA', accent: '#ffb347' },
+  { id: 'golden-dragon-ka', name: 'GoldenDragonKA', kind: 'slot', provider: 'KA', accent: '#ffe25a' },
+  { id: 'sizzling-hot', name: 'SizzlingHot', kind: 'slot', provider: 'Classic', accent: '#ff7236' },
+  { id: 'wolf-moon-rising-bs', name: 'WolfMoonRisingBS', kind: 'slot', provider: 'BS', accent: '#9ec8ff' },
+  { id: 'super-wheel-pg', name: 'SuperWheelPG', kind: 'wheel', provider: 'PG', accent: '#d59aff' },
+  { id: 'zodiac-wheel-egt', name: 'ZodiacWheelEGT', kind: 'wheel', provider: 'EGT', accent: '#7de7ff' },
+];
+
+const LuckyPasusMachine: React.FC<{ title?: string }> = ({ title = 'Lucky Pasus' }) => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const [bet, setBet] = useState(50);
   const [bonusMultiplier, setBonusMultiplier] = useState(5);
@@ -461,7 +477,7 @@ export const SlotsGame: React.FC = () => {
         <div className="relative z-10 flex items-center justify-between gap-4">
           <div>
             <div className="text-[11px] uppercase tracking-[0.3em] text-white/35 font-black">Neon Bonus Slots</div>
-            <div className="mt-2 text-5xl font-black italic tracking-tight text-[#ff9a54] [text-shadow:0_0_24px_rgba(255,102,48,0.55)]">Lucky Pasus</div>
+            <div className="mt-2 text-5xl font-black italic tracking-tight text-[#ff9a54] [text-shadow:0_0_24px_rgba(255,102,48,0.55)]">{title}</div>
           </div>
           {bonusState && (
             <div className="rounded-2xl border border-[#ff5d2f]/40 bg-[#34110d]/75 px-4 py-3 text-right shadow-[0_0_30px_rgba(255,72,32,0.22)]">
@@ -654,7 +670,7 @@ export const SlotsGame: React.FC = () => {
                 className="absolute inset-x-6 top-14 z-30 mx-auto max-w-6xl rounded-[36px] border border-[#ff6d42]/45 bg-[linear-gradient(180deg,rgba(26,8,8,0.98),rgba(10,8,10,0.98))] px-8 py-8 shadow-[0_0_60px_rgba(255,90,55,0.28)]"
               >
                 <div className="text-center">
-                  <div className="text-5xl font-black italic tracking-tight text-[#ff9f3b] [text-shadow:0_0_26px_rgba(255,70,32,0.46)]">Lucky Pasus</div>
+                  <div className="text-5xl font-black italic tracking-tight text-[#ff9f3b] [text-shadow:0_0_26px_rgba(255,70,32,0.46)]">{title}</div>
                 </div>
                 <div className="mt-8 grid gap-6 md:grid-cols-3">
                   {[
@@ -678,6 +694,79 @@ export const SlotsGame: React.FC = () => {
             </>
           )}
         </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+export const SlotsGame: React.FC = () => {
+  const [selectedGame, setSelectedGame] = useState<CatalogItem | null>(null);
+
+  if (selectedGame?.kind === 'wheel') {
+    return (
+      <div className="space-y-4">
+        <div className="max-w-6xl mx-auto px-4">
+          <button
+            onClick={() => setSelectedGame(null)}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-white/70 hover:bg-white/10"
+          >
+            Back To Slots
+          </button>
+          <div className="mt-3 text-sm text-white/45">{selectedGame.name} • {selectedGame.provider}</div>
+        </div>
+        <WheelGame />
+      </div>
+    );
+  }
+
+  if (selectedGame) {
+    return (
+      <div className="space-y-4">
+        <div className="max-w-7xl mx-auto px-4">
+          <button
+            onClick={() => setSelectedGame(null)}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-white/70 hover:bg-white/10"
+          >
+            Back To Slots
+          </button>
+          <div className="mt-3 text-sm text-white/45">{selectedGame.name} • {selectedGame.provider}</div>
+        </div>
+        <LuckyPasusMachine title={selectedGame.name} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto p-4 space-y-6">
+      <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-8">
+        <div className="text-[11px] uppercase tracking-[0.28em] text-white/30 font-black">Casino Library</div>
+        <h2 className="mt-3 text-5xl font-black italic tracking-tight text-white">Slots</h2>
+        <p className="mt-3 max-w-2xl text-sm text-white/45">
+          Inspired by the open-source casino repo game list. Click any slot or wheel title to open a playable version inside Pasus.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {CATALOG_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setSelectedGame(item)}
+            className="group rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,12,18,0.96),rgba(13,10,14,0.92))] p-6 text-left shadow-[0_0_30px_rgba(0,0,0,0.22)] transition-all hover:-translate-y-1 hover:border-white/20"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-white/30 font-black">{item.kind}</div>
+              <div className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: item.accent, borderColor: `${item.accent}55` }}>
+                {item.provider}
+              </div>
+            </div>
+            <div className="mt-5 text-3xl font-black italic tracking-tight" style={{ color: item.accent }}>
+              {item.name}
+            </div>
+            <div className="mt-3 text-sm text-white/40">
+              {item.kind === 'wheel' ? 'Open a wheel-style game.' : 'Open this slot and play the Pasus version.'}
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );
