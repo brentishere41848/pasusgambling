@@ -3058,7 +3058,8 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Wallet not found.' });
     }
 
-    const currentBalance = BigInt(walletCheck.rows[0].balance);
+    const balanceStr = walletCheck.rows[0].balance;
+    const currentBalance = BigInt(Math.floor(parseFloat(balanceStr)));
     const deltaBigInt = BigInt(delta);
     const newBalanceBigInt = currentBalance + deltaBigInt;
 
