@@ -309,26 +309,19 @@ function normalizeUserRole(value: unknown): 'owner' | 'moderator' | 'user' {
 function sanitizeWallet(row: any): Wallet {
   const toBigInt = (val: any): bigint => {
     if (typeof val === 'bigint') return val;
-    if (typeof val === 'number') return BigInt(Math.floor(val));
-    if (typeof val === 'string') return BigInt(Math.floor(parseFloat(val)));
-    return BigInt(0);
+    if (typeof val === 'number') return BigInt(Math.trunc(val));
+    if (typeof val === 'string') return BigInt(val);
+    return 0n;
   };
-  
+
   const balance = toBigInt(row.balance);
   const totalDeposited = toBigInt(row.total_deposited);
   const totalWithdrawn = toBigInt(row.total_withdrawn);
-  
-  const toNumber = (val: bigint): number => {
-    if (val > BigInt(Number.MAX_SAFE_INTEGER)) {
-      return Number(val);
-    }
-    return Number(val);
-  };
-  
+
   return {
-    balance: toNumber(balance),
-    totalDeposited: toNumber(totalDeposited),
-    totalWithdrawn: toNumber(totalWithdrawn),
+    balance: Number(balance),
+    totalDeposited: Number(totalDeposited),
+    totalWithdrawn: Number(totalWithdrawn),
   };
 }
 
@@ -3032,25 +3025,26 @@ app.post('/api/wallet/deposit', requireAuth, async (req: AuthedRequest, res) => 
 app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
   try {
     const rawDelta = Number(req.body.delta);
+
     if (!Number.isFinite(rawDelta) || !Number.isSafeInteger(rawDelta)) {
       return res.status(400).json({ error: 'Invalid delta value.' });
     }
 
-    const delta = Math.round(rawDelta);
+    const delta = Math.trunc(rawDelta);
 
     if (delta === 0) {
       return res.status(400).json({ error: 'Invalid adjustment.' });
     }
 
-    const MAX_DB_BALANCE = 9000000000000000000;
-    if (delta > MAX_DB_BALANCE || delta < -MAX_DB_BALANCE) {
-      return res.status(400).json({ error: 'Amount exceeds safe limits.' });
-    }
+    const MAX_DB_BALANCE = BigInt('9223372036854775807');
 
     await ensureWallet(pool, req.auth!.user.id);
 
     const walletCheck = await pool.query(
-      `SELECT balance::text FROM wallets WHERE user_id = $1`,
+      `SELECT balance::text, total_withdrawn::text
+       FROM wallets
+       WHERE user_id = $1
+       LIMIT 1`,
       [req.auth!.user.id]
     );
 
@@ -3058,12 +3052,12 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Wallet not found.' });
     }
 
-    const balanceStr = walletCheck.rows[0].balance;
-    const currentBalance = BigInt(Math.floor(parseFloat(balanceStr)));
+    const balanceStr = String(walletCheck.rows[0].balance || '0');
+    const currentBalance = BigInt(balanceStr);
     const deltaBigInt = BigInt(delta);
     const newBalanceBigInt = currentBalance + deltaBigInt;
 
-    if (newBalanceBigInt < BigInt(0) || newBalanceBigInt > BigInt(MAX_DB_BALANCE)) {
+    if (newBalanceBigInt < 0n || newBalanceBigInt > MAX_DB_BALANCE) {
       return res.status(400).json({ error: 'Balance would exceed safe limits.' });
     }
 
@@ -3071,16 +3065,18 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
 
     const result = await pool.query(
       `UPDATE wallets
-       SET balance = $1,
-           total_withdrawn = (total_withdrawn::numeric + $2)::bigint,
+       SET balance = $1::bigint,
+           total_withdrawn = total_withdrawn + $2::bigint,
            updated_at = NOW()
        WHERE user_id = $3
-       RETURNING balance::text as balance, total_deposited::text as total_deposited, total_withdrawn::text as total_withdrawn`,
-      [newBalanceBigInt.toString(), totalWithdrawnDelta, req.auth!.user.id]
+       RETURNING balance::text AS balance,
+                 total_deposited::text AS total_deposited,
+                 total_withdrawn::text AS total_withdrawn`,
+      [newBalanceBigInt.toString(), totalWithdrawnDelta.toString(), req.auth!.user.id]
     );
 
     if (!result.rowCount) {
-      return res.status(400).json({ error: 'Insufficient balance.' });
+      return res.status(400).json({ error: 'Failed to update wallet.' });
     }
 
     return res.json({ wallet: sanitizeWallet(result.rows[0]) });
