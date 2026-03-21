@@ -36,8 +36,14 @@ async function parseApiResponse(response: Response) {
 }
 
 function normalizeAmount(value: number) {
-  const amount = Math.round(value);
-  return Number.isFinite(amount) ? amount : 0;
+  let amount = Math.round(value);
+  if (!Number.isFinite(amount)) {
+    return 0;
+  }
+  if (!Number.isSafeInteger(amount)) {
+    amount = Math.max(Number.MIN_SAFE_INTEGER, Math.min(Number.MAX_SAFE_INTEGER, amount));
+  }
+  return amount;
 }
 
 export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

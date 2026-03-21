@@ -3013,10 +3013,20 @@ app.post('/api/wallet/deposit', requireAuth, async (req: AuthedRequest, res) => 
 
 app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const delta = normalizeCoins(req.body.delta);
+    const rawDelta = Number(req.body.delta);
+    if (!Number.isFinite(rawDelta) || !Number.isSafeInteger(rawDelta)) {
+      return res.status(400).json({ error: 'Invalid delta value.' });
+    }
+
+    const delta = Math.round(rawDelta);
 
     if (delta === 0) {
       return res.status(400).json({ error: 'Invalid adjustment.' });
+    }
+
+    const MAX_SAFE_AMOUNT = Number.MAX_SAFE_INTEGER;
+    if (Math.abs(delta) > MAX_SAFE_AMOUNT) {
+      return res.status(400).json({ error: 'Amount exceeds safe limits.' });
     }
 
     await ensureWallet(pool, req.auth!.user.id);
@@ -3038,7 +3048,7 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
 
     return res.json({ wallet: sanitizeWallet(result.rows[0]) });
   } catch (error) {
-    console.error(error);
+    console.error('Wallet adjust error:', error);
     return res.status(500).json({ error: 'Failed to update wallet.' });
   }
 });
