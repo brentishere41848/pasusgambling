@@ -36,6 +36,8 @@ type SpinEntry = {
   textColor: string;
 };
 
+const SUPER_WHEEL_PALETTE = ['#25d8ff', '#53f28c', '#f5cc4d', '#ff9f43', '#f76363', '#9d69ff', '#4f7cff', '#34d399'];
+
 const WHEEL_RADIUS = 182;
 const INNER_RADIUS = 54;
 const LABEL_RADIUS = 132;
@@ -261,6 +263,20 @@ function getDuration(risk: RiskTier, isFast: boolean) {
     return 5400;
   }
   return 5000;
+}
+
+function getDisplayFill(segment: WheelSegment, index: number) {
+  if (segment.multiplier === 0) {
+    return '#122034';
+  }
+  return SUPER_WHEEL_PALETTE[index % SUPER_WHEEL_PALETTE.length];
+}
+
+function getDisplayAccent(segment: WheelSegment, index: number) {
+  if (segment.multiplier === 0) {
+    return '#39506e';
+  }
+  return SUPER_WHEEL_PALETTE[(index + 2) % SUPER_WHEEL_PALETTE.length];
 }
 
 export const WheelGame: React.FC = () => {
@@ -545,12 +561,15 @@ export const WheelGame: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 lg:grid lg:grid-cols-[360px_1fr]">
-      <div className="rounded-[28px] border border-white/10 bg-[#12161d] p-6">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 lg:grid lg:grid-cols-[340px_1fr]">
+      <div className="rounded-[30px] border border-[#7e5a21]/55 bg-[linear-gradient(180deg,rgba(17,19,27,0.98),rgba(11,13,19,0.96))] p-6 shadow-[0_0_40px_rgba(0,0,0,0.35)]">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.24em] text-[#00FF88]">Wheel</div>
-          <div className="mt-2 text-2xl font-black italic tracking-tight">{activeConfig.title}</div>
-          <div className="mt-2 text-sm leading-relaxed text-white/45">{activeConfig.description}</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.3em] text-[#d9bb63]">Premium Wheel</div>
+          <div className="mt-2 bg-[linear-gradient(180deg,#fff7c5_0%,#d4a74d_52%,#8d6025_100%)] bg-clip-text text-3xl font-black tracking-tight text-transparent">
+            SUPER WHEEL
+          </div>
+          <div className="mt-1 text-sm font-black uppercase tracking-[0.18em] text-[#8db4ff]">{activeConfig.title}</div>
+          <div className="mt-3 text-sm leading-relaxed text-white/45">{activeConfig.description}</div>
         </div>
 
         <div className="mt-5 space-y-2">
@@ -561,20 +580,20 @@ export const WheelGame: React.FC = () => {
             min={1}
             onChange={(e) => setBet(Math.max(1, Number(e.target.value) || 1))}
             disabled={isSpinning || isAuto}
-            className="w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white focus:border-[#00FF88]/50 focus:outline-none"
+            className="w-full rounded-2xl border border-[#3a4760] bg-[#05070c] px-4 py-3 text-white focus:border-[#d9bb63]/60 focus:outline-none"
           />
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setBet((current) => Math.max(1, Math.min(Math.floor(balance), current * 2)))}
               disabled={isSpinning || isAuto || balance < 1}
-              className="rounded-xl bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/60 disabled:opacity-40"
+              className="rounded-xl bg-[#111826] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#c7d6f7] disabled:opacity-40"
             >
               x2
             </button>
             <button
               onClick={() => setBet(Math.max(1, Math.floor(balance)))}
               disabled={isSpinning || isAuto || balance < 1}
-              className="rounded-xl bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/60 disabled:opacity-40"
+              className="rounded-xl bg-[#111826] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#c7d6f7] disabled:opacity-40"
             >
               Max
             </button>
@@ -591,7 +610,7 @@ export const WheelGame: React.FC = () => {
                 disabled={isSpinning || isAuto}
                 className={cn(
                   'rounded-xl px-3 py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all',
-                  risk === tier ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/50 hover:text-white'
+                  risk === tier ? 'bg-[linear-gradient(180deg,#ffe899,#d7a53f)] text-[#1c1304]' : 'bg-[#111826] text-white/55 hover:text-white'
                 )}
               >
                 {tier}
@@ -606,7 +625,7 @@ export const WheelGame: React.FC = () => {
             onClick={() => setIsFast((current) => !current)}
             className={cn(
               'flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-[10px] font-black uppercase tracking-[0.18em]',
-              isFast ? 'border-yellow-500/50 bg-yellow-500/15 text-yellow-300' : 'border-transparent bg-white/5 text-white/35'
+              isFast ? 'border-[#d9bb63] bg-[#d9bb63]/15 text-[#ffe9a6]' : 'border-transparent bg-[#111826] text-white/35'
             )}
           >
             <Zap size={14} fill={isFast ? 'currentColor' : 'none'} />
@@ -623,7 +642,7 @@ export const WheelGame: React.FC = () => {
             }}
             className={cn(
               'flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-[10px] font-black uppercase tracking-[0.18em]',
-              autoArmed || isAuto ? 'border-[#00FF88]/45 bg-[#00FF88]/15 text-[#00FF88]' : 'border-transparent bg-white/5 text-white/35'
+              autoArmed || isAuto ? 'border-[#59d8ff]/45 bg-[#59d8ff]/15 text-[#9fe9ff]' : 'border-transparent bg-[#111826] text-white/35'
             )}
           >
             <RotateCcw size={14} className={isAuto ? 'animate-spin' : ''} />
@@ -632,7 +651,7 @@ export const WheelGame: React.FC = () => {
         </div>
 
         {(autoArmed || isAuto) && (
-          <div className="mt-4 rounded-2xl border border-white/5 bg-black/25 p-4">
+          <div className="mt-4 rounded-2xl border border-[#2d3d57] bg-[#0a0f18] p-4">
             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
               <span>Auto Queue</span>
               <span>{isAuto ? `${remainingRounds} left` : `${autoRounds} queued`}</span>
@@ -644,7 +663,7 @@ export const WheelGame: React.FC = () => {
               value={autoRounds}
               disabled={isAuto}
               onChange={(e) => setAutoRounds(Math.min(MAX_AUTO_SPINS, Math.max(1, Number(e.target.value) || 1)))}
-              className="mt-3 w-full rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-white focus:border-[#00FF88]/50 focus:outline-none"
+              className="mt-3 w-full rounded-xl border border-[#364764] bg-[#05070c] px-4 py-3 text-white focus:border-[#d9bb63]/60 focus:outline-none"
             />
             <div className="mt-2 text-[11px] text-white/30">Up to {MAX_AUTO_SPINS} queued spins.</div>
           </div>
@@ -655,7 +674,7 @@ export const WheelGame: React.FC = () => {
           disabled={(balance < bet && !isAuto) || isSpinning}
           className={cn(
             'mt-5 flex w-full items-center justify-center gap-3 rounded-2xl py-4 text-sm font-black uppercase tracking-[0.18em] disabled:opacity-50',
-            isAuto ? 'bg-red-500 text-white' : autoArmed ? 'bg-white text-black' : 'bg-[#00FF88] text-black'
+            isAuto ? 'bg-red-500 text-white' : autoArmed ? 'bg-[linear-gradient(180deg,#fff6c1,#ddb04c)] text-[#1a1304]' : 'bg-[linear-gradient(180deg,#fff6c1,#ddb04c)] text-[#1a1304]'
           )}
         >
           {isAuto ? (
@@ -671,17 +690,17 @@ export const WheelGame: React.FC = () => {
           )}
         </button>
 
-        <div className="mt-5 rounded-2xl border border-white/5 bg-black/25 p-4">
+        <div className="mt-5 rounded-2xl border border-[#2d3d57] bg-[#0a0f18] p-4">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
             <Gauge size={12} />
             <span>Math</span>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3 text-[11px]">
-            <div className="rounded-xl bg-white/[0.03] px-3 py-2">
+            <div className="rounded-xl bg-[#111826] px-3 py-2">
               <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Hit Rate</div>
               <div className="mt-1 font-black text-white">{(hitRate * 100).toFixed(1)}%</div>
             </div>
-            <div className="rounded-xl bg-white/[0.03] px-3 py-2">
+            <div className="rounded-xl bg-[#111826] px-3 py-2">
               <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Expected</div>
               <div className="mt-1 font-black text-white">{expectedReturn.toFixed(2)}x</div>
             </div>
@@ -700,7 +719,7 @@ export const WheelGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-5 rounded-2xl border border-white/5 bg-black/25 p-4">
+        <div className="mt-5 rounded-2xl border border-[#2d3d57] bg-[#0a0f18] p-4">
           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
             <span>Recent Results</span>
             <span>{history.length}</span>
@@ -723,8 +742,9 @@ export const WheelGame: React.FC = () => {
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0f1319] p-6 md:p-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,255,136,0.08),transparent_24%),radial-gradient(circle_at_bottom,rgba(79,124,255,0.08),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]" />
+      <div className="relative overflow-hidden rounded-[34px] border border-[#7e5a21]/55 bg-[radial-gradient(circle_at_top,rgba(36,58,102,0.92),rgba(11,14,22,0.98)_44%,rgba(4,6,10,1)_100%)] p-6 shadow-[0_0_80px_rgba(0,0,0,0.45)] md:p-8">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(255,231,150,0.1),transparent_22%),radial-gradient(circle_at_50%_62%,rgba(75,150,255,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]" />
+        <div className="absolute inset-0 opacity-70" style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(76,138,255,0.18) 0 12%, transparent 12.5%), radial-gradient(circle at 50% 50%, rgba(255,213,90,0.09) 0 29%, transparent 29.5%), radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 0 43%, transparent 43.5%)' }} />
         <div
           className="absolute inset-0 transition-opacity duration-150"
           style={{
@@ -735,27 +755,33 @@ export const WheelGame: React.FC = () => {
 
         <div className="relative z-10 grid gap-8 xl:grid-cols-[1fr_300px]">
           <div className="flex flex-col items-center justify-center">
+            <div className="mb-5 text-center">
+              <div className="bg-[linear-gradient(180deg,#fff7c5_0%,#d8a844_52%,#8d6025_100%)] bg-clip-text text-5xl font-black tracking-[0.08em] text-transparent">
+                SUPER WHEEL
+              </div>
+              <div className="mt-2 text-xs font-black uppercase tracking-[0.35em] text-[#9fc7ff]">{activeConfig.subtitle}</div>
+            </div>
             <div className="relative h-[390px] w-[390px] md:h-[460px] md:w-[460px]">
               <motion.div
                 animate={{ y: pointerKick, rotate: pointerKick === 0 ? 0 : -8 }}
                 transition={{ duration: 0.08, ease: 'easeOut' }}
                 className="absolute left-1/2 top-0 z-30 -translate-x-1/2"
               >
-                <div className="flex h-[72px] w-[48px] items-start justify-center rounded-b-[24px] bg-white shadow-[0_12px_42px_rgba(255,255,255,0.18)]">
-                  <div className="mt-2 h-[34px] w-[4px] rounded-full bg-black/20" />
+                <div className="flex h-[78px] w-[52px] items-start justify-center rounded-b-[26px] border border-[#f4d984]/70 bg-[linear-gradient(180deg,#fff8cf_0%,#d7ab49_55%,#8f6427_100%)] shadow-[0_12px_42px_rgba(255,219,122,0.22)]">
+                  <div className="mt-2 h-[38px] w-[4px] rounded-full bg-black/20" />
                 </div>
               </motion.div>
 
               <div className="absolute left-1/2 top-[36px] z-20 -translate-x-1/2">
                 <div className="relative h-[150px] w-[92px]">
                   <div
-                    className="absolute inset-x-0 top-0 h-full opacity-70"
+                    className="absolute inset-x-0 top-0 h-full opacity-80"
                     style={{
-                      background: 'linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 40%, rgba(255,255,255,0) 100%)',
+                      background: 'linear-gradient(180deg, rgba(255,231,167,0.34) 0%, rgba(255,255,255,0.1) 40%, rgba(255,255,255,0) 100%)',
                       clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)',
                     }}
                   />
-                  <div className="absolute left-1/2 top-0 h-full w-[3px] -translate-x-1/2 rounded-full bg-white/70 shadow-[0_0_18px_rgba(255,255,255,0.3)]" />
+                  <div className="absolute left-1/2 top-0 h-full w-[3px] -translate-x-1/2 rounded-full bg-[#ffe39b]/85 shadow-[0_0_18px_rgba(255,227,155,0.3)]" />
                 </div>
               </div>
 
@@ -769,36 +795,40 @@ export const WheelGame: React.FC = () => {
                 <svg viewBox="0 0 400 400" className="h-full w-full">
                   <defs>
                     <radialGradient id="wheelCore" cx="50%" cy="50%" r="60%">
-                      <stop offset="0%" stopColor="#121822" />
-                      <stop offset="100%" stopColor="#04070a" />
+                      <stop offset="0%" stopColor="#1c2940" />
+                      <stop offset="58%" stopColor="#0e1626" />
+                      <stop offset="100%" stopColor="#030507" />
                     </radialGradient>
                   </defs>
 
-                  <circle cx="200" cy="200" r="194" fill="#080b10" stroke="#212934" strokeWidth="10" />
+                  <circle cx="200" cy="200" r="194" fill="#060a12" stroke="#f0d58d" strokeWidth="10" />
+                  <circle cx="200" cy="200" r="186" fill="none" stroke="#38588f" strokeWidth="6" opacity="0.8" />
                   {segments.map((segment, index) => {
                     const start = index * segmentAngle;
                     const end = start + segmentAngle;
                     const centerAngle = getSegmentCenter(index, segmentAngle);
                     const labelPoint = polarToCartesian(200, 200, LABEL_RADIUS, centerAngle);
                     const isActive = resultIndex === index;
+                    const displayFill = getDisplayFill(segment, index);
+                    const displayAccent = getDisplayAccent(segment, index);
 
                     return (
                       <g key={`${segment.label}-${index}`}>
                         <path
                           d={describeSegmentPath(200, 200, WHEEL_RADIUS, INNER_RADIUS, start, end)}
-                          fill={segment.fill}
-                          stroke={isActive ? '#ffffff' : segment.accent}
+                          fill={displayFill}
+                          stroke={isActive ? '#fff5ca' : displayAccent}
                           strokeWidth={isActive ? '4' : '2'}
                         />
                         <path
                           d={describeSegmentPath(200, 200, WHEEL_RADIUS - 10, WHEEL_RADIUS - 24, start + 0.9, end - 0.9)}
-                          fill={segment.accent}
-                          opacity={isActive ? 0.24 : 0.12}
+                          fill="#ffffff"
+                          opacity={segment.multiplier === 0 ? 0.04 : isActive ? 0.18 : 0.08}
                         />
                         <text
                           x={labelPoint.x}
                           y={labelPoint.y}
-                          fill={segment.textColor}
+                          fill={segment.multiplier === 0 ? '#d7e3ff' : '#08111e'}
                           fontSize={segment.multiplier >= 10 ? '14' : '15'}
                           fontWeight="900"
                           textAnchor="middle"
@@ -811,60 +841,60 @@ export const WheelGame: React.FC = () => {
                     );
                   })}
 
-                  <circle cx="200" cy="200" r="56" fill="url(#wheelCore)" stroke="#232a34" strokeWidth="8" />
-                  <circle cx="200" cy="200" r="31" fill="#05070a" stroke={activeConfig.accent} strokeWidth="3" />
-                  <circle cx="200" cy="200" r="8" fill={activeConfig.accent} />
+                  <circle cx="200" cy="200" r="56" fill="url(#wheelCore)" stroke="#f0d58d" strokeWidth="8" />
+                  <circle cx="200" cy="200" r="31" fill="#05070a" stroke="#4aa9ff" strokeWidth="3" />
+                  <circle cx="200" cy="200" r="8" fill="#f0d58d" />
                 </svg>
               </div>
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <div className="rounded-full border border-white/10 bg-black/35 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white/80">
+              <div className="rounded-full border border-[#d9bb63]/45 bg-[linear-gradient(180deg,rgba(26,20,11,0.95),rgba(10,9,8,0.95))] px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-[#fff2c2]">
                 {resultIndex === null ? statusText : `Result: ${segments[resultIndex].label}`}
               </div>
-              <div className="rounded-full border border-white/10 bg-black/35 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white/60">
+              <div className="rounded-full border border-[#39506e] bg-[#0a111d] px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-[#b8c9e9]">
                 Speed {Math.round(spinTempo).toLocaleString()} deg/s
               </div>
             </div>
           </div>
 
           <div className="flex flex-col gap-4">
-            <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/30">
+            <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-5">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/75">
                 <Target size={12} />
-                <span>Spin Status</span>
+                <span>Dealer Feed</span>
               </div>
-              <div className="mt-3 text-xl font-black">{statusText}</div>
-              <div className="mt-2 text-sm text-white/45">{activeConfig.subtitle}</div>
+              <div className="mt-3 text-xl font-black text-[#fff1bf]">{statusText}</div>
+              <div className="mt-2 text-sm text-[#c6d6f2]/55">{activeConfig.subtitle}</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/25">Last Payout</div>
+              <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/55">Last Payout</div>
                 <div className="mt-3 text-2xl font-black text-white">{currentPayout.toLocaleString()}</div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/25">Top Hit</div>
-                <div className="mt-3 text-2xl font-black">{topHit ? formatMultiplier(topHit) : 'Waiting'}</div>
+              <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/65">Top Hit</div>
+                <div className="mt-3 text-2xl font-black text-[#fff1bf]">{topHit ? formatMultiplier(topHit) : 'Waiting'}</div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/25">Session Profit</div>
+              <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/55">Session Profit</div>
                 <div className={cn('mt-3 text-2xl font-black', sessionProfit >= 0 ? 'text-[#00FF88]' : 'text-red-400')}>
                   {sessionProfit >= 0 ? '+' : ''}
                   {sessionProfit.toLocaleString()}
                 </div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/25">Win Rate</div>
-                <div className="mt-3 text-2xl font-black">{(sessionHitRate * 100).toFixed(0)}%</div>
+              <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/65">Win Rate</div>
+                <div className="mt-3 text-2xl font-black text-[#fff1bf]">{(sessionHitRate * 100).toFixed(0)}%</div>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
+            <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/30">
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/60">
                   <Flame size={12} />
-                  <span>Result Strip</span>
+                  <span>Wheel Strip</span>
                 </div>
                 <div className="text-[11px] text-white/35">{segments.length} wedges</div>
               </div>
@@ -875,8 +905,8 @@ export const WheelGame: React.FC = () => {
                     className="rounded-2xl border px-2 py-3 text-center"
                     style={{
                       borderColor: resultIndex === index ? '#ffffff' : 'rgba(255,255,255,0.06)',
-                      backgroundColor: segment.fill,
-                      color: segment.textColor,
+                      backgroundColor: getDisplayFill(segment, index),
+                      color: segment.multiplier === 0 ? '#dce6f2' : '#08111e',
                     }}
                   >
                     <div className="text-xs font-black">{segment.label}</div>
@@ -886,21 +916,21 @@ export const WheelGame: React.FC = () => {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/30">
+            <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-5">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/75">
                 <Trophy size={12} />
-                <span>Last Spin</span>
+                <span>Prize Card</span>
               </div>
               {lastEntry ? (
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="mt-4 rounded-2xl border border-[#d9bb63]/25 bg-black/20 p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Landing</div>
-                      <div className="mt-1 text-2xl font-black">{lastEntry.label}</div>
+                      <div className="mt-1 text-2xl font-black text-[#fff1bf]">{lastEntry.label}</div>
                     </div>
                     <div
                       className="rounded-2xl px-3 py-2 text-sm font-black"
-                      style={{ backgroundColor: lastEntry.fill, color: lastEntry.textColor }}
+                      style={{ backgroundColor: '#101b2d', color: '#c7d6f7', border: '1px solid rgba(126,90,33,0.45)' }}
                     >
                       {lastEntry.risk}
                     </div>
