@@ -3048,8 +3048,9 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
 
     return res.json({ wallet: sanitizeWallet(result.rows[0]) });
   } catch (error) {
-    console.error('Wallet adjust error:', error);
-    return res.status(500).json({ error: 'Failed to update wallet.' });
+    const err = error as Error;
+    console.error('Wallet adjust error:', err.message, err.stack);
+    return res.status(500).json({ error: 'Failed to update wallet.', details: err.message });
   }
 });
 
