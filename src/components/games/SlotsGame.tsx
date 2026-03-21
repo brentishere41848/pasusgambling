@@ -1,12 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { Play, RotateCcw, Trophy, X, Minus, Plus, Flame, ArrowLeft } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Play, RotateCcw, X, Minus, Plus, Flame, ArrowLeft } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
-import { WheelGame } from './WheelGame';
-
 type VariantId = 'lucky-pasus' | 'starburst-net' | 'book-of-darkness-bs' | 'fruit-shop-net' | 'vegas777-ka' | 'golden-dragon-ka';
 type SlotMode = 'bonusRows' | 'cluster' | 'expanding' | 'stickyWild' | 'classic' | 'reelMultiplier';
 type SymbolId =
@@ -45,7 +43,7 @@ type BonusState = {
   expandingSymbol?: SymbolId;
 };
 type EvalResult = { payout: number; hits: LineHit[]; bonusCount: number; note?: string };
-type CatalogItem = { id: string; name: string; kind: 'slot' | 'wheel'; provider: string; accent: string };
+type CatalogItem = { id: string; name: string; provider: string; accent: string };
 type SymbolMeta = { label: string; accent: string; bg: string; weight: number; textClass?: string; isIcon?: boolean };
 type SlotVariant = {
   id: VariantId;
@@ -149,25 +147,45 @@ function evaluateRowMatches(
   let payout = 0;
 
   for (let row = 0; row < rows; row++) {
-    const counts = new Map<SymbolId, number>();
-    for (let reel = 0; reel < REEL_COUNT; reel++) {
+    let anchor: SymbolId | null = null;
+    let count = 0;
+
+    for (let reel = 0; reel < REEL_COUNT; reel += 1) {
       const symbol = grid[reel][row].symbol;
+
       if (symbol === 'pasus' || symbol === 'book') {
+        break;
+      }
+
+      if (symbol === 'wild') {
+        count += 1;
         continue;
       }
-      counts.set(symbol, (counts.get(symbol) ?? 0) + 1);
+
+      if (!anchor) {
+        anchor = symbol;
+        count += 1;
+        continue;
+      }
+
+      if (symbol !== anchor) {
+        break;
+      }
+
+      count += 1;
     }
-    const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-    if (!best || best[1] < threshold) {
+
+    if (!anchor || count < threshold) {
       continue;
     }
-    const lineMultiplier = payoutTable[best[0]]?.[best[1] as 3 | 4 | 5] ?? 0;
+
+    const lineMultiplier = payoutTable[anchor]?.[count as 3 | 4 | 5] ?? 0;
     if (!lineMultiplier) {
       continue;
     }
     const linePayout = round2(wager * lineMultiplier);
     payout += linePayout;
-    hits.push({ key: `${row}-${best[0]}`, label: `${best[1]} ${best[0]} on row ${row + 1}`, payout: linePayout });
+    hits.push({ key: `${row}-${anchor}`, label: `${count} ${anchor} on row ${row + 1}`, payout: linePayout });
   }
 
   return { payout: round2(payout), hits };
@@ -465,12 +483,10 @@ const slotVariants: Record<VariantId, SlotVariant> = {
 };
 
 const catalogItems: CatalogItem[] = [
-  { id: 'lucky-pasus', name: 'Lucky Pasus', kind: 'slot', provider: 'Pasus', accent: '#ff9a54' },
-  { id: 'starburst-net', name: 'StarBurstNET', kind: 'slot', provider: 'NET', accent: '#7ef2ff' },
-  { id: 'book-of-darkness-bs', name: 'BookOfDarknessBS', kind: 'slot', provider: 'BS', accent: '#b58bff' },
-  { id: 'vegas777-ka', name: 'Vegas777KA', kind: 'slot', provider: 'KA', accent: '#ffb347' },
-  { id: 'super-wheel-pg', name: 'SuperWheelPG', kind: 'wheel', provider: 'PG', accent: '#d59aff' },
-  { id: 'zodiac-wheel-egt', name: 'ZodiacWheelEGT', kind: 'wheel', provider: 'EGT', accent: '#7de7ff' },
+  { id: 'lucky-pasus', name: 'Lucky Pasus', provider: 'Pasus', accent: '#ff9a54' },
+  { id: 'starburst-net', name: 'StarBurstNET', provider: 'NET', accent: '#7ef2ff' },
+  { id: 'book-of-darkness-bs', name: 'BookOfDarknessBS', provider: 'BS', accent: '#b58bff' },
+  { id: 'vegas777-ka', name: 'Vegas777KA', provider: 'KA', accent: '#ffb347' },
 ];
 
 function renderSymbol(cell: ReelCell, meta: SymbolMeta) {
@@ -490,35 +506,35 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
   const [bonusMultiplier, setBonusMultiplier] = useState(5);
   const [grid, setGrid] = useState<ReelGrid>(() => variant.createGrid(false));
   const [isSpinning, setIsSpinning] = useState(false);
-  const [winMessage, setWinMessage] = useState<string | null>(null);
   const [lastPayout, setLastPayout] = useState(0);
   const [lastHits, setLastHits] = useState<LineHit[]>([]);
   const [lastNote, setLastNote] = useState<string>(variant.flavor);
   const [showBuyBonus, setShowBuyBonus] = useState(false);
   const [buyBonusBet, setBuyBonusBet] = useState(10);
-  const [bonusIntro, setBonusIntro] = useState<BonusAward | null>(null);
   const [bonusState, setBonusState] = useState<BonusState | null>(null);
   const [pendingBonus, setPendingBonus] = useState<BonusAward | null>(null);
   const timersRef = useRef<number[]>([]);
+  const statusTimerRef = useRef<number | null>(null);
 
   const buyBonusMin = variant.buyBonusMin ? Math.ceil(variant.buyBonusMin / (variant.buyBonusMultiplier ?? 1)) : 1;
   const buyBonusMax = variant.buyBonusMax ? Math.max(buyBonusMin, Math.floor(variant.buyBonusMax / (variant.buyBonusMultiplier ?? 1))) : Math.max(1, Math.floor(balance));
 
   useEffect(() => {
     setGrid(variant.createGrid(false));
-    setWinMessage(null);
     setLastHits([]);
     setLastPayout(0);
     setLastNote(variant.flavor);
     setBonusState(null);
     setPendingBonus(null);
-    setBonusIntro(null);
     setBuyBonusBet(clamp(10, buyBonusMin, buyBonusMax));
   }, [variant, buyBonusMin, buyBonusMax]);
 
   useEffect(() => {
     return () => {
       timersRef.current.forEach((timer) => window.clearTimeout(timer));
+      if (statusTimerRef.current !== null) {
+        window.clearTimeout(statusTimerRef.current);
+      }
     };
   }, []);
 
@@ -551,7 +567,6 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
     }
 
     setIsSpinning(true);
-    setWinMessage(null);
     setLastPayout(0);
     setLastHits([]);
     clearTimers();
@@ -602,9 +617,18 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
       setLastHits(evalResult.hits);
       setLastNote(evalResult.note ?? variant.flavor);
 
+      if (statusTimerRef.current !== null) {
+        window.clearTimeout(statusTimerRef.current);
+        statusTimerRef.current = null;
+      }
+
       if (evalResult.payout > 0) {
         addBalance(evalResult.payout);
-        setWinMessage(`WIN ${formatCoins(evalResult.payout)}`);
+        setLastNote(`Win ${formatCoins(evalResult.payout)}. ${evalResult.note ?? variant.flavor}`);
+        statusTimerRef.current = window.setTimeout(() => {
+          setLastNote(bonusState ? `${bonusState.spinsLeft} bonus spins left` : variant.flavor);
+          statusTimerRef.current = null;
+        }, 3000);
         if (evalResult.payout >= Math.max(1, wager) * 5) {
           confetti({ particleCount: 130, spread: 80, origin: { y: 0.58 } });
         }
@@ -631,7 +655,11 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
         const totalWin = round2((nextBonusState?.totalWin ?? bonusState.totalWin) + evalResult.payout);
         if (bonusState.spinsLeft <= 1) {
           setBonusState(null);
-          setWinMessage(totalWin > 0 ? `BONUS OVER ${formatCoins(totalWin)}` : 'BONUS OVER');
+          setLastNote(totalWin > 0 ? `Bonus over ${formatCoins(totalWin)}` : 'Bonus over');
+          statusTimerRef.current = window.setTimeout(() => {
+            setLastNote(variant.flavor);
+            statusTimerRef.current = null;
+          }, 3000);
         } else {
           setBonusState({
             ...(nextBonusState ?? bonusState),
@@ -653,18 +681,10 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
     if (!pendingBonus || isSpinning) {
       return;
     }
-    setBonusIntro(pendingBonus);
-    setPendingBonus(null);
-  }, [isSpinning, pendingBonus]);
-
-  const startBonus = () => {
-    if (!bonusIntro) {
-      return;
-    }
     const nextState: BonusState = {
-      spinsLeft: bonusIntro.spins,
-      totalSpins: bonusIntro.spins,
-      multiplier: bonusIntro.multiplier,
+      spinsLeft: pendingBonus.spins,
+      totalSpins: pendingBonus.spins,
+      multiplier: pendingBonus.multiplier,
       totalWin: 0,
     };
     if (variant.mode === 'stickyWild') {
@@ -675,8 +695,17 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
       nextState.expandingSymbol = candidates[Math.floor(Math.random() * candidates.length)] ?? candidates[0];
     }
     setBonusState(nextState);
-    setBonusIntro(null);
-  };
+    setLastNote(pendingBonus.note ?? `${variant.bonusLabel} started`);
+    setPendingBonus(null);
+  }, [isSpinning, pendingBonus, variant]);
+
+  useEffect(() => {
+    if (bonusState && !isSpinning) {
+      const timer = window.setTimeout(() => spin(), 900);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [bonusState, isSpinning]);
 
   const hint = lastHits.length
     ? lastHits.map((hit) => `${hit.label}${hit.multiplier ? ` x${hit.multiplier}` : ''}`).join(' | ')
@@ -828,81 +857,48 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
             <button onClick={() => spin()} disabled={!canSpin} className="rounded-full border border-white/15 p-3 text-white/90 hover:bg-white/10 disabled:opacity-40">
               <Play size={24} fill="currentColor" />
             </button>
-            <button onClick={() => { setGrid(variant.createGrid(false)); setWinMessage(null); setLastHits([]); setLastPayout(0); setLastNote(variant.flavor); }} disabled={isSpinning} className="rounded-full border border-white/15 p-3 text-white/90 hover:bg-white/10 disabled:opacity-40">
+            <button onClick={() => { setGrid(variant.createGrid(false)); setLastHits([]); setLastPayout(0); setLastNote(variant.flavor); }} disabled={isSpinning} className="rounded-full border border-white/15 p-3 text-white/90 hover:bg-white/10 disabled:opacity-40">
               <RotateCcw size={24} />
             </button>
           </div>
         </div>
 
-        <AnimatePresence>
-          {winMessage && (
-            <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} className="absolute inset-0 z-20 flex items-center justify-center bg-black/65 backdrop-blur-sm">
-              <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(45,8,8,0.96),rgba(17,6,8,0.96))] px-10 py-8 text-center shadow-[0_0_45px_rgba(255,88,48,0.34)]">
-                <Trophy className="mx-auto mb-4 text-[#ffd34f]" size={52} />
-                <div className="text-4xl font-black uppercase italic tracking-tight" style={{ color: variant.accent }}>{winMessage}</div>
-                <div className="mt-2 text-sm text-white/50">{lastNote}</div>
-                <button onClick={() => setWinMessage(null)} className="mt-6 rounded-full bg-white px-8 py-2 text-sm font-black text-black">CONTINUE</button>
+        {showBuyBonus && variant.createBonusAward && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 bg-black/70 backdrop-blur-sm" onClick={() => setShowBuyBonus(false)} />
+            <motion.div initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }} className="absolute inset-x-6 top-8 z-30 mx-auto max-w-4xl rounded-[34px] border border-[#ff4e34]/45 bg-[linear-gradient(180deg,rgba(28,8,11,0.98),rgba(13,6,10,0.98))] px-6 py-8 text-center shadow-[0_0_60px_rgba(255,80,48,0.32)] md:px-10">
+              <button onClick={() => setShowBuyBonus(false)} className="absolute right-6 top-6 text-white/80"><X size={28} /></button>
+              <div className="text-5xl font-black uppercase italic tracking-tight text-[#ffd34f]">Buy Bonus Game</div>
+              <div className="mt-3 text-sm text-white/50">{variant.bonusLabel}</div>
+              <div className="mt-6 text-6xl font-black italic text-[#fff0a4]"><CoinAmount value={formatCoins(buyBonusCost)} className="justify-center gap-4" iconSize={40} /></div>
+              <div className="text-2xl font-black uppercase tracking-[0.12em] text-white/70">Total Cost</div>
+
+              <div className="mt-8 flex items-center justify-center gap-6">
+                <button onClick={() => setBuyBonusBet((current) => clamp(current - 10, buyBonusMin, buyBonusMax))} className="flex h-24 w-24 items-center justify-center rounded-[26px] border border-[#ff3229] bg-[#3a0c12] text-[#fff2c3]"><Minus size={40} /></button>
+                <div className="min-w-[280px] rounded-[26px] bg-[linear-gradient(180deg,rgba(108,8,18,0.92),rgba(81,8,24,0.82))] px-8 py-7">
+                  <div className="text-6xl font-black italic text-[#ffd34f]"><CoinAmount value={buyBonusBet.toFixed(2)} className="justify-center gap-4" iconSize={34} /></div>
+                  <div className="text-2xl font-black uppercase tracking-[0.12em] text-white/80">Bet Per Spin</div>
+                </div>
+                <button onClick={() => setBuyBonusBet((current) => clamp(current + 10, buyBonusMin, buyBonusMax))} className="flex h-24 w-24 items-center justify-center rounded-[26px] border border-[#ff3229] bg-[#3a0c12] text-[#fff2c3]"><Plus size={40} /></button>
               </div>
+
+              <button
+                onClick={() => {
+                  if (isSpinning || balance < buyBonusCost || !subtractBalance(buyBonusCost)) {
+                    return;
+                  }
+                  setShowBuyBonus(false);
+                  const boughtBonus = variant.createBonusAward!('buy', bonusMultiplierValue);
+                  setPendingBonus(boughtBonus);
+                }}
+                disabled={isSpinning || balance < buyBonusCost}
+                className="mt-8 rounded-[22px] border border-[#ff5a3b]/70 bg-[linear-gradient(180deg,rgba(148,18,14,0.98),rgba(77,11,11,0.98))] px-14 py-5 text-5xl font-black italic text-[#ffd34f] disabled:opacity-40"
+              >
+                BUY
+              </button>
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {showBuyBonus && variant.createBonusAward && (
-            <>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 bg-black/70 backdrop-blur-sm" onClick={() => setShowBuyBonus(false)} />
-              <motion.div initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }} className="absolute inset-x-6 top-8 z-30 mx-auto max-w-4xl rounded-[34px] border border-[#ff4e34]/45 bg-[linear-gradient(180deg,rgba(28,8,11,0.98),rgba(13,6,10,0.98))] px-6 py-8 text-center shadow-[0_0_60px_rgba(255,80,48,0.32)] md:px-10">
-                <button onClick={() => setShowBuyBonus(false)} className="absolute right-6 top-6 text-white/80"><X size={28} /></button>
-                <div className="text-5xl font-black uppercase italic tracking-tight text-[#ffd34f]">Buy Bonus Game</div>
-                <div className="mt-3 text-sm text-white/50">{variant.bonusLabel}</div>
-                <div className="mt-6 text-6xl font-black italic text-[#fff0a4]"><CoinAmount value={formatCoins(buyBonusCost)} className="justify-center gap-4" iconSize={40} /></div>
-                <div className="text-2xl font-black uppercase tracking-[0.12em] text-white/70">Total Cost</div>
-
-                <div className="mt-8 flex items-center justify-center gap-6">
-                  <button onClick={() => setBuyBonusBet((current) => clamp(current - 10, buyBonusMin, buyBonusMax))} className="flex h-24 w-24 items-center justify-center rounded-[26px] border border-[#ff3229] bg-[#3a0c12] text-[#fff2c3]"><Minus size={40} /></button>
-                  <div className="min-w-[280px] rounded-[26px] bg-[linear-gradient(180deg,rgba(108,8,18,0.92),rgba(81,8,24,0.82))] px-8 py-7">
-                    <div className="text-6xl font-black italic text-[#ffd34f]"><CoinAmount value={buyBonusBet.toFixed(2)} className="justify-center gap-4" iconSize={34} /></div>
-                    <div className="text-2xl font-black uppercase tracking-[0.12em] text-white/80">Bet Per Spin</div>
-                  </div>
-                  <button onClick={() => setBuyBonusBet((current) => clamp(current + 10, buyBonusMin, buyBonusMax))} className="flex h-24 w-24 items-center justify-center rounded-[26px] border border-[#ff3229] bg-[#3a0c12] text-[#fff2c3]"><Plus size={40} /></button>
-                </div>
-
-                <button onClick={() => { setShowBuyBonus(false); spin({ buyBonus: true, bonusAward: variant.createBonusAward!('buy', bonusMultiplierValue) }); }} disabled={isSpinning || balance < buyBonusCost} className="mt-8 rounded-[22px] border border-[#ff5a3b]/70 bg-[linear-gradient(180deg,rgba(148,18,14,0.98),rgba(77,11,11,0.98))] px-14 py-5 text-5xl font-black italic text-[#ffd34f] disabled:opacity-40">
-                  BUY
-                </button>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {bonusIntro && (
-            <>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 bg-black/70 backdrop-blur-[2px]" />
-              <motion.div initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 12 }} className="absolute inset-x-6 top-14 z-30 mx-auto max-w-6xl rounded-[36px] border border-[#ff6d42]/45 bg-[linear-gradient(180deg,rgba(26,8,8,0.98),rgba(10,8,10,0.98))] px-8 py-8 shadow-[0_0_60px_rgba(255,90,55,0.28)]">
-                <div className="text-center">
-                  <div className="text-5xl font-black italic tracking-tight" style={{ color: variant.accent }}>{variant.name}</div>
-                </div>
-                <div className="mt-8 grid gap-6 md:grid-cols-3">
-                  {[
-                    { label: 'Spins', value: bonusIntro.spins, accent: '#ffd34f' },
-                    { label: 'Multiplier', value: `x${bonusIntro.multiplier.toFixed(2)}`, accent: '#ffb144' },
-                    { label: 'Feature', value: variant.mode.toUpperCase(), accent: variant.accent },
-                  ].map((card) => (
-                    <div key={card.label} className="rounded-[28px] border border-[#ffd34f]/45 bg-black/75 p-6 text-center">
-                      <div className="text-4xl font-black italic md:text-6xl" style={{ color: card.accent }}>{card.value}</div>
-                      <div className="mt-3 text-2xl font-black uppercase tracking-[0.08em]" style={{ color: card.accent }}>{card.label}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 text-center text-sm text-white/55">{bonusIntro.note}</div>
-                <button onClick={startBonus} className="mt-8 block w-full rounded-[24px] border border-[#ff4c37]/65 bg-[linear-gradient(180deg,rgba(148,16,11,0.98),rgba(72,10,10,0.98))] px-8 py-5 text-4xl font-black uppercase text-[#fff4c2]">
-                  Click To Continue
-                </button>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+          </>
+        )}
       </div>
     </div>
   );
@@ -910,21 +906,6 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
 
 export const SlotsGame: React.FC = () => {
   const [selectedGame, setSelectedGame] = useState<CatalogItem | null>(null);
-
-  if (selectedGame?.kind === 'wheel') {
-    return (
-      <div className="space-y-4">
-        <div className="mx-auto max-w-6xl px-4">
-          <button onClick={() => setSelectedGame(null)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-white/70 hover:bg-white/10">
-            <ArrowLeft size={14} />
-            Back To Slots
-          </button>
-          <div className="mt-3 text-sm text-white/45">{selectedGame.name} | {selectedGame.provider}</div>
-        </div>
-        <WheelGame />
-      </div>
-    );
-  }
 
   if (selectedGame) {
     const variant = slotVariants[selectedGame.id as VariantId];
@@ -956,15 +937,13 @@ export const SlotsGame: React.FC = () => {
         {catalogItems.map((item) => (
           <button key={item.id} onClick={() => setSelectedGame(item)} className="group rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,12,18,0.96),rgba(13,10,14,0.92))] p-6 text-left shadow-[0_0_30px_rgba(0,0,0,0.22)] transition-all hover:-translate-y-1 hover:border-white/20">
             <div className="flex items-center justify-between gap-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/30">{item.kind}</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/30">slot</div>
               <div className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: item.accent, borderColor: `${item.accent}55` }}>
                 {item.provider}
               </div>
             </div>
             <div className="mt-5 text-3xl font-black italic tracking-tight" style={{ color: item.accent }}>{item.name}</div>
-            <div className="mt-3 text-sm text-white/40">
-              {item.kind === 'wheel' ? 'Open a separate wheel-style game.' : slotVariants[item.id as VariantId].flavor}
-            </div>
+            <div className="mt-3 text-sm text-white/40">{slotVariants[item.id as VariantId].flavor}</div>
           </button>
         ))}
       </div>

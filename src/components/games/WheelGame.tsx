@@ -172,12 +172,6 @@ function getTargetRotation(currentRotation: number, segmentIndex: number, segmen
   return currentRotation + extraTurns + forwardDelta;
 }
 
-function getLandedIndexFromRotation(rotation: number, segmentCount: number) {
-  const segmentAngle = 360 / segmentCount;
-  const pointerAngle = normalizeAngle(-rotation);
-  return Math.floor(pointerAngle / segmentAngle) % segmentCount;
-}
-
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -319,26 +313,12 @@ export const WheelGame: React.FC = () => {
 
     const resolvedIndex = getWeightedIndex(segments);
     const targetRotation = getTargetRotation(rotationRef.current, resolvedIndex, segments.length);
-    const totalRotationDelta = targetRotation - rotationRef.current;
-    const burstRotation = rotationRef.current + totalRotationDelta * 0.82;
-    const settleOvershoot = targetRotation + segmentAngle * 0.035;
-
     await controls.start({
-      rotate: burstRotation,
-      scale: [1, 1.018, 1.01],
+      rotate: targetRotation,
+      scale: [1, 1.018, 1],
       transition: {
-        duration: isFast ? 0.5 : 1.15,
-        ease: [0.06, 0.92, 0.18, 1],
-      },
-    });
-
-    await controls.start({
-      rotate: [burstRotation, settleOvershoot, targetRotation],
-      scale: [1.01, 1.004, 1],
-      transition: {
-        duration: isFast ? 0.9 : 3.2,
-        times: [0, 0.88, 1],
-        ease: [[0.08, 0.7, 0.2, 1], [0.2, 1, 0.32, 1]],
+        duration: isFast ? 1.15 : 4.6,
+        ease: [0.08, 0.95, 0.18, 1],
       },
     });
 
@@ -403,7 +383,6 @@ export const WheelGame: React.FC = () => {
     ].slice(0, HISTORY_LIMIT));
 
     setIsSpinning(false);
-    controls.set({ rotate: normalizeAngle(rotationRef.current) });
 
     if (isAutoRef.current && remainingRoundsRef.current > 1) {
       const nextRemaining = remainingRoundsRef.current - 1;
