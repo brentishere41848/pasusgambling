@@ -310,7 +310,10 @@ function sanitizeWallet(row: any): Wallet {
   const toBigInt = (val: any): bigint => {
     if (typeof val === 'bigint') return val;
     if (typeof val === 'number') return BigInt(Math.trunc(val));
-    if (typeof val === 'string') return BigInt(val);
+    if (typeof val === 'string') {
+      const cleaned = val.replace(/\.00$/, '').split('.')[0];
+      return BigInt(cleaned);
+    }
     return 0n;
   };
 
