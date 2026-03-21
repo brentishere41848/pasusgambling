@@ -3606,27 +3606,57 @@ app.post('/api/admin/withdrawals/:id/status', requireAuth, requireOwner, async (
 app.post('/api/admin/wallet/adjust', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
   try {
     const userId = Number(req.body.userId || 0);
-    const delta = normalizeCoins(req.body.delta);
+    const rawDelta = Number(req.body.delta);
 
-    if (!userId || delta === 0) {
-      return res.status(400).json({ error: 'User and adjustment are required.' });
+    if (!Number.isFinite(rawDelta) || !Number.isSafeInteger(rawDelta) || !userId) {
+      return res.status(400).json({ error: 'Invalid input.' });
+    }
+
+    const delta = Math.trunc(rawDelta);
+
+    if (delta === 0) {
+      return res.status(400).json({ error: 'Adjustment cannot be zero.' });
     }
 
     await ensureWallet(pool, userId);
 
+    const walletCheck = await pool.query(
+      `SELECT balance::text, total_withdrawn::text
+       FROM wallets
+       WHERE user_id = $1
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (!walletCheck.rowCount) {
+      return res.status(400).json({ error: 'Wallet not found.' });
+    }
+
+    const balanceStr = String(walletCheck.rows[0].balance || '0');
+    const currentBalance = BigInt(balanceStr);
+    const deltaBigInt = BigInt(delta);
+    const newBalanceBigInt = currentBalance + deltaBigInt;
+
+    if (newBalanceBigInt < 0n) {
+      return res.status(400).json({ error: 'Insufficient balance.' });
+    }
+
+    const totalWithdrawnDelta = delta < 0 ? Math.abs(delta) : 0;
+
     const result = await pool.query(
       `UPDATE wallets
-       SET balance = balance + $1,
-           total_withdrawn = total_withdrawn + CASE WHEN $1 < 0 THEN ABS($1) ELSE 0 END,
+       SET balance = $1::bigint,
+           total_withdrawn = total_withdrawn + $2::bigint,
            updated_at = NOW()
-       WHERE user_id = $2
-         AND balance + $1 >= 0
-       RETURNING balance, total_deposited, total_withdrawn`,
-      [delta, userId]
+       WHERE user_id = $3
+       RETURNING balance::text AS balance,
+                 total_deposited::text AS total_deposited,
+                 total_withdrawn::text AS total_withdrawn`,
+      [newBalanceBigInt.toString(), totalWithdrawnDelta.toString(), userId]
     );
 
     if (!result.rowCount) {
-      return res.status(400).json({ error: 'Insufficient balance.' });
+      return res.status(400).json({ error: 'Failed to update wallet.' });
     }
 
     return res.json({ wallet: sanitizeWallet(result.rows[0]) });
