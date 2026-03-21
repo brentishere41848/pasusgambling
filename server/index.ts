@@ -307,20 +307,28 @@ function normalizeUserRole(value: unknown): 'owner' | 'moderator' | 'user' {
 }
 
 function sanitizeWallet(row: any): Wallet {
-  const balance = typeof row.balance === 'bigint' ? row.balance : 
-                  typeof row.balance === 'string' ? BigInt(row.balance) : 
-                  BigInt(Number(row.balance || 0));
-  const totalDeposited = typeof row.total_deposited === 'bigint' ? row.total_deposited :
-                         typeof row.total_deposited === 'string' ? BigInt(row.total_deposited) :
-                         BigInt(Number(row.total_deposited || 0));
-  const totalWithdrawn = typeof row.total_withdrawn === 'bigint' ? row.total_withdrawn :
-                         typeof row.total_withdrawn === 'string' ? BigInt(row.total_withdrawn) :
-                         BigInt(Number(row.total_withdrawn || 0));
+  const toBigInt = (val: any): bigint => {
+    if (typeof val === 'bigint') return val;
+    if (typeof val === 'number') return BigInt(Math.floor(val));
+    if (typeof val === 'string') return BigInt(Math.floor(parseFloat(val)));
+    return BigInt(0);
+  };
+  
+  const balance = toBigInt(row.balance);
+  const totalDeposited = toBigInt(row.total_deposited);
+  const totalWithdrawn = toBigInt(row.total_withdrawn);
+  
+  const toNumber = (val: bigint): number => {
+    if (val > BigInt(Number.MAX_SAFE_INTEGER)) {
+      return Number(val);
+    }
+    return Number(val);
+  };
   
   return {
-    balance: balance >= BigInt(Number.MAX_SAFE_INTEGER) ? Number(balance) : Number(balance),
-    totalDeposited: totalDeposited >= BigInt(Number.MAX_SAFE_INTEGER) ? Number(totalDeposited) : Number(totalDeposited),
-    totalWithdrawn: totalWithdrawn >= BigInt(Number.MAX_SAFE_INTEGER) ? Number(totalWithdrawn) : Number(totalWithdrawn),
+    balance: toNumber(balance),
+    totalDeposited: toNumber(totalDeposited),
+    totalWithdrawn: toNumber(totalWithdrawn),
   };
 }
 
