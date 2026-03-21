@@ -9,7 +9,7 @@ import { logBetActivity } from '../../lib/activity';
 type SymbolId = 'seven' | 'plum' | 'lemon' | 'orange' | 'cherry' | 'melon' | 'wild' | 'pasus';
 type ReelCell = { id: number; symbol: SymbolId };
 type ReelGrid = ReelCell[][];
-type PaylineHit = { row: number; symbol: SymbolId; count: number; payout: number };
+type PaylineHit = { row: number; symbol: SymbolId; count: number; payout: number; rowMultiplier: number };
 type BonusAward = { spins: number; multiplier: number; screens: number; source: 'buy' | 'trigger' };
 type BonusState = {
   spinsLeft: number;
@@ -20,7 +20,7 @@ type BonusState = {
 };
 
 const REEL_COUNT = 5;
-const ROW_COUNT = 3;
+const ROW_COUNT = 8;
 const BONUS_BUY_MULTIPLIER = 80;
 const BONUS_BUY_MIN = 800;
 const BONUS_BUY_MAX = 200_000;
@@ -42,15 +42,13 @@ const SYMBOL_META: Record<SymbolId, { label: string; accent: string; glow: strin
 
 const PAYTABLE: Record<Exclude<SymbolId, 'pasus'>, Partial<Record<3 | 4 | 5, number>>> = {
   seven: { 3: 8, 4: 18, 5: 40 },
-  plum: { 3: 1.4, 4: 2.6, 5: 4.2 },
-  lemon: { 3: 1.4, 4: 2.6, 5: 4.2 },
-  orange: { 3: 1.5, 4: 2.9, 5: 4.6 },
-  cherry: { 3: 1.6, 4: 3.2, 5: 5.1 },
-  melon: { 3: 1.8, 4: 3.6, 5: 5.8 },
-  wild: { 3: 3, 4: 6, 5: 12 },
+  plum: { 3: 1.4, 4: 2.8, 5: 5 },
+  lemon: { 3: 1.4, 4: 2.8, 5: 5 },
+  orange: { 3: 1.5, 4: 3.1, 5: 5.4 },
+  cherry: { 3: 1.6, 4: 3.4, 5: 5.8 },
+  melon: { 3: 1.8, 4: 3.8, 5: 6.4 },
+  wild: { 3: 3, 4: 8, 5: 16 },
 };
-
-const PAYLINES = [0, 1, 2] as const;
 
 let cellId = 0;
 
@@ -104,53 +102,52 @@ function applyScreenBoost(grid: ReelGrid) {
   return boosted;
 }
 
-function evaluateGrid(grid: ReelGrid, wager: number, multiplier: number) {
-  const lines: PaylineHit[] = [];
+function evaluateGrid(grid: ReelGrid, wager: number, multiplier: number, bonusMode: boolean) {
+  const hits: Array<Omit<PaylineHit, 'rowMultiplier'>> = [];
   let payout = 0;
 
-  for (const row of PAYLINES) {
+  for (let row = 0; row < ROW_COUNT; row++) {
     const symbols = grid.map((reel) => reel[row].symbol);
-    let baseSymbol: Exclude<SymbolId, 'pasus'> | null = null;
-    let count = 0;
+    const counts = new Map<Exclude<SymbolId, 'pasus'>, number>();
 
     for (const symbol of symbols) {
       if (symbol === 'pasus') {
-        break;
-      }
-
-      if (symbol === 'wild') {
-        count += 1;
         continue;
       }
-
-      if (!baseSymbol) {
-        baseSymbol = symbol as Exclude<SymbolId, 'pasus'>;
-        count += 1;
-        continue;
-      }
-
-      if (symbol === baseSymbol) {
-        count += 1;
-        continue;
-      }
-
-      break;
+      counts.set(symbol as Exclude<SymbolId, 'pasus'>, (counts.get(symbol as Exclude<SymbolId, 'pasus'>) ?? 0) + 1);
     }
 
-    if (!baseSymbol && count >= 3) {
-      baseSymbol = 'wild';
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const best = ranked[0];
+    if (!best) {
+      continue;
     }
 
-    if (baseSymbol && count >= 3) {
-      const lineMultiplier = PAYTABLE[baseSymbol][count as 3 | 4 | 5] ?? 0;
-      const linePayout = round2(wager * lineMultiplier * multiplier);
-      payout += linePayout;
-      lines.push({ row, symbol: baseSymbol, count, payout: linePayout });
+    const [bestSymbol, bestCount] = best;
+    const threshold = bonusMode ? 4 : 3;
+    if (bestCount < threshold) {
+      continue;
     }
+
+    const lineMultiplier = PAYTABLE[bestSymbol][bestCount as 3 | 4 | 5] ?? 0;
+    const linePayout = round2(wager * lineMultiplier * multiplier);
+    payout += linePayout;
+    hits.push({ row, symbol: bestSymbol, count: bestCount, payout: linePayout });
   }
 
+  const lines = bonusMode
+    ? hits
+        .sort((a, b) => b.count - a.count || a.row - b.row)
+        .map((hit, index) => {
+          const rowMultiplier = 2 ** index;
+          const payoutWithProgression = round2(hit.payout * rowMultiplier);
+          return { ...hit, payout: payoutWithProgression, rowMultiplier };
+        })
+    : hits.map((hit) => ({ ...hit, rowMultiplier: 1 }));
+
+  payout = round2(lines.reduce((sum, hit) => sum + hit.payout, 0));
   const bonusCount = grid.flat().filter((cell) => cell.symbol === 'pasus').length;
-  return { payout: round2(payout), lines, bonusCount };
+  return { payout, lines, bonusCount };
 }
 
 function formatCoins(value: number) {
@@ -168,6 +165,15 @@ function symbolTextClass(symbol: SymbolId) {
     default:
       return 'text-sm tracking-[0.24em]';
   }
+}
+
+function CoinAmount({ value, className = '', iconSize = 18 }: { value: number | string; className?: string; iconSize?: number }) {
+  return (
+    <span className={cn('inline-flex items-center gap-2', className)}>
+      <img src="/assets/icon.png" alt="" className="rounded-full object-cover" style={{ width: iconSize, height: iconSize }} />
+      <span>{value}</span>
+    </span>
+  );
 }
 
 export const SlotsGame: React.FC = () => {
@@ -207,7 +213,7 @@ export const SlotsGame: React.FC = () => {
     setIsSpinning(false);
 
     const appliedMultiplier = source === 'bonus' && bonusState ? bonusState.multiplier : 1;
-    const evaluation = evaluateGrid(finalGrid, wager, appliedMultiplier);
+    const evaluation = evaluateGrid(finalGrid, wager, appliedMultiplier, source === 'bonus');
     setLastPayout(evaluation.payout);
     setLastLineHits(evaluation.lines);
 
@@ -220,10 +226,10 @@ export const SlotsGame: React.FC = () => {
         multiplier: round2(evaluation.payout / Math.max(1, wager)),
         outcome: 'win',
         detail: source === 'bonus'
-          ? `Bonus spin${usedScreen ? ' with hot screen' : ''}`
+          ? evaluation.lines.map((line) => `row ${line.row + 1}: ${line.count} ${line.symbol} x${line.rowMultiplier}`).join(', ')
           : evaluation.lines.map((line) => `${line.count}x ${line.symbol} on row ${line.row + 1}`).join(', '),
       });
-      setWinMessage(`WIN ${formatCoins(evaluation.payout)} PC`);
+      setWinMessage(`WIN ${formatCoins(evaluation.payout)}`);
       if (evaluation.payout >= wager * 4) {
         confetti({ particleCount: 120, spread: 80, origin: { y: 0.58 } });
       }
@@ -246,7 +252,7 @@ export const SlotsGame: React.FC = () => {
 
       if (nextSpinsLeft <= 0) {
         setBonusState(null);
-        setWinMessage(nextTotal > 0 ? `BONUS OVER ${formatCoins(nextTotal)} PC` : 'BONUS OVER');
+        setWinMessage(nextTotal > 0 ? `BONUS OVER ${formatCoins(nextTotal)}` : 'BONUS OVER');
       } else {
         setBonusState({
           ...bonusState,
@@ -358,7 +364,7 @@ export const SlotsGame: React.FC = () => {
   };
 
   const lineHint = lastLineHits.length
-    ? lastLineHits.map((line) => `${line.count}x ${SYMBOL_META[line.symbol].label} on row ${line.row + 1}`).join(' · ')
+    ? lastLineHits.map((line) => `${line.count} ${SYMBOL_META[line.symbol].label} on row ${line.row + 1}${line.rowMultiplier > 1 ? ` x${line.rowMultiplier}` : ''}`).join(' · ')
     : bonusState
       ? `${bonusState.spinsLeft}/${bonusState.totalSpins} free spins left`
       : 'Land 3 Pasus symbols anywhere to trigger the bonus.';
@@ -416,8 +422,8 @@ export const SlotsGame: React.FC = () => {
             className="w-full rounded-xl border border-[#ff6b3d]/50 bg-[linear-gradient(180deg,rgba(140,23,18,0.85),rgba(64,10,10,0.85))] px-4 py-4 text-left text-white shadow-[0_0_24px_rgba(255,89,53,0.3)] disabled:opacity-40"
           >
             <div className="text-[10px] uppercase tracking-[0.24em] text-white/60 font-black">Buy Bonus</div>
-            <div className="mt-2 text-3xl font-black text-[#ffd34f]">{formatCoins(clamp(bet * BONUS_BUY_MULTIPLIER, BONUS_BUY_MIN, BONUS_BUY_MAX))} PC</div>
-            <div className="mt-1 text-xs text-white/45">Minimum 800 PC, maximum 200,000 PC</div>
+            <div className="mt-2 text-3xl font-black text-[#ffd34f]"><CoinAmount value={formatCoins(clamp(bet * BONUS_BUY_MULTIPLIER, BONUS_BUY_MIN, BONUS_BUY_MAX))} className="gap-3" iconSize={24} /></div>
+            <div className="mt-1 text-xs text-white/45">Minimum 800, maximum 200,000</div>
           </button>
         </div>
 
@@ -441,7 +447,7 @@ export const SlotsGame: React.FC = () => {
             </div>
             <div className="rounded-xl bg-white/[0.04] px-3 py-3">
               <div className="text-white/35 uppercase tracking-[0.18em] text-[10px]">Last Win</div>
-              <div className="mt-2 text-lg font-black text-white">{formatCoins(lastPayout)} PC</div>
+              <div className="mt-2 text-lg font-black text-white"><CoinAmount value={formatCoins(lastPayout)} iconSize={16} /></div>
             </div>
           </div>
           <div className="text-[11px] leading-relaxed text-white/35">{lineHint}</div>
@@ -455,13 +461,13 @@ export const SlotsGame: React.FC = () => {
         <div className="relative z-10 flex items-center justify-between gap-4">
           <div>
             <div className="text-[11px] uppercase tracking-[0.3em] text-white/35 font-black">Neon Bonus Slots</div>
-            <div className="mt-2 text-5xl font-black italic tracking-tight text-[#ff9a54] [text-shadow:0_0_24px_rgba(255,102,48,0.55)]">Hottest 666</div>
+            <div className="mt-2 text-5xl font-black italic tracking-tight text-[#ff9a54] [text-shadow:0_0_24px_rgba(255,102,48,0.55)]">Lucky Pasus</div>
           </div>
           {bonusState && (
             <div className="rounded-2xl border border-[#ff5d2f]/40 bg-[#34110d]/75 px-4 py-3 text-right shadow-[0_0_30px_rgba(255,72,32,0.22)]">
               <div className="text-[10px] uppercase tracking-[0.22em] text-white/45 font-black">Bonus Running</div>
               <div className="mt-2 text-lg font-black text-[#ffd34f]">{bonusState.spinsLeft} Spins Left</div>
-              <div className="text-xs text-white/50">Total bonus win {formatCoins(bonusState.totalWin)} PC</div>
+              <div className="text-xs text-white/50">Total bonus win <CoinAmount value={formatCoins(bonusState.totalWin)} iconSize={12} className="inline-flex" /></div>
             </div>
           )}
         </div>
@@ -471,8 +477,7 @@ export const SlotsGame: React.FC = () => {
             <div className="m-auto">
               <div className="text-2xl font-black leading-tight text-[#ffd34f]">BUY</div>
               <div className="text-2xl font-black leading-tight text-[#ffd34f]">BONUS</div>
-              <div className="mt-4 text-sm font-black text-[#ffb144]">{formatCoins(clamp(activeBet * BONUS_BUY_MULTIPLIER, BONUS_BUY_MIN, BONUS_BUY_MAX))}</div>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#ffb144]">PC</div>
+              <div className="mt-4 text-sm font-black text-[#ffb144]"><CoinAmount value={formatCoins(clamp(activeBet * BONUS_BUY_MULTIPLIER, BONUS_BUY_MIN, BONUS_BUY_MAX))} iconSize={14} /></div>
             </div>
           </div>
 
@@ -480,7 +485,7 @@ export const SlotsGame: React.FC = () => {
             <div className="grid grid-cols-5 gap-3">
               {grid.map((reel, reelIndex) => (
                 <div key={reelIndex} className="rounded-[22px] border border-[#2c5cff]/70 bg-[linear-gradient(180deg,rgba(6,8,13,0.98),rgba(13,7,11,0.92))] p-2 shadow-[inset_0_0_28px_rgba(255,255,255,0.04),0_0_25px_rgba(44,92,255,0.18)]">
-                  <div className="grid grid-rows-3 gap-2">
+                  <div className="grid gap-2" style={{ gridTemplateRows: `repeat(${ROW_COUNT}, minmax(0, 1fr))` }}>
                     {reel.map((cell) => {
                       const meta = SYMBOL_META[cell.symbol];
                       return (
@@ -490,7 +495,7 @@ export const SlotsGame: React.FC = () => {
                           animate={{ y: 0, opacity: 1, scale: isSpinning ? [1, 1.03, 1] : 1 }}
                           transition={{ duration: 0.18 }}
                           className={cn(
-                            'relative flex h-28 items-center justify-center overflow-hidden rounded-[18px] border',
+                            'relative flex h-[76px] items-center justify-center overflow-hidden rounded-[18px] border',
                             meta.glow
                           )}
                           style={{
@@ -500,7 +505,7 @@ export const SlotsGame: React.FC = () => {
                         >
                           <div className="absolute inset-0 opacity-20" style={{ background: `radial-gradient(circle at 50% 25%, ${meta.accent}, transparent 60%)` }} />
                           {cell.symbol === 'pasus' ? (
-                            <img src="/assets/icon.png" alt="Pasus" className="relative z-10 h-16 w-16 rounded-full object-cover ring-2 ring-white/40" />
+                            <img src="/assets/icon.png" alt="Pasus" className="relative z-10 h-10 w-10 rounded-full object-cover ring-2 ring-white/40" />
                           ) : (
                             <div className={cn('relative z-10 text-center font-black uppercase', symbolTextClass(cell.symbol))} style={{ color: meta.accent }}>
                               {meta.label}
@@ -520,11 +525,11 @@ export const SlotsGame: React.FC = () => {
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/30 font-black">Balance</div>
-              <div className="mt-1 text-2xl font-black text-white">{formatCoins(balance)} PC</div>
+              <div className="mt-1 text-2xl font-black text-white"><CoinAmount value={formatCoins(balance)} iconSize={20} /></div>
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/30 font-black">Total Bet</div>
-              <div className="mt-1 text-2xl font-black text-[#ffd34f]">{formatCoins(activeBet)} PC</div>
+              <div className="mt-1 text-2xl font-black text-[#ffd34f]"><CoinAmount value={formatCoins(activeBet)} iconSize={20} /></div>
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/30 font-black">Mode</div>
@@ -595,7 +600,7 @@ export const SlotsGame: React.FC = () => {
                   <X size={28} />
                 </button>
                 <div className="text-5xl font-black uppercase italic tracking-tight text-[#ffd34f] [text-shadow:0_0_24px_rgba(255,70,32,0.5)]">Buy Bonus Game</div>
-                <div className="mt-6 text-6xl font-black italic text-[#fff0a4]">{formatCoins(bonusBuyCost)} PC</div>
+                <div className="mt-6 text-6xl font-black italic text-[#fff0a4]"><CoinAmount value={formatCoins(bonusBuyCost)} className="justify-center gap-4" iconSize={40} /></div>
                 <div className="text-2xl font-black uppercase tracking-[0.12em] text-white/70">Total Cost</div>
 
                 <div className="mt-8 flex items-center justify-center gap-6">
@@ -606,7 +611,7 @@ export const SlotsGame: React.FC = () => {
                     <Minus size={40} />
                   </button>
                   <div className="min-w-[280px] rounded-[26px] bg-[linear-gradient(180deg,rgba(108,8,18,0.92),rgba(81,8,24,0.82))] px-8 py-7 shadow-[inset_0_0_24px_rgba(255,255,255,0.05),0_0_30px_rgba(255,45,45,0.18)]">
-                    <div className="text-6xl font-black italic text-[#ffd34f]">{buyBonusBet.toFixed(2)} PC</div>
+                    <div className="text-6xl font-black italic text-[#ffd34f]"><CoinAmount value={buyBonusBet.toFixed(2)} className="justify-center gap-4" iconSize={34} /></div>
                     <div className="text-2xl font-black uppercase tracking-[0.12em] text-white/80">Bet Per Spin</div>
                   </div>
                   <button
@@ -649,7 +654,7 @@ export const SlotsGame: React.FC = () => {
                 className="absolute inset-x-6 top-14 z-30 mx-auto max-w-6xl rounded-[36px] border border-[#ff6d42]/45 bg-[linear-gradient(180deg,rgba(26,8,8,0.98),rgba(10,8,10,0.98))] px-8 py-8 shadow-[0_0_60px_rgba(255,90,55,0.28)]"
               >
                 <div className="text-center">
-                  <div className="text-5xl font-black italic tracking-tight text-[#ff9f3b] [text-shadow:0_0_26px_rgba(255,70,32,0.46)]">Hottest 666</div>
+                  <div className="text-5xl font-black italic tracking-tight text-[#ff9f3b] [text-shadow:0_0_26px_rgba(255,70,32,0.46)]">Lucky Pasus</div>
                 </div>
                 <div className="mt-8 grid gap-6 md:grid-cols-3">
                   {[

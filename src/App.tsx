@@ -211,8 +211,8 @@ const GAMES = [
   },
   {
     id: 'slots',
-    name: 'Slots',
-    description: 'Three-reel slot machine with simple jackpot hits.',
+    name: 'Lucky Pasus',
+    description: 'Bonus-heavy neon slots with Pasus-triggered free spins.',
     icon: Star,
     color: 'text-yellow-300',
     bg: 'bg-yellow-300/10',
