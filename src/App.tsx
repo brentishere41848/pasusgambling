@@ -4259,9 +4259,20 @@ const RightRail = () => {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to tip custom rain.');
       }
+      if (data.customRain) {
+        setCustomRain({
+          id: Number(data.customRain.id),
+          creatorUsername: String(data.customRain.creatorUsername || data.customRain.creator_username || ''),
+          creatorAvatarUrl: data.customRain.creatorAvatarUrl || data.customRain.creator_avatar_url || undefined,
+          poolAmount: Number(data.customRain.poolAmount ?? data.customRain.pool_amount ?? 0),
+          endsAt: String(data.customRain.endsAt || data.customRain.ends_at || ''),
+          participantCount: Number(data.customRain.participantCount ?? data.customRain.participant_count ?? 0),
+          joined: Boolean(data.customRain.joined),
+          hasEnded: Boolean(data.customRain.hasEnded),
+        });
+      }
       setRainDraft(null);
       await refreshWallet();
-      await loadRoom(true);
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : 'Failed to tip custom rain.');
     } finally {

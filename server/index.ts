@@ -876,7 +876,7 @@ async function addRainContributionFromWager(client: Pool | PoolClient, wager: nu
   }
 
   const roundRow = await ensureCurrentRainRound(client);
-  const contribution = Math.max(1, Math.floor(normalizedWager * 0.1));
+  const contribution = Math.max(1, Math.floor(normalizedWager * 0.005));
 
   const updated = await client.query(
     `UPDATE rain_rounds
@@ -1967,6 +1967,28 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
 
     await client.query('BEGIN');
 
+    await ensureWallet(client, req.auth!.user.id);
+
+    const netDelta = payout - wager;
+    let walletResult;
+    if (netDelta !== 0) {
+      walletResult = await client.query(
+        `UPDATE wallets
+         SET balance = balance + $1,
+             updated_at = NOW()
+         WHERE user_id = $2
+         RETURNING balance, total_deposited, total_withdrawn`,
+        [netDelta, req.auth!.user.id]
+      );
+    } else {
+      walletResult = await client.query(
+        `SELECT balance, total_deposited, total_withdrawn
+         FROM wallets
+         WHERE user_id = $1`,
+        [req.auth!.user.id]
+      );
+    }
+
     const inserted = await client.query(
       `INSERT INTO bet_activities (user_id, game_key, wager, payout, multiplier, outcome, detail)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -1984,6 +2006,7 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
       ok: true,
       rainContribution: rainUpdate?.contribution || 0,
       rainPoolAmount: Number(rainUpdate?.round?.pool_amount || 0),
+      wallet: walletResult.rowCount ? sanitizeWallet(walletResult.rows[0]) : null,
     });
   } catch (error) {
     await client.query('ROLLBACK');
