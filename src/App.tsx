@@ -59,7 +59,6 @@ import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
 import { PlinkoGame } from './components/games/PlinkoGame';
 import { RouletteGame } from './components/games/RouletteGame';
-import { SlotsGame } from './components/games/SlotsGame';
 import { LimboGame } from './components/games/LimboGame';
 import { KenoGame } from './components/games/KenoGame';
 import { apiFetch } from './lib/api';
@@ -209,17 +208,6 @@ const GAMES = [
     featured: false,
     image: 'https://picsum.photos/seed/casino-wheel/800/600'
   },
-  {
-    id: 'slots',
-    name: 'Lucky Pasus',
-    description: 'Bonus-heavy slot machine with Pasus-triggered free spins.',
-    icon: Star,
-    color: 'text-yellow-300',
-    bg: 'bg-yellow-300/10',
-    component: SlotsGame,
-    featured: false,
-    image: 'https://picsum.photos/seed/casino-slots/800/600'
-  }
 ];
 
 const getPreferredAvatar = (user?: {
