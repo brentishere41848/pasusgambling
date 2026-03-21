@@ -468,9 +468,7 @@ const catalogItems: CatalogItem[] = [
   { id: 'lucky-pasus', name: 'Lucky Pasus', kind: 'slot', provider: 'Pasus', accent: '#ff9a54' },
   { id: 'starburst-net', name: 'StarBurstNET', kind: 'slot', provider: 'NET', accent: '#7ef2ff' },
   { id: 'book-of-darkness-bs', name: 'BookOfDarknessBS', kind: 'slot', provider: 'BS', accent: '#b58bff' },
-  { id: 'fruit-shop-net', name: 'FruitShopNET', kind: 'slot', provider: 'NET', accent: '#ff78b5' },
   { id: 'vegas777-ka', name: 'Vegas777KA', kind: 'slot', provider: 'KA', accent: '#ffb347' },
-  { id: 'golden-dragon-ka', name: 'GoldenDragonKA', kind: 'slot', provider: 'KA', accent: '#ffe36f' },
   { id: 'super-wheel-pg', name: 'SuperWheelPG', kind: 'wheel', provider: 'PG', accent: '#d59aff' },
   { id: 'zodiac-wheel-egt', name: 'ZodiacWheelEGT', kind: 'wheel', provider: 'EGT', accent: '#7de7ff' },
 ];
