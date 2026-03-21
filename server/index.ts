@@ -3055,7 +3055,8 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Wallet not found.' });
     }
 
-    const balanceStr = String(walletCheck.rows[0].balance || '0');
+    const balanceRaw = walletCheck.rows[0].balance;
+    const balanceStr = String(balanceRaw || '0').replace(/\.00$/, '').split('.')[0];
     const currentBalance = BigInt(balanceStr);
     const deltaBigInt = BigInt(delta);
     const newBalanceBigInt = currentBalance + deltaBigInt;
@@ -3635,7 +3636,8 @@ app.post('/api/admin/wallet/adjust', requireAuth, requireOwner, async (req: Auth
       return res.status(400).json({ error: 'Wallet not found.' });
     }
 
-    const balanceStr = String(walletCheck.rows[0].balance || '0');
+    const balanceRaw = walletCheck.rows[0].balance;
+    const balanceStr = String(balanceRaw || '0').replace(/\.00$/, '').split('.')[0];
     const currentBalance = BigInt(balanceStr);
     const deltaBigInt = BigInt(delta);
     const newBalanceBigInt = currentBalance + deltaBigInt;
