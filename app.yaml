@@ -1,6 +1,6 @@
 name: pasusgambling
 app_id: da_K0DIkt5U4Pre
 owner: brentishere41848
-package: sha256:c1c5fed538c252137df62cb637f678d70c611172edd9c405a35787fd227281be
+package: brentishere41848/pasusgamblingnew
 debug: true
 kind: wasmer.io/App.v0
