@@ -127,13 +127,7 @@ function symbolTextClass(symbol: SymbolId, meta: SymbolMeta) {
   if (meta.textClass) {
     return meta.textClass;
   }
-  if (symbol === 'seven') {
-    return 'text-6xl italic';
-  }
-  if (symbol === 'wild' || symbol === 'book') {
-    return 'text-2xl tracking-[0.24em]';
-  }
-  return 'text-sm tracking-[0.22em]';
+  return 'text-4xl leading-none';
 }
 
 function evaluateRowMatches(
@@ -192,27 +186,27 @@ function evaluateRowMatches(
 }
 
 const baseMeta: Record<SymbolId, SymbolMeta> = {
-  seven: { label: '7', accent: '#ff7236', bg: 'from-[#51150b] to-[#170908]', weight: 8, textClass: 'text-6xl italic' },
-  plum: { label: 'PLUM', accent: '#b36dff', bg: 'from-[#2d1047] to-[#110816]', weight: 14 },
-  lemon: { label: 'LEMON', accent: '#ffe25a', bg: 'from-[#4f430a] to-[#171307]', weight: 14 },
-  orange: { label: 'ORANGE', accent: '#ffb347', bg: 'from-[#4d240a] to-[#171007]', weight: 14 },
-  cherry: { label: 'CHERRY', accent: '#ff5a8b', bg: 'from-[#4a0f24] to-[#180811]', weight: 14 },
-  melon: { label: 'MELON', accent: '#73ff84', bg: 'from-[#173f18] to-[#081109]', weight: 12 },
-  wild: { label: 'WILD', accent: '#ffd13d', bg: 'from-[#5c3606] to-[#190f04]', weight: 6, textClass: 'text-2xl tracking-[0.24em]' },
+  seven: { label: '7️⃣', accent: '#ff7236', bg: 'from-[#51150b] to-[#170908]', weight: 8, textClass: 'text-5xl' },
+  plum: { label: '🍑', accent: '#b36dff', bg: 'from-[#2d1047] to-[#110816]', weight: 14, textClass: 'text-5xl' },
+  lemon: { label: '🍋', accent: '#ffe25a', bg: 'from-[#4f430a] to-[#171307]', weight: 14, textClass: 'text-5xl' },
+  orange: { label: '🍊', accent: '#ffb347', bg: 'from-[#4d240a] to-[#171007]', weight: 14, textClass: 'text-5xl' },
+  cherry: { label: '🍒', accent: '#ff5a8b', bg: 'from-[#4a0f24] to-[#180811]', weight: 14, textClass: 'text-5xl' },
+  melon: { label: '🍉', accent: '#73ff84', bg: 'from-[#173f18] to-[#081109]', weight: 12, textClass: 'text-5xl' },
+  wild: { label: '⭐', accent: '#ffd13d', bg: 'from-[#5c3606] to-[#190f04]', weight: 6, textClass: 'text-5xl' },
   pasus: { label: 'PASUS', accent: '#ffffff', bg: 'from-[#123f2e] to-[#081712]', weight: 2, isIcon: true },
-  star: { label: 'STAR', accent: '#7ef2ff', bg: 'from-[#082847] to-[#050d18]', weight: 12, textClass: 'text-xl tracking-[0.24em]' },
-  pink: { label: 'PINK', accent: '#ff7cf8', bg: 'from-[#410b42] to-[#160514]', weight: 14 },
-  blue: { label: 'BLUE', accent: '#72a3ff', bg: 'from-[#0f1c4d] to-[#070c17]', weight: 14 },
-  green: { label: 'GREEN', accent: '#6dffb0', bg: 'from-[#0b3824] to-[#07130d]', weight: 14 },
-  book: { label: 'BOOK', accent: '#f7d58b', bg: 'from-[#4d2d0d] to-[#171008]', weight: 4, textClass: 'text-2xl tracking-[0.18em]' },
-  moon: { label: 'MOON', accent: '#a7c3ff', bg: 'from-[#132440] to-[#090d18]', weight: 12 },
-  wolf: { label: 'WOLF', accent: '#d9e2ff', bg: 'from-[#1b1d32] to-[#080911]', weight: 10 },
-  skull: { label: 'SKULL', accent: '#f4b5ff', bg: 'from-[#2f1531] to-[#120611]', weight: 10 },
-  grape: { label: 'GRAPE', accent: '#c88cff', bg: 'from-[#2a0e43] to-[#0f0816]', weight: 13 },
-  bell: { label: 'BELL', accent: '#ffd561', bg: 'from-[#483109] to-[#140e05]', weight: 12 },
-  dragon: { label: 'DRAGON', accent: '#ff7b4b', bg: 'from-[#4b160c] to-[#140907]', weight: 8 },
-  coin: { label: 'COIN', accent: '#ffe36f', bg: 'from-[#544105] to-[#171105]', weight: 11 },
-  ruby: { label: 'RUBY', accent: '#ff5577', bg: 'from-[#4a0d1d] to-[#17070c]', weight: 11 },
+  star: { label: '💎', accent: '#7ef2ff', bg: 'from-[#082847] to-[#050d18]', weight: 12, textClass: 'text-5xl' },
+  pink: { label: '🩷', accent: '#ff7cf8', bg: 'from-[#410b42] to-[#160514]', weight: 14, textClass: 'text-5xl' },
+  blue: { label: '🔷', accent: '#72a3ff', bg: 'from-[#0f1c4d] to-[#070c17]', weight: 14, textClass: 'text-5xl' },
+  green: { label: '🟢', accent: '#6dffb0', bg: 'from-[#0b3824] to-[#07130d]', weight: 14, textClass: 'text-5xl' },
+  book: { label: '📖', accent: '#f7d58b', bg: 'from-[#4d2d0d] to-[#171008]', weight: 4, textClass: 'text-5xl' },
+  moon: { label: '🌙', accent: '#a7c3ff', bg: 'from-[#132440] to-[#090d18]', weight: 12, textClass: 'text-5xl' },
+  wolf: { label: '🐺', accent: '#d9e2ff', bg: 'from-[#1b1d32] to-[#080911]', weight: 10, textClass: 'text-5xl' },
+  skull: { label: '💀', accent: '#f4b5ff', bg: 'from-[#2f1531] to-[#120611]', weight: 10, textClass: 'text-5xl' },
+  grape: { label: '🍇', accent: '#c88cff', bg: 'from-[#2a0e43] to-[#0f0816]', weight: 13, textClass: 'text-5xl' },
+  bell: { label: '🔔', accent: '#ffd561', bg: 'from-[#483109] to-[#140e05]', weight: 12, textClass: 'text-5xl' },
+  dragon: { label: '🐉', accent: '#ff7b4b', bg: 'from-[#4b160c] to-[#140907]', weight: 8, textClass: 'text-5xl' },
+  coin: { label: '🪙', accent: '#ffe36f', bg: 'from-[#544105] to-[#171105]', weight: 11, textClass: 'text-5xl' },
+  ruby: { label: '♦️', accent: '#ff5577', bg: 'from-[#4a0d1d] to-[#17070c]', weight: 11, textClass: 'text-5xl' },
 };
 
 const slotVariants: Record<VariantId, SlotVariant> = {
@@ -486,7 +480,6 @@ const catalogItems: CatalogItem[] = [
   { id: 'lucky-pasus', name: 'Lucky Pasus', provider: 'Pasus', accent: '#ff9a54' },
   { id: 'starburst-net', name: 'StarBurstNET', provider: 'NET', accent: '#7ef2ff' },
   { id: 'book-of-darkness-bs', name: 'BookOfDarknessBS', provider: 'BS', accent: '#b58bff' },
-  { id: 'vegas777-ka', name: 'Vegas777KA', provider: 'KA', accent: '#ffb347' },
 ];
 
 function renderSymbol(cell: ReelCell, meta: SymbolMeta) {
