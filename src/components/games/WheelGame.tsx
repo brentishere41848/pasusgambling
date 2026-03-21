@@ -6,7 +6,7 @@ import { Gauge, Play, RotateCcw, Timer, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
 
-type RiskTier = 'low' | 'medium' | 'high';
+type RiskTier = 'low' | 'medium' | 'high' | 'daredevil';
 
 type WheelSegment = {
   multiplier: number;
@@ -82,21 +82,40 @@ const WHEEL_CONFIG: Record<
   },
   high: {
     title: 'High Risk',
-    subtitle: 'Long droughts and rare violent hits',
-    description: 'Mostly dead space with a few premium wedges. Lower hit rate, much larger top multiplier.',
+    subtitle: 'Four-tier wheel with sharper upside',
+    description: 'A stripped-down high-risk table with only four payout bands: dead wedges, 2x, 5x, and 10x.',
     segments: [
       { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 8 },
       { multiplier: 2, label: '2x', fill: '#00FF88', accent: '#7effc4', textColor: '#05120c', weight: 2 },
       { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 8 },
-      { multiplier: 3, label: '3x', fill: '#4f7cff', accent: '#b1c3ff', textColor: '#071120', weight: 1 },
+      { multiplier: 5, label: '5x', fill: '#4f7cff', accent: '#b1c3ff', textColor: '#071120', weight: 1 },
       { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 8 },
       { multiplier: 5, label: '5x', fill: '#57c7ff', accent: '#b8ecff', textColor: '#07121a', weight: 1 },
       { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 8 },
       { multiplier: 10, label: '10x', fill: '#f97316', accent: '#fdba74', textColor: '#180d04', weight: 1 },
       { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 8 },
-      { multiplier: 3, label: '3x', fill: '#4f7cff', accent: '#b1c3ff', textColor: '#071120', weight: 1 },
+      { multiplier: 2, label: '2x', fill: '#00FF88', accent: '#7effc4', textColor: '#05120c', weight: 2 },
       { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 8 },
-      { multiplier: 20, label: '20x', fill: '#ff4d94', accent: '#ffb4d2', textColor: '#210611', weight: 1 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 8 },
+    ],
+  },
+  daredevil: {
+    title: 'Daredevil',
+    subtitle: 'Mostly dead space, two brutal top hits',
+    description: 'This tier only carries two premium multipliers. You miss often, but the rare hits are much larger.',
+    segments: [
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 15, label: '15x', fill: '#f97316', accent: '#fdba74', textColor: '#180d04', weight: 1 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 50, label: '50x', fill: '#ff4d94', accent: '#ffb4d2', textColor: '#210611', weight: 1 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
+      { multiplier: 0, label: '0x', fill: '#171b22', accent: '#323946', textColor: '#dce6f2', weight: 12 },
     ],
   },
 };
@@ -300,21 +319,26 @@ export const WheelGame: React.FC = () => {
 
     const resolvedIndex = getWeightedIndex(segments);
     const targetRotation = getTargetRotation(rotationRef.current, resolvedIndex, segments.length);
-    const overshootRotation = targetRotation + segmentAngle * 0.18;
-    const settleBackRotation = targetRotation - segmentAngle * 0.04;
-    const duration = isFast ? 2 : 5;
+    const totalRotationDelta = targetRotation - rotationRef.current;
+    const burstRotation = rotationRef.current + totalRotationDelta * 0.82;
+    const settleOvershoot = targetRotation + segmentAngle * 0.035;
 
     await controls.start({
-      rotate: [rotationRef.current, overshootRotation, settleBackRotation, targetRotation],
-      scale: [1, 1.018, 1.006, 1],
+      rotate: burstRotation,
+      scale: [1, 1.018, 1.01],
       transition: {
-        duration,
-        times: [0, 0.74, 0.92, 1],
-        ease: [
-          [0.04, 0.95, 0.12, 1],
-          [0.14, 0.9, 0.2, 1],
-          [0.22, 0.9, 0.22, 1],
-        ],
+        duration: isFast ? 0.5 : 1.15,
+        ease: [0.06, 0.92, 0.18, 1],
+      },
+    });
+
+    await controls.start({
+      rotate: [burstRotation, settleOvershoot, targetRotation],
+      scale: [1.01, 1.004, 1],
+      transition: {
+        duration: isFast ? 0.9 : 3.2,
+        times: [0, 0.88, 1],
+        ease: [[0.08, 0.7, 0.2, 1], [0.2, 1, 0.32, 1]],
       },
     });
 
@@ -452,8 +476,8 @@ export const WheelGame: React.FC = () => {
 
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Risk</label>
-          <div className="grid grid-cols-3 gap-2">
-            {(['low', 'medium', 'high'] as RiskTier[]).map((tier) => (
+          <div className="grid grid-cols-2 gap-2">
+            {(['low', 'medium', 'high', 'daredevil'] as RiskTier[]).map((tier) => (
               <button
                 key={tier}
                 onClick={() => setRisk(tier)}
