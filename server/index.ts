@@ -307,10 +307,20 @@ function normalizeUserRole(value: unknown): 'owner' | 'moderator' | 'user' {
 }
 
 function sanitizeWallet(row: any): Wallet {
+  const balance = typeof row.balance === 'bigint' ? row.balance : 
+                  typeof row.balance === 'string' ? BigInt(row.balance) : 
+                  BigInt(Number(row.balance || 0));
+  const totalDeposited = typeof row.total_deposited === 'bigint' ? row.total_deposited :
+                         typeof row.total_deposited === 'string' ? BigInt(row.total_deposited) :
+                         BigInt(Number(row.total_deposited || 0));
+  const totalWithdrawn = typeof row.total_withdrawn === 'bigint' ? row.total_withdrawn :
+                         typeof row.total_withdrawn === 'string' ? BigInt(row.total_withdrawn) :
+                         BigInt(Number(row.total_withdrawn || 0));
+  
   return {
-    balance: Number(row.balance || 0),
-    totalDeposited: Number(row.total_deposited || 0),
-    totalWithdrawn: Number(row.total_withdrawn || 0),
+    balance: balance >= BigInt(Number.MAX_SAFE_INTEGER) ? Number(balance) : Number(balance),
+    totalDeposited: totalDeposited >= BigInt(Number.MAX_SAFE_INTEGER) ? Number(totalDeposited) : Number(totalDeposited),
+    totalWithdrawn: totalWithdrawn >= BigInt(Number.MAX_SAFE_INTEGER) ? Number(totalWithdrawn) : Number(totalWithdrawn),
   };
 }
 
@@ -3032,7 +3042,7 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
     await ensureWallet(pool, req.auth!.user.id);
 
     const walletCheck = await pool.query(
-      `SELECT balance FROM wallets WHERE user_id = $1`,
+      `SELECT balance::text FROM wallets WHERE user_id = $1`,
       [req.auth!.user.id]
     );
 
@@ -3040,10 +3050,11 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Wallet not found.' });
     }
 
-    const currentBalance = Number(walletCheck.rows[0].balance);
-    const newBalance = currentBalance + delta;
+    const currentBalance = BigInt(walletCheck.rows[0].balance);
+    const deltaBigInt = BigInt(delta);
+    const newBalanceBigInt = currentBalance + deltaBigInt;
 
-    if (newBalance < 0 || newBalance > MAX_DB_BALANCE) {
+    if (newBalanceBigInt < BigInt(0) || newBalanceBigInt > BigInt(MAX_DB_BALANCE)) {
       return res.status(400).json({ error: 'Balance would exceed safe limits.' });
     }
 
@@ -3053,8 +3064,8 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
            total_withdrawn = total_withdrawn + CASE WHEN $2 < 0 THEN ABS($2) ELSE 0 END,
            updated_at = NOW()
        WHERE user_id = $3
-       RETURNING balance, total_deposited, total_withdrawn`,
-      [newBalance, delta, req.auth!.user.id]
+       RETURNING balance::text as balance, total_deposited::text as total_deposited, total_withdrawn::text as total_withdrawn`,
+      [newBalanceBigInt.toString(), delta, req.auth!.user.id]
     );
 
     if (!result.rowCount) {
