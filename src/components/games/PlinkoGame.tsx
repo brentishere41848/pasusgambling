@@ -18,8 +18,8 @@ type Ball = {
 };
 
 const ROW_OPTIONS = [8, 10, 12, 14, 16] as const;
-const MAX_ACTIVE_BALLS = 3;
-const MAX_AUTO_BALLS = 15;
+const MAX_ACTIVE_BALLS = 20;
+const MAX_AUTO_BALLS = 20;
 
 const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
   8: {

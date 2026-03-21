@@ -223,10 +223,23 @@ const GAMES = [
 ];
 
 const getPreferredAvatar = (user?: {
+  avatarSource?: 'custom' | 'roblox' | 'discord';
+  customAvatarUrl?: string;
   discordAvatarUrl?: string;
   robloxAvatarUrl?: string;
   avatar?: string;
-} | null) => user?.discordAvatarUrl || user?.robloxAvatarUrl || user?.avatar || '';
+} | null) => {
+  if (!user) {
+    return '';
+  }
+  if (user.avatarSource === 'discord' && user.discordAvatarUrl) {
+    return user.discordAvatarUrl;
+  }
+  if (user.avatarSource === 'roblox' && user.robloxAvatarUrl) {
+    return user.robloxAvatarUrl;
+  }
+  return user.customAvatarUrl || user.avatar || user.discordAvatarUrl || user.robloxAvatarUrl || '';
+};
 
 type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
@@ -2258,14 +2271,65 @@ const ConnectionsView = () => {
 };
 
 const SettingsView = () => {
-  const { user, updateCurrency } = useAuth();
+  const { user, updatePreferences } = useAuth();
   const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD'];
-  
+  const [currency, setCurrency] = useState(user?.currency || 'USD');
+  const [avatarSource, setAvatarSource] = useState<'custom' | 'roblox' | 'discord'>(user?.avatarSource || 'custom');
+  const [customAvatarUrl, setCustomAvatarUrl] = useState(user?.customAvatarUrl || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    setCurrency(user?.currency || 'USD');
+    setAvatarSource(user?.avatarSource || 'custom');
+    setCustomAvatarUrl(user?.customAvatarUrl || '');
+  }, [user?.currency, user?.avatarSource, user?.customAvatarUrl]);
+
+  const savePreferences = async () => {
+    try {
+      setIsSaving(true);
+      setStatus('');
+      await updatePreferences({
+        currency,
+        avatarSource,
+        customAvatarUrl,
+      });
+      setStatus('Preferences saved.');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to save preferences.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const avatarOptions: Array<{ key: 'custom' | 'roblox' | 'discord'; title: string; image: string; subtitle: string; disabled?: boolean }> = [
+    {
+      key: 'custom',
+      title: 'Custom',
+      image: customAvatarUrl || user?.avatar || '',
+      subtitle: customAvatarUrl ? 'Using custom URL' : 'Fallback site avatar',
+    },
+    {
+      key: 'roblox',
+      title: 'Roblox',
+      image: user?.robloxAvatarUrl || '',
+      subtitle: user?.robloxDisplayName || user?.robloxUsername || 'Not connected',
+      disabled: !user?.robloxAvatarUrl,
+    },
+    {
+      key: 'discord',
+      title: 'Discord',
+      image: user?.discordAvatarUrl || '',
+      subtitle: user?.discordDisplayName || user?.discordUsername || 'Not connected',
+      disabled: !user?.discordAvatarUrl,
+    },
+  ];
+
   return (
     <div className="p-6 lg:p-10 max-w-2xl mx-auto space-y-10">
       <div className="space-y-2">
         <h2 className="text-3xl font-black italic uppercase tracking-tighter">Settings</h2>
-        <p className="text-white/40 text-sm font-medium">Manage your account preferences and currency</p>
+        <p className="text-white/40 text-sm font-medium">Manage your account preferences, currency, and profile image source</p>
       </div>
 
       <div className="bg-[#1a1d23] border border-white/10 rounded-3xl p-8 space-y-8">
@@ -2275,10 +2339,10 @@ const SettingsView = () => {
             {currencies.map(curr => (
               <button
                 key={curr}
-                onClick={() => updateCurrency(curr)}
+                onClick={() => setCurrency(curr)}
                 className={cn(
                   "py-4 rounded-2xl border font-bold text-sm transition-all",
-                  user?.currency === curr 
+                  currency === curr 
                     ? "bg-[#00FF88] text-black border-[#00FF88]" 
                     : "bg-black/40 border-white/5 text-white/40 hover:border-white/10"
                 )}
@@ -2286,6 +2350,44 @@ const SettingsView = () => {
                 {curr}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Avatar Source</label>
+          <div className="grid md:grid-cols-3 gap-3">
+            {avatarOptions.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => !option.disabled && setAvatarSource(option.key)}
+                disabled={option.disabled}
+                className={cn(
+                  'rounded-3xl border p-4 text-left transition-all disabled:opacity-40',
+                  avatarSource === option.key ? 'border-[#00FF88] bg-[#00FF88]/10' : 'border-white/5 bg-black/40'
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white/5 shrink-0">
+                    {option.image ? <img src={option.image} alt={option.title} className="w-full h-full object-cover" /> : null}
+                  </div>
+                  <div>
+                    <div className="text-sm font-black">{option.title}</div>
+                    <div className="text-[11px] text-white/40">{option.subtitle}</div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Custom Avatar URL</label>
+            <input
+              type="url"
+              value={customAvatarUrl}
+              onChange={(e) => setCustomAvatarUrl(e.target.value)}
+              placeholder="https://example.com/avatar.png"
+              className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white focus:outline-none focus:border-[#00FF88]/50"
+            />
+            <div className="text-[11px] text-white/35">Paste a public image URL if you want to use your own profile picture.</div>
           </div>
         </div>
 
@@ -2306,6 +2408,20 @@ const SettingsView = () => {
             ))}
           </div>
         </div>
+
+        {status ? (
+          <div className={cn('rounded-2xl px-4 py-3 text-sm', status.includes('saved') ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'bg-red-500/10 text-red-300')}>
+            {status}
+          </div>
+        ) : null}
+
+        <button
+          onClick={savePreferences}
+          disabled={isSaving}
+          className="w-full rounded-2xl bg-[#00FF88] px-5 py-4 text-sm font-black uppercase tracking-[0.22em] text-black disabled:opacity-50"
+        >
+          {isSaving ? 'Saving...' : 'Save Preferences'}
+        </button>
       </div>
     </div>
   );

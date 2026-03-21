@@ -104,6 +104,8 @@ type AuthUser = {
   email: string;
   currency: string;
   avatar?: string;
+  customAvatarUrl?: string;
+  avatarSource?: 'custom' | 'roblox' | 'discord';
   role: 'owner' | 'moderator' | 'user';
   robloxUserId?: number;
   robloxUsername?: string;
@@ -280,6 +282,8 @@ function sanitizeUser(row: any): AuthUser {
     email: row.email,
     currency: row.currency || 'USD',
     avatar: row.avatar || undefined,
+    customAvatarUrl: row.custom_avatar_url || undefined,
+    avatarSource: row.avatar_source || 'custom',
     role: normalizeUserRole(row.role),
     robloxUserId: row.roblox_user_id ? Number(row.roblox_user_id) : undefined,
     robloxUsername: row.roblox_username || undefined,
@@ -501,6 +505,16 @@ function mapRainRound(row: any, joined = false): RainRoundState {
     joined,
     hasEnded: new Date(row.ends_at).getTime() <= Date.now(),
   };
+}
+
+function resolvePreferredAvatar(user: Pick<AuthUser, 'avatar' | 'customAvatarUrl' | 'avatarSource' | 'robloxAvatarUrl' | 'discordAvatarUrl'>) {
+  if (user.avatarSource === 'discord' && user.discordAvatarUrl) {
+    return user.discordAvatarUrl;
+  }
+  if (user.avatarSource === 'roblox' && user.robloxAvatarUrl) {
+    return user.robloxAvatarUrl;
+  }
+  return user.customAvatarUrl || user.avatar || user.discordAvatarUrl || user.robloxAvatarUrl || null;
 }
 
 function mapCustomRain(row: any, joined = false): CustomRainState {
@@ -1180,6 +1194,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_display_name TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_avatar_url TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_verified_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_avatar_url TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_source TEXT NOT NULL DEFAULT 'custom'`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_oauth_state TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS affiliate_code_used TEXT`);
@@ -1442,7 +1458,7 @@ async function requireAuth(req: AuthedRequest, res: express.Response, next: expr
     const tokenHash = hashToken(token);
 
     const result = await pool.query(
-      `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.role,
+      `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.custom_avatar_url, u.avatar_source, u.role,
               u.roblox_user_id, u.roblox_username, u.roblox_display_name, u.roblox_avatar_url, u.roblox_verified_at,
               u.discord_user_id, u.discord_username, u.discord_display_name, u.discord_avatar_url, u.discord_verified_at
        FROM user_sessions s
@@ -1579,7 +1595,7 @@ app.post('/api/chat/messages', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Message must be 280 characters or fewer.' });
     }
 
-    const avatarUrl = req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null;
+    const avatarUrl = resolvePreferredAvatar(req.auth!.user);
     const insertResult = await pool.query(
       `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
        VALUES ($1, $2, $3, 'normal', $4, $5)
@@ -1742,7 +1758,7 @@ app.post('/api/custom-rain', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Insufficient balance.' });
     }
 
-    const avatarUrl = req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null;
+    const avatarUrl = resolvePreferredAvatar(req.auth!.user);
     const insertResult = await client.query(
       `INSERT INTO custom_rains (creator_user_id, creator_username, creator_avatar_url, pool_amount, ends_at, status)
        VALUES ($1, $2, $3, $4, NOW() + INTERVAL '5 minutes', 'active')
@@ -1905,7 +1921,7 @@ app.post('/api/auth/register', async (req, res) => {
     const userResult = await client.query(
       `INSERT INTO users (username, email, password_hash, avatar, referred_by_user_id, affiliate_code_used)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, username, email, currency, avatar, role,
+       RETURNING id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
                  roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
                  discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at`,
       [username, email, passwordHash, avatar, referredByUserId, affiliateCode || null]
@@ -2603,7 +2619,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const result = await client.query(
-      `SELECT id, username, email, currency, avatar, role,
+      `SELECT id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
               roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
               discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at,
               password_hash
@@ -2649,6 +2665,55 @@ app.get('/api/auth/me', requireAuth, async (req: AuthedRequest, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load user.' });
+  }
+});
+
+app.patch('/api/account/preferences', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const nextCurrency = typeof req.body.currency === 'string' ? req.body.currency.trim().toUpperCase() : req.auth!.user.currency;
+    const nextAvatarSource = typeof req.body.avatarSource === 'string' ? req.body.avatarSource.trim().toLowerCase() : req.auth!.user.avatarSource || 'custom';
+    const customAvatarUrlInput = typeof req.body.customAvatarUrl === 'string' ? req.body.customAvatarUrl.trim() : req.auth!.user.customAvatarUrl || '';
+
+    if (!['USD', 'EUR', 'GBP', 'JPY', 'CAD'].includes(nextCurrency)) {
+      return res.status(400).json({ error: 'Unsupported currency.' });
+    }
+
+    if (!['custom', 'roblox', 'discord'].includes(nextAvatarSource)) {
+      return res.status(400).json({ error: 'Unsupported avatar source.' });
+    }
+
+    if ((nextAvatarSource === 'roblox' && !req.auth!.user.robloxAvatarUrl) || (nextAvatarSource === 'discord' && !req.auth!.user.discordAvatarUrl)) {
+      return res.status(400).json({ error: 'That avatar source is not connected.' });
+    }
+
+    let customAvatarUrl: string | null = customAvatarUrlInput || null;
+    if (customAvatarUrl) {
+      try {
+        const parsed = new URL(customAvatarUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          throw new Error('invalid');
+        }
+      } catch {
+        return res.status(400).json({ error: 'Custom avatar URL must be a valid http or https URL.' });
+      }
+    }
+
+    const update = await pool.query(
+      `UPDATE users
+       SET currency = $1,
+           avatar_source = $2,
+           custom_avatar_url = $3
+       WHERE id = $4
+       RETURNING id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
+                 roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
+                 discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at`,
+      [nextCurrency, nextAvatarSource, customAvatarUrl, req.auth!.user.id]
+    );
+
+    return res.json({ user: sanitizeUser(update.rows[0]) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to save preferences.' });
   }
 });
 
@@ -2882,7 +2947,7 @@ app.post('/api/roblox/link/verify', requireAuth, async (req: AuthedRequest, res)
            roblox_verified_at = NOW(),
            roblox_verification_phrase = NULL
        WHERE id = $4
-       RETURNING id, username, email, currency, avatar, role,
+       RETURNING id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
                  roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at`,
       [profile.username || row.roblox_username, profile.displayName || row.roblox_display_name, avatarUrl, req.auth!.user.id]
     );
@@ -3045,7 +3110,7 @@ app.post('/api/chat/tip', requireAuth, async (req: AuthedRequest, res) => {
         req.auth!.user.username,
         `tipped ${recipient.username} ${formatCoinsLabel(amount)}`,
         req.auth!.user.role,
-        req.auth!.user.discordAvatarUrl || req.auth!.user.robloxAvatarUrl || req.auth!.user.avatar || null,
+        resolvePreferredAvatar(req.auth!.user),
       ]
     );
 

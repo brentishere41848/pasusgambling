@@ -6,6 +6,8 @@ interface User {
   username: string;
   email: string;
   avatar?: string;
+  customAvatarUrl?: string;
+  avatarSource?: 'custom' | 'roblox' | 'discord';
   currency: string;
   role: 'owner' | 'moderator' | 'user';
   robloxUserId?: number;
@@ -26,6 +28,7 @@ interface AuthContextType {
   register: (username: string, email: string, password: string, affiliateCode?: string) => Promise<void>;
   logout: () => void;
   updateCurrency: (currency: string) => void;
+  updatePreferences: (preferences: { currency?: string; avatarSource?: 'custom' | 'roblox' | 'discord'; customAvatarUrl?: string }) => Promise<void>;
   setUser: (user: User | null) => void;
   refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
@@ -164,6 +167,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updatePreferences = async (preferences: { currency?: string; avatarSource?: 'custom' | 'roblox' | 'discord'; customAvatarUrl?: string }) => {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!token) {
+      throw new Error('Unauthorized.');
+    }
+
+    const data = await parseApiResponse(
+      await apiFetch('/api/account/preferences', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(preferences),
+      })
+    );
+
+    setUser(data.user as User);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -172,6 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         register,
         logout,
         updateCurrency,
+        updatePreferences,
         setUser,
         refreshUser,
         isAuthenticated: !!user,

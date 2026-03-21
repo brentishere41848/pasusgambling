@@ -147,8 +147,7 @@ function getTargetRotation(currentRotation: number, segmentIndex: number, segmen
   const segmentAngle = 360 / segmentCount;
   const currentNormalized = normalizeAngle(currentRotation);
   const segmentCenter = segmentIndex * segmentAngle + segmentAngle / 2;
-  const inSegmentOffset = (Math.random() - 0.5) * segmentAngle * 0.04;
-  const desiredNormalized = normalizeAngle(-segmentCenter + inSegmentOffset);
+  const desiredNormalized = normalizeAngle(-segmentCenter);
   const forwardDelta = ((desiredNormalized - currentNormalized) + 360) % 360;
   const extraTurns = (8 + Math.floor(Math.random() * 5)) * 360;
   return currentRotation + extraTurns + forwardDelta;
@@ -310,8 +309,12 @@ export const WheelGame: React.FC = () => {
       scale: [1, 1.018, 1.006, 1],
       transition: {
         duration,
-        times: [0, 0.84, 0.93, 1],
-        ease: ['easeIn', [0.1, 0.82, 0.16, 1], [0.22, 0.9, 0.22, 1]],
+        times: [0, 0.74, 0.92, 1],
+        ease: [
+          [0.04, 0.95, 0.12, 1],
+          [0.14, 0.9, 0.2, 1],
+          [0.22, 0.9, 0.22, 1],
+        ],
       },
     });
 
@@ -325,7 +328,7 @@ export const WheelGame: React.FC = () => {
     setGlowLevel(0);
 
     rotationRef.current = targetRotation;
-    const landedIndex = getLandedIndexFromRotation(rotationRef.current, segments.length);
+    const landedIndex = resolvedIndex;
     const landedSegment = segments[landedIndex];
     const payout = Math.round(bet * landedSegment.multiplier);
     const won = payout > 0;
