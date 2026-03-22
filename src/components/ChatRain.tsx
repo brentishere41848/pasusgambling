@@ -3,16 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../context/BalanceContext';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
+import { apiFetch } from '../lib/api';
 import { Droplets, ChevronDown, Crown, ShieldCheck, X, Users } from 'lucide-react';
-
-const apiFetch = (url: string, options?: RequestInit) =>
-  fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers || {}),
-    },
-  });
 
 type ChatMessage = {
   id: number;
