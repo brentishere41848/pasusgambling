@@ -1644,6 +1644,117 @@ async function initDb() {
   await pool.query(`ALTER TABLE rain_bot_schedules ADD COLUMN IF NOT EXISTS rain_amount BIGINT NOT NULL DEFAULT 500`);
   await pool.query(`ALTER TABLE rain_bot_schedules ADD COLUMN IF NOT EXISTS last_triggered_at TIMESTAMPTZ`);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pf_seeds (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_seed VARCHAR(64) NOT NULL,
+      server_seed_hash VARCHAR(128) NOT NULL,
+      server_seed_secret VARCHAR(128) NOT NULL,
+      nonce INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_pf_seeds_user_id ON pf_seeds(user_id)`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS achievements (
+      id BIGSERIAL PRIMARY KEY,
+      key VARCHAR(64) NOT NULL UNIQUE,
+      name VARCHAR(128) NOT NULL,
+      description VARCHAR(256) NOT NULL,
+      icon VARCHAR(64) NOT NULL DEFAULT 'star',
+      category VARCHAR(32) NOT NULL DEFAULT 'general',
+      coin_reward BIGINT NOT NULL DEFAULT 0,
+      xp_reward INT NOT NULL DEFAULT 0,
+      threshold INT NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_achievements (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      achievement_id BIGINT NOT NULL REFERENCES achievements(id) ON DELETE CASCADE,
+      earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id, achievement_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id)`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS jackpot_rounds (
+      id BIGSERIAL PRIMARY KEY,
+      total_pool BIGINT NOT NULL DEFAULT 0,
+      status VARCHAR(16) NOT NULL DEFAULT 'active',
+      winner_user_id BIGINT REFERENCES users(id),
+      winner_seed VARCHAR(128),
+      winner_nonce INT,
+      starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ends_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS jackpot_participants (
+      id BIGSERIAL PRIMARY KEY,
+      round_id BIGINT NOT NULL REFERENCES jackpot_rounds(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount BIGINT NOT NULL,
+      tickets INT NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(round_id, user_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_jackpot_rounds_status ON jackpot_rounds(status)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_jackpot_participants_round_id ON jackpot_participants(round_id)`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      theme VARCHAR(16) NOT NULL DEFAULT 'dark',
+      sound_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      default_bet BIGINT NOT NULL DEFAULT 100,
+      chat_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+      rain_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  const achs = await pool.query(`SELECT COUNT(*) as cnt FROM achievements`);
+  if (Number(achs.rows[0].cnt) === 0) {
+    const achList = [
+      { key: 'first_bet', name: 'First Steps', description: 'Place your first bet', icon: 'star', category: 'general', coin_reward: 100, xp_reward: 10, threshold: 1 },
+      { key: 'bets_10', name: 'Getting Started', description: 'Place 10 bets', icon: 'target', category: 'general', coin_reward: 200, xp_reward: 25, threshold: 10 },
+      { key: 'bets_100', name: 'Regular Player', description: 'Place 100 bets', icon: 'zap', category: 'general', coin_reward: 500, xp_reward: 50, threshold: 100 },
+      { key: 'bets_1000', name: 'High Roller', description: 'Place 1,000 bets', icon: 'flame', category: 'general', coin_reward: 2000, xp_reward: 200, threshold: 1000 },
+      { key: 'win_1', name: 'First Win', description: 'Win a bet for the first time', icon: 'trophy', category: 'wins', coin_reward: 100, xp_reward: 15, threshold: 1 },
+      { key: 'win_50', name: 'Winner', description: 'Win 50 bets', icon: 'award', category: 'wins', coin_reward: 500, xp_reward: 75, threshold: 50 },
+      { key: 'win_500', name: 'Champion', description: 'Win 500 bets', icon: 'crown', category: 'wins', coin_reward: 5000, xp_reward: 300, threshold: 500 },
+      { key: 'deposit_1', name: 'First Deposit', description: 'Make your first deposit', icon: 'wallet', category: 'deposits', coin_reward: 200, xp_reward: 20, threshold: 1 },
+      { key: 'deposit_100', name: 'Depositor', description: 'Make 100 deposits', icon: 'credit-card', category: 'deposits', coin_reward: 1000, xp_reward: 100, threshold: 100 },
+      { key: 'chat_1', name: 'Social Butterfly', description: 'Send your first chat message', icon: 'message-circle', category: 'social', coin_reward: 50, xp_reward: 5, threshold: 1 },
+      { key: 'chat_100', name: 'Chatterbox', description: 'Send 100 chat messages', icon: 'message-square', category: 'social', coin_reward: 200, xp_reward: 25, threshold: 100 },
+      { key: 'tip_1', name: 'Generous', description: 'Tip another user', icon: 'heart', category: 'social', coin_reward: 50, xp_reward: 10, threshold: 1 },
+      { key: 'rain_join_1', name: 'Rain Seeker', description: 'Join the hourly rain', icon: 'cloud-rain', category: 'social', coin_reward: 50, xp_reward: 5, threshold: 1 },
+      { key: 'big_win_1000', name: 'Big Winner', description: 'Win 1,000 coins in a single bet', icon: 'trending-up', category: 'special', coin_reward: 500, xp_reward: 50, threshold: 1000 },
+      { key: 'big_win_10000', name: 'Whale', description: 'Win 10,000 coins in a single bet', icon: 'fish', category: 'special', coin_reward: 2000, xp_reward: 150, threshold: 10000 },
+      { key: 'streak_7', name: 'Dedicated', description: 'Maintain a 7-day login streak', icon: 'calendar', category: 'streaks', coin_reward: 500, xp_reward: 75, threshold: 7 },
+      { key: 'streak_30', name: 'Committed', description: 'Maintain a 30-day login streak', icon: 'calendar-check', category: 'streaks', coin_reward: 3000, xp_reward: 300, threshold: 30 },
+      { key: 'vip_1', name: 'VIP Member', description: 'Reach VIP tier 1', icon: 'shield', category: 'vip', coin_reward: 1000, xp_reward: 100, threshold: 1 },
+      { key: 'all_games', name: 'Explorer', description: 'Play all available games', icon: 'compass', category: 'special', coin_reward: 1000, xp_reward: 100, threshold: 9 },
+    ];
+    for (const ach of achList) {
+      await pool.query(
+        `INSERT INTO achievements (key, name, description, icon, category, coin_reward, xp_reward, threshold) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (key) DO NOTHING`,
+        [ach.key, ach.name, ach.description, ach.icon, ach.category, ach.coin_reward, ach.xp_reward, ach.threshold]
+      );
+    }
+  }
+
 }
 
 async function processRainBotSchedules() {
@@ -5058,6 +5169,323 @@ app.get('/api/admin/analytics', requireAuth, requireOwner, async (_req: AuthedRe
   }
 });
 
+
+// PROVABLY FAIR
+app.get('/api/pf/current-seed', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, client_seed, server_seed_hash, nonce, created_at
+       FROM pf_seeds WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
+      [req.auth!.user.id]
+    );
+    if (!result.rowCount) {
+      const clientSeed = crypto.randomBytes(16).toString('hex');
+      const serverSeed = crypto.randomBytes(32).toString('hex');
+      const serverSeedHash = crypto.createHash('sha256').update(serverSeed).digest('hex');
+      await pool.query(
+        `INSERT INTO pf_seeds (user_id, client_seed, server_seed_hash, server_seed_secret, nonce) VALUES ($1,$2,$3,$4,0)`,
+        [req.auth!.user.id, clientSeed, serverSeedHash, serverSeed]
+      );
+      return res.json({ clientSeed, serverSeedHash, nonce: 0, isNew: true });
+    }
+    const row = result.rows[0];
+    return res.json({
+      clientSeed: row.client_seed,
+      serverSeedHash: row.server_seed_hash,
+      nonce: row.nonce,
+      createdAt: row.created_at,
+      isNew: false,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to get seed' });
+  }
+});
+
+app.post('/api/pf/rotate-seed', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const clientSeed = String(req.body.clientSeed || '').trim();
+    if (!clientSeed || clientSeed.length < 8 || clientSeed.length > 64) {
+      return res.status(400).json({ error: 'Invalid client seed' });
+    }
+    const serverSeed = crypto.randomBytes(32).toString('hex');
+    const serverSeedHash = crypto.createHash('sha256').update(serverSeed).digest('hex');
+    await pool.query(
+      `INSERT INTO pf_seeds (user_id, client_seed, server_seed_hash, server_seed_secret, nonce) VALUES ($1,$2,$3,$4,0)`,
+      [req.auth!.user.id, clientSeed, serverSeedHash, serverSeed]
+    );
+    return res.json({ clientSeed, serverSeedHash, nonce: 0 });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to rotate seed' });
+  }
+});
+
+app.get('/api/pf/verify', async (req, res) => {
+  try {
+    const { clientSeed, serverSeed, nonce } = req.query as { clientSeed: string; serverSeed: string; nonce: string };
+    if (!clientSeed || !serverSeed) return res.status(400).json({ error: 'Missing params' });
+    const hash = crypto.createHash('sha256').update(serverSeed).digest('hex');
+    const combined = `${clientSeed}:${serverSeed}:${nonce}`;
+    const resultHash = crypto.createHash('sha512').update(combined).digest('hex');
+    const randFloat = parseInt(resultHash.substring(0, 13), 16) / 0x2000000000000;
+    return res.json({ serverSeedHash: hash, result: randFloat });
+  } catch (error) {
+    return res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// ACHIEVEMENTS
+app.get('/api/achievements', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const earnedResult = await pool.query(
+      `SELECT a.*, ua.earned_at FROM achievements a
+       LEFT JOIN user_achievements ua ON a.id = ua.achievement_id AND ua.user_id = $1
+       ORDER BY a.category, a.id`,
+      [req.auth!.user.id]
+    );
+    const statsResult = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE payout > wager) AS total_wins,
+         COUNT(*) AS total_bets,
+         COALESCE(SUM(wager), 0)::bigint AS total_wagered,
+         COALESCE(MAX(payout), 0)::bigint AS biggest_win,
+         COALESCE(MAX(payout - wager), 0)::bigint AS biggest_profit
+       FROM bet_activities WHERE user_id = $1`,
+      [req.auth!.user.id]
+    );
+    const chatResult = await pool.query(`SELECT COUNT(*)::int AS cnt FROM chat_messages WHERE user_id = $1`, [req.auth!.user.id]);
+    const depositsResult = await pool.query(`SELECT COUNT(*)::int AS cnt FROM payment_transactions WHERE user_id = $1 AND credited_at IS NOT NULL`, [req.auth!.user.id]);
+    const rainResult = await pool.query(`SELECT COUNT(*)::int AS cnt FROM rain_round_participants WHERE user_id = $1`, [req.auth!.user.id]);
+    const streakResult = await pool.query(`SELECT daily_reward_streak::int AS streak FROM users WHERE id = $1`, [req.auth!.user.id]);
+    const stats = statsResult.rows[0];
+    return res.json({
+      achievements: earnedResult.rows.map((a) => ({
+        id: a.id, key: a.key, name: a.name, description: a.description,
+        icon: a.icon, category: a.category, coinReward: Number(a.coin_reward),
+        xpReward: Number(a.xp_reward), threshold: a.threshold,
+        earned: !!a.earned_at, earnedAt: a.earned_at,
+      })),
+      stats: {
+        totalWins: Number(stats.total_wins || 0),
+        totalBets: Number(stats.total_bets || 0),
+        totalWagered: Number(stats.total_wagered || 0),
+        biggestWin: Number(stats.biggest_win || 0),
+        biggestProfit: Number(stats.biggest_profit || 0),
+        chatMessages: chatResult.rows[0]?.cnt || 0,
+        deposits: depositsResult.rows[0]?.cnt || 0,
+        rainJoins: rainResult.rows[0]?.cnt || 0,
+        loginStreak: streakResult.rows[0]?.streak || 0,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load achievements' });
+  }
+});
+
+app.post('/api/achievements/check', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const statsResult = await pool.query(
+      `SELECT COUNT(*) AS total_bets, COUNT(*) FILTER (WHERE payout > wager) AS total_wins,
+       COALESCE(MAX(payout - wager), 0)::bigint AS biggest_profit,
+       COALESCE(MAX(payout), 0)::bigint AS biggest_win
+       FROM bet_activities WHERE user_id = $1`,
+      [userId]
+    );
+    const chatResult = await pool.query(`SELECT COUNT(*)::int AS cnt FROM chat_messages WHERE user_id = $1`, [userId]);
+    const depositsResult = await pool.query(`SELECT COUNT(*)::int AS cnt FROM payment_transactions WHERE user_id = $1 AND credited_at IS NOT NULL`, [userId]);
+    const rainResult = await pool.query(`SELECT COUNT(*)::int AS cnt FROM rain_round_participants WHERE user_id = $1`, [userId]);
+    const streakResult = await pool.query(`SELECT daily_reward_streak::int AS streak FROM users WHERE id = $1`, [userId]);
+    const tipResult = await pool.query(`SELECT COUNT(*)::int AS cnt FROM tip_notifications WHERE sender_user_id = $1`, [userId]);
+    const gameTypesResult = await pool.query(`SELECT COUNT(DISTINCT game_key)::int AS cnt FROM bet_activities WHERE user_id = $1`, [userId]);
+    const vipResult = await pool.query(`SELECT tier::int FROM users WHERE id = $1`, [userId]);
+    const stats = statsResult.rows[0];
+    const s = {
+      bets: Number(stats.total_bets || 0), wins: Number(stats.total_wins || 0),
+      biggestProfit: Number(stats.biggest_profit || 0), biggestWin: Number(stats.biggest_win || 0),
+      chat: chatResult.rows[0]?.cnt || 0, deposits: depositsResult.rows[0]?.cnt || 0,
+      rainJoins: rainResult.rows[0]?.cnt || 0, streak: streakResult.rows[0]?.streak || 0,
+      tips: tipResult.rows[0]?.cnt || 0, gameTypes: gameTypesResult.rows[0]?.cnt || 0,
+      vip: vipResult.rows[0]?.tier || 0,
+    };
+    const statMap: Record<string, number> = {
+      first_bet: s.bets, bets_10: s.bets, bets_100: s.bets, bets_1000: s.bets,
+      win_1: s.wins, win_50: s.wins, win_500: s.wins,
+      deposit_1: s.deposits, deposit_100: s.deposits,
+      chat_1: s.chat, chat_100: s.chat,
+      tip_1: s.tips, rain_join_1: s.rainJoins,
+      big_win_1000: s.biggestWin, big_win_10000: s.biggestWin,
+      streak_7: s.streak, streak_30: s.streak,
+      vip_1: s.vip, all_games: s.gameTypes,
+    };
+    const achievementsResult = await pool.query(`SELECT * FROM achievements`);
+    const earnedResult = await pool.query(`SELECT achievement_id FROM user_achievements WHERE user_id = $1`, [userId]);
+    const earnedIds = new Set(earnedResult.rows.map((r) => r.achievement_id));
+    const client = await pool.connect();
+    const newAchievements: any[] = [];
+    try {
+      for (const ach of achievementsResult.rows) {
+        if (earnedIds.has(ach.id)) continue;
+        const value = statMap[ach.key] || 0;
+        if (value >= ach.threshold) {
+          await client.query(`INSERT INTO user_achievements (user_id, achievement_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [userId, ach.id]);
+          if (ach.coin_reward > 0) { await client.query(`UPDATE wallets SET balance = balance + $1 WHERE user_id = $2`, [ach.coin_reward, userId]); }
+          if (ach.xp_reward > 0) { await client.query(`UPDATE users SET xp = COALESCE(xp, 0) + $1 WHERE id = $2`, [ach.xp_reward, userId]); }
+          newAchievements.push({ id: ach.id, key: ach.key, name: ach.name, description: ach.description, icon: ach.icon, coinReward: Number(ach.coin_reward), xpReward: Number(ach.xp_reward) });
+        }
+      }
+    } finally { client.release(); }
+    return res.json({ newAchievements, stats: s });
+  } catch (error) { console.error(error); return res.status(500).json({ error: 'Failed to check achievements' }); }
+});
+
+// USER PROFILE
+app.get('/api/profile/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const userResult = await pool.query(
+      `SELECT id, username, role, avatar_url, xp, daily_reward_streak, created_at, tier FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1`, [username]
+    );
+    if (!userResult.rowCount) return res.status(404).json({ error: 'User not found' });
+    const u = userResult.rows[0];
+    const statsResult = await pool.query(
+      `SELECT COUNT(*) AS total_bets, COUNT(*) FILTER (WHERE payout > wager) AS total_wins,
+       COALESCE(SUM(wager), 0)::bigint AS total_wagered, COALESCE(SUM(payout), 0)::bigint AS total_payout,
+       COALESCE(MAX(payout), 0)::bigint AS biggest_win, COALESCE(MAX(payout - wager), 0)::bigint AS biggest_profit
+       FROM bet_activities WHERE user_id = $1`, [u.id]
+    );
+    const achResult = await pool.query(`SELECT COUNT(*)::int AS cnt FROM user_achievements WHERE user_id = $1`, [u.id]);
+    const recentBets = await pool.query(
+      `SELECT game_key, wager, payout, multiplier, created_at FROM bet_activities WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10`, [u.id]
+    );
+    const stats = statsResult.rows[0];
+    return res.json({
+      profile: { username: u.username, role: u.role, avatarUrl: u.avatar_url, joinedAt: u.created_at, xp: u.xp || 0, streak: u.daily_reward_streak || 0, tier: u.tier || 0 },
+      stats: {
+        totalBets: Number(stats.total_bets || 0), totalWins: Number(stats.total_wins || 0),
+        totalWagered: Number(stats.total_wagered || 0), totalPayout: Number(stats.total_payout || 0),
+        biggestWin: Number(stats.biggest_win || 0), biggestProfit: Number(stats.biggest_profit || 0),
+        winRate: stats.total_bets > 0 ? Number((Number(stats.total_wins) / Number(stats.total_bets) * 100).toFixed(1)) : 0,
+      },
+      achievementCount: achResult.rows[0]?.cnt || 0,
+      recentBets: recentBets.rows.map((b) => ({ game: b.game_key, wager: Number(b.wager), payout: Number(b.payout), multiplier: Number(b.multiplier), createdAt: b.created_at })),
+    });
+  } catch (error) { console.error(error); return res.status(500).json({ error: 'Failed to load profile' }); }
+});
+
+// USER SETTINGS
+app.get('/api/settings', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(`SELECT * FROM user_settings WHERE user_id = $1 LIMIT 1`, [req.auth!.user.id]);
+    if (!result.rowCount) {
+      await pool.query(`INSERT INTO user_settings (user_id) VALUES ($1)`, [req.auth!.user.id]);
+      return res.json({ theme: 'dark', soundEnabled: true, notificationsEnabled: true, defaultBet: 100, chatNotifications: true, rainNotifications: true });
+    }
+    const r = result.rows[0];
+    return res.json({ theme: r.theme, soundEnabled: r.sound_enabled, notificationsEnabled: r.notifications_enabled, defaultBet: Number(r.default_bet), chatNotifications: r.chat_notifications, rainNotifications: r.rain_notifications });
+  } catch (error) { console.error(error); return res.status(500).json({ error: 'Failed to load settings' }); }
+});
+
+app.post('/api/settings', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const { theme, soundEnabled, notificationsEnabled, defaultBet, chatNotifications, rainNotifications } = req.body;
+    await pool.query(
+      `INSERT INTO user_settings (user_id, theme, sound_enabled, notifications_enabled, default_bet, chat_notifications, rain_notifications, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         theme = COALESCE($2, user_settings.theme), sound_enabled = COALESCE($3, user_settings.sound_enabled),
+         notifications_enabled = COALESCE($4, user_settings.notifications_enabled), default_bet = COALESCE($5, user_settings.default_bet),
+         chat_notifications = COALESCE($6, user_settings.chat_notifications), rain_notifications = COALESCE($7, user_settings.rain_notifications), updated_at = NOW()`,
+      [req.auth!.user.id, theme, soundEnabled, notificationsEnabled, defaultBet, chatNotifications, rainNotifications]
+    );
+    return res.json({ success: true });
+  } catch (error) { console.error(error); return res.status(500).json({ error: 'Failed to save settings' }); }
+});
+
+// JACKPOT
+app.get('/api/jackpot/current', async (req, res) => {
+  try {
+    const roundResult = await pool.query(`SELECT id, total_pool, status, winner_user_id, starts_at, ends_at FROM jackpot_rounds WHERE status = 'active' ORDER BY id DESC LIMIT 1`);
+    if (!roundResult.rowCount) {
+      const endTime = new Date(Date.now() + 5 * 60 * 1000);
+      const newRound = await pool.query(`INSERT INTO jackpot_rounds (ends_at) VALUES ($1) RETURNING id, starts_at, ends_at`, [endTime]);
+      return res.json({ round: { id: newRound.rows[0].id, totalPool: 0, status: 'active', participants: [], endsAt: endTime, startsAt: new Date() }, userTickets: 0, hasJoined: false });
+    }
+    const round = roundResult.rows[0];
+    const partResult = await pool.query(
+      `SELECT jp.user_id, jp.amount, jp.tickets, u.username FROM jackpot_participants jp JOIN users u ON jp.user_id = u.id WHERE jp.round_id = $1 ORDER BY jp.created_at DESC`,
+      [round.id]
+    );
+    const participants = partResult.rows.map((p) => ({ userId: p.user_id, username: p.username, amount: Number(p.amount), tickets: p.tickets }));
+    return res.json({ round: { id: round.id, totalPool: Number(round.total_pool), status: round.status, participants, endsAt: round.ends_at, startsAt: round.starts_at }, hasJoined: false, userTickets: 0 });
+  } catch (error) { console.error(error); return res.status(500).json({ error: 'Failed to load jackpot' }); }
+});
+
+app.post('/api/jackpot/join', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+  try {
+    const amount = Math.max(100, Number(req.body.amount) || 0);
+    if (amount < 100) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Minimum bet is 100 coins' }); }
+    await client.query('BEGIN');
+    const balanceResult = await client.query(`SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE`, [req.auth!.user.id]);
+    if (Number(balanceResult.rows[0]?.balance || 0) < amount) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Insufficient balance' }); }
+    let roundResult = await client.query(`SELECT id, total_pool, ends_at FROM jackpot_rounds WHERE status = 'active' ORDER BY id DESC LIMIT 1 FOR UPDATE`);
+    if (!roundResult.rowCount) {
+      const endTime = new Date(Date.now() + 5 * 60 * 1000);
+      roundResult = await client.query(`INSERT INTO jackpot_rounds (ends_at) VALUES ($1) RETURNING id, total_pool, ends_at`, [endTime]);
+    }
+    const round = roundResult.rows[0];
+    if (new Date(round.ends_at).getTime() <= Date.now()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Round has ended' }); }
+    const existing = await client.query(`SELECT id, tickets FROM jackpot_participants WHERE round_id = $1 AND user_id = $2`, [round.id, req.auth!.user.id]);
+    if (existing.rowCount) {
+      await client.query(`UPDATE wallets SET balance = balance - $1 WHERE user_id = $2`, [amount, req.auth!.user.id]);
+      const newTickets = Math.floor((Number(existing.rows[0].tickets) + amount) / 100);
+      await client.query(`UPDATE jackpot_participants SET amount = amount + $1, tickets = $2 WHERE round_id = $3 AND user_id = $4`, [amount, newTickets, round.id, req.auth!.user.id]);
+      await client.query(`UPDATE jackpot_rounds SET total_pool = total_pool + $1 WHERE id = $2`, [amount, round.id]);
+    } else {
+      await client.query(`UPDATE wallets SET balance = balance - $1 WHERE user_id = $2`, [amount, req.auth!.user.id]);
+      const tickets = Math.floor(amount / 100);
+      await client.query(`INSERT INTO jackpot_participants (round_id, user_id, amount, tickets) VALUES ($1,$2,$3,$4)`, [round.id, req.auth!.user.id, amount, tickets]);
+      await client.query(`UPDATE jackpot_rounds SET total_pool = total_pool + $1 WHERE id = $2`, [amount, round.id]);
+    }
+    await client.query('COMMIT');
+    return res.json({ success: true, poolAdded: amount });
+  } catch (error) { await client.query('ROLLBACK'); console.error(error); return res.status(500).json({ error: 'Failed to join jackpot' }); }
+  finally { client.release(); }
+});
+
+async function processJackpotRounds() {
+  try {
+    const rounds = await pool.query(`SELECT id, total_pool FROM jackpot_rounds WHERE status = 'active' AND ends_at <= NOW() LIMIT 5`);
+    for (const round of rounds.rows) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const partResult = await client.query(`SELECT jp.*, u.username FROM jackpot_participants jp JOIN users u ON jp.user_id = u.id WHERE jp.round_id = $1`, [round.id]);
+        if (partResult.rows.length === 0) { await client.query(`UPDATE jackpot_rounds SET status = 'expired' WHERE id = $1`, [round.id]); await client.query('COMMIT'); continue; }
+        const totalTickets = partResult.rows.reduce((sum, p) => sum + Number(p.tickets), 0);
+        if (totalTickets === 0) { await client.query(`UPDATE jackpot_rounds SET status = 'expired' WHERE id = $1`, [round.id]); await client.query('COMMIT'); continue; }
+        const serverSeed = crypto.randomBytes(32).toString('hex');
+        const combined = `${serverSeed}:${round.id}`;
+        const hash = parseInt(crypto.createHash('sha256').update(combined).digest('hex').substring(0, 13), 16);
+        const winnerTicket = hash % totalTickets;
+        let cumulative = 0, winnerId: number | null = null;
+        for (const p of partResult.rows) { cumulative += Number(p.tickets); if (cumulative > winnerTicket) { winnerId = p.user_id; break; } }
+        if (!winnerId) winnerId = partResult.rows[partResult.rows.length - 1].user_id;
+        await client.query(`UPDATE jackpot_rounds SET status = 'completed', winner_user_id = $1, winner_seed = $2 WHERE id = $3`, [winnerId, serverSeed, round.id]);
+        const winnerResult = await client.query(`SELECT username, avatar_url FROM users WHERE id = $1`, [winnerId]);
+        await client.query(`UPDATE wallets SET balance = balance + $1 WHERE user_id = $2`, [Number(round.total_pool), winnerId]);
+        await client.query(`INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url) VALUES ($1,$2,$3,'win','user',$4)`,
+          [winnerId, winnerResult.rows[0].username, `won the Jackpot of ${(Number(round.total_pool) / 100).toFixed(2)}!`, winnerResult.rows[0].avatar_url]);
+        await client.query('COMMIT');
+      } catch (e) { await client.query('ROLLBACK'); console.error('Jackpot error:', e); }
+      finally { client.release(); }
+    }
+  } catch (e) { console.error('Jackpot cron error:', e); }
+}
+
 app.use(express.static(distPath));
 
 app.get('*', (req, res, next) => {
@@ -5071,6 +5499,7 @@ app.get('*', (req, res, next) => {
 initDb()
   .then(() => {
     setInterval(processRainBotSchedules, 60 * 1000);
+    setInterval(processJackpotRounds, 10 * 1000);
     app.listen(port, () => {
       console.log(`Pasus auth server running on http://localhost:${port}`);
     });

@@ -85,6 +85,11 @@ import { ScratchGame } from './components/games/ScratchGame';
 import { LimboGame } from './components/games/LimboGame';
 import { KenoGame } from './components/games/KenoGame';
 import { ChatRain } from './components/ChatRain';
+import { SettingsPanel } from './components/SettingsPanel';
+import { AchievementsPanel } from './components/AchievementsPanel';
+import { ProvablyFairPanel } from './components/ProvablyFairPanel';
+import { ProfilePage } from './components/ProfilePage';
+import { JackpotGame } from './components/games/JackpotGame';
 import { apiFetch } from './lib/api';
 import { cn } from './lib/utils';
 
@@ -243,6 +248,17 @@ const GAMES = [
     featured: false,
     image: 'https://picsum.photos/seed/casino-wheel/800/600'
   },
+  {
+    id: 'jackpot',
+    name: 'Jackpot',
+    description: 'Everyone deposits. One winner takes the entire pot.',
+    icon: Gift,
+    color: 'text-amber-300',
+    bg: 'bg-amber-300/10',
+    component: JackpotGame,
+    featured: true,
+    image: 'https://picsum.photos/seed/casino-jackpot/800/600'
+  },
 ];
 
 const getPreferredAvatar = (user?: {
@@ -264,7 +280,7 @@ const getPreferredAvatar = (user?: {
   return user.customAvatarUrl || user.avatar || user.discordAvatarUrl || user.robloxAvatarUrl || '';
 };
 
-type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
+type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming' | 'achievements';
 
 const VIEW_PATHS: Partial<Record<MainView, string>> = {
   dashboard: '/',
@@ -596,6 +612,8 @@ const Sidebar = ({
   onSelectGame,
   onHome,
   onOpenView,
+  onOpenPF,
+  onOpenAchievements,
   isOpen,
   onClose,
 }: {
@@ -604,6 +622,8 @@ const Sidebar = ({
   onSelectGame: (id: string) => void,
   onHome: () => void,
   onOpenView: (view: MainView) => void,
+  onOpenPF: () => void,
+  onOpenAchievements: () => void,
   isOpen?: boolean,
   onClose?: () => void,
 }) => {
@@ -702,13 +722,16 @@ const Sidebar = ({
             <Users size={18} /> Affiliate
           </button>
           <button
-            onClick={() => onOpenView('provably-fair')}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-              currentView === 'provably-fair' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-            )}
+            onClick={onOpenPF}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all"
           >
             <ShieldCheck size={18} /> Provably Fair
+          </button>
+          <button
+            onClick={onOpenAchievements}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all"
+          >
+            <Trophy size={18} /> Achievements
           </button>
           {user?.role === 'owner' ? (
             <button
@@ -5631,6 +5654,10 @@ const AppContent = () => {
     xpToNextLevel: number;
   }>({ canClaim: false, streak: 0, level: 1, xp: 0, xpToNextLevel: 0 });
   const { isAuthenticated } = useAuth();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [isPFOpen, setIsPFOpen] = useState(false);
+  const [profileUsername, setProfileUsername] = useState<string | null>(null);
 
   const navigateTo = useCallback((path: string, gameId: string | null, view: MainView) => {
     if (window.location.pathname !== path) {
@@ -5718,6 +5745,8 @@ const AppContent = () => {
         onSelectGame={handleSelectGame} 
         onHome={openDashboard}
         onOpenView={openView}
+        onOpenPF={() => setIsPFOpen(true)}
+        onOpenAchievements={() => setIsAchievementsOpen(true)}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
@@ -5984,6 +6013,18 @@ const AppContent = () => {
         )}
         {isDailyBonusOpen && (
           <DailyBonusModal isOpen={isDailyBonusOpen} onClose={() => setIsDailyBonusOpen(false)} />
+        )}
+        {isSettingsOpen && (
+          <SettingsPanel onClose={() => setIsSettingsOpen(false)} />
+        )}
+        {isAchievementsOpen && (
+          <AchievementsPanel onClose={() => setIsAchievementsOpen(false)} />
+        )}
+        {isPFOpen && (
+          <ProvablyFairPanel onClose={() => setIsPFOpen(false)} />
+        )}
+        {profileUsername && (
+          <ProfilePage username={profileUsername} onClose={() => setProfileUsername(null)} />
         )}
       </AnimatePresence>
 
