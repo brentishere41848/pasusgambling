@@ -36,6 +36,8 @@ import {
   Bitcoin,
   Coins,
   Copy,
+  Crown,
+  Droplets,
   Check,
   User,
   Trophy,
@@ -267,8 +269,11 @@ const DISPLAY_CURRENCY_RATES: Record<string, number> = {
 
 function formatCoins(value: number) {
   return new Intl.NumberFormat('en-US', {
-    maximumFractionDigits: 0,
-  }).format(Math.round(Number(value || 0)));
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0) / 100);
 }
 
 function coinsToUsd(value: number) {
@@ -3445,7 +3450,7 @@ const VipView = () => {
     return () => window.clearInterval(interval);
   }, [loadVipOverview]);
 
-  const vipTier = stats.wagered >= usdToCoins(2000) ? 'Diamond' : stats.wagered >= usdToCoins(500) ? 'Gold' : stats.wagered >= usdToCoins(100) ? 'Silver' : 'Bronze';
+  const vipTier = stats.wagered >= 200000 ? 'Diamond' : stats.wagered >= 50000 ? 'Gold' : stats.wagered >= 10000 ? 'Silver' : 'Bronze';
 
   const claimRakeback = async (period: 'instant' | 'daily' | 'weekly' | 'monthly') => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -4082,7 +4087,7 @@ const RightRail = () => {
     }
 
     if (/^\.rain$/i.test(draft.trim())) {
-      setCustomRainDraft({ amount: '500' });
+      setCustomRainDraft({ amount: '5' });
       setDraft('');
       return;
     }
@@ -4160,9 +4165,9 @@ const RightRail = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          amount: Math.max(1, Math.round(Number(rainDraft.amount || 0))),
-        }),
+      body: JSON.stringify({
+        amount: Math.max(100, Math.round(Number(rainDraft.amount || 0) * 100)),
+      }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -4193,7 +4198,7 @@ const RightRail = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount: Math.max(1, Math.round(Number(customRainDraft.amount || 0))),
+          amount: Math.max(100, Math.round(Number(customRainDraft.amount || 0) * 100)),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -4252,7 +4257,7 @@ const RightRail = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount: Math.max(1, Math.round(Number(rainDraft.amount || 0))),
+          amount: Math.max(100, Math.round(Number(rainDraft.amount || 0) * 100)),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -4329,49 +4334,51 @@ const RightRail = () => {
 
   return (
     <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[linear-gradient(180deg,#171f2b_0%,#142026_100%)] flex-col h-screen sticky top-0 relative overflow-hidden">
-      <div className="p-5 border-b border-white/5">
+      <div className="p-5 border-b border-white/5 space-y-3">
+        {/* Hourly Rain */}
         <div className="rounded-3xl border border-[#00FF88]/15 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Rain Drop</div>
               <div className="flex items-center gap-1 text-2xl font-black italic tracking-tight">
-                <CurrencyIcon className="rounded-full object-cover" size={22} />
                 {formatMoneyFromCoins(rain?.poolAmount || 0)}
               </div>
             </div>
+            <Droplets size={24} className="text-[#00FF88]/60" />
           </div>
           <div className="flex items-center justify-between text-xs text-white/50 mb-4">
             <span>{rain?.participantCount || 0} joined</span>
-            <span>{joinWindowOpen ? `Ends in ${countdownLabel}` : `Join opens in ${countdownLabel}`}</span>
+            <span>{joinWindowOpen ? `Ends ${countdownLabel}` : `Opens ${countdownLabel}`}</span>
           </div>
           <button
             onClick={joinRain}
             disabled={!isAuthenticated || !rain || rain.joined || !joinWindowOpen || isJoiningRain}
-            className="w-full rounded-2xl bg-[#00FF88] text-black py-3 text-xs font-black uppercase tracking-[0.2em] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full rounded-2xl bg-[#00FF88] text-black py-3 text-xs font-black uppercase tracking-[0.2em] disabled:opacity-40"
           >
             {isJoiningRain ? 'Joining...' : rainButtonLabel}
           </button>
           <button
-            onClick={() => setRainDraft({ amount: '100', target: 'main' })}
+            onClick={() => setRainDraft({ amount: '10', target: 'main' })}
             disabled={!isAuthenticated || isSubmitting}
             className="mt-2 w-full rounded-2xl bg-white/8 text-white py-3 text-xs font-black uppercase tracking-[0.2em] disabled:opacity-40"
           >
             Tip Rain
           </button>
           <div className="mt-3 text-[11px] text-white/40 leading-relaxed">
-            One rain round runs every hour. Players can join only during the final 2 minutes, then the full pot is split evenly across everyone who joined.
+            Hourly rain. Join during the last 2 minutes. Pot splits evenly.
           </div>
         </div>
+
+        {/* Custom Rain */}
         {customRain ? (
-          <div className="mt-3 rounded-2xl border border-sky-400/15 bg-[linear-gradient(180deg,rgba(56,189,248,0.12),rgba(255,255,255,0.02))] p-4">
+          <div className="rounded-2xl border border-sky-400/15 bg-[linear-gradient(180deg,rgba(56,189,248,0.12),rgba(255,255,255,0.02))] p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.2em] text-sky-300 font-black">Custom Rain</div>
                 <div className="mt-1 text-sm font-black truncate">{customRain.creatorUsername}</div>
               </div>
               <div className="text-right">
-                <div className="flex items-center gap-1 text-lg font-black text-sky-100">
-                  <CurrencyIcon className="rounded-full object-cover" size={16} />
+                <div className="text-lg font-black text-sky-100">
                   {formatMoneyFromCoins(customRain.poolAmount)}
                 </div>
                 <div className="text-[10px] text-white/35">{customRain.participantCount} joined</div>
@@ -4386,7 +4393,7 @@ const RightRail = () => {
                 {customRain.joined ? 'Joined' : 'Join'}
               </button>
               <button
-                onClick={() => setRainDraft({ amount: '100', target: 'custom' })}
+                onClick={() => setRainDraft({ amount: '10', target: 'custom' })}
                 disabled
                 className="flex-1 rounded-xl bg-white/8 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white disabled:opacity-40"
               >
@@ -4394,19 +4401,19 @@ const RightRail = () => {
               </button>
             </div>
             <div className="mt-2 text-[10px] text-white/35">
-              Ends in {Math.max(0, Math.floor((new Date(customRain.endsAt).getTime() - nowMs) / 1000))}s
+              Ends {Math.max(0, Math.floor((new Date(customRain.endsAt).getTime() - nowMs) / 1000))}s
             </div>
           </div>
         ) : null}
       </div>
 
+      {/* Chat */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
           <div>
             <div className="text-sm font-black uppercase tracking-[0.18em]">Chat</div>
-            <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">Live room</div>
+            <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">{onlineCount} online</div>
           </div>
-          <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">{onlineCount} online</div>
         </div>
 
         <div
@@ -4450,151 +4457,97 @@ const RightRail = () => {
           ) : null}
           {isLoading && messages.length === 0 ? (
             <div className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-xs text-white/40">
-              Loading chat room...
+              Loading...
             </div>
           ) : null}
           {!isLoading && messages.length === 0 && !roomError ? (
             <div className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-xs text-white/40">
-              No chat messages yet.
+              No messages yet.
             </div>
           ) : null}
-          {messages.map((message) => {
-            const isRainNotice = message.user === 'PasusRain';
-            const isTipNotice = !isRainNotice && /tipped/i.test(message.text);
-
-            if (isRainNotice) {
-              return (
-                <div key={message.id} className="rounded-2xl border border-yellow-400/25 bg-yellow-400/12 px-4 py-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-200">Rain Notice</span>
-                    <span className="text-[10px] text-yellow-100/60">
-                      {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
-                    </span>
-                  </div>
-                  <div className="text-xs leading-relaxed text-yellow-50/90">{message.text}</div>
-                </div>
-              );
-            }
-
-            if (isTipNotice) {
-              return (
-                <div key={message.id} className="rounded-2xl border border-[#00FF88]/20 bg-[#00FF88]/10 px-4 py-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#00FF88]">Tip Notice</span>
-                    <span className="text-[10px] text-white/25">
-                      {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
-                    </span>
-                  </div>
-                  <div className="text-xs leading-relaxed text-white/75">{message.text}</div>
-                </div>
-              );
-            }
-
-            return (
-              <div key={message.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10 bg-white/5 shrink-0">
-                      {message.avatarUrl ? (
-                        <img
-                          src={message.avatarUrl}
-                          alt={message.user}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : null}
-                    </div>
-                    {message.role !== 'user' ? (
-                      <img
-                        src={CHAT_ROLE_ICONS[message.role]}
-                        alt={message.role}
-                        className="w-4 h-4 rounded-full object-cover shrink-0"
-                      />
-                    ) : null}
-                    <span className={cn('text-xs font-black truncate', CHAT_ROLE_STYLES[message.role])}>
-                      {message.user}
-                    </span>
-                  </span>
-                  <span className="text-[10px] text-white/20">
-                    {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
-                  </span>
-                </div>
-                <div className="text-xs text-white/55 leading-relaxed">{message.text}</div>
+          {messages.map((msg) => (
+            <div key={msg.id} className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                {msg.role === 'owner' && <span className="text-[8px] font-black uppercase tracking-[0.2em] text-yellow-400"><Crown size={8} /> Owner</span>}
+                {msg.role === 'moderator' && <span className="text-[8px] font-black uppercase tracking-[0.2em] text-sky-400"><ShieldCheck size={8} /> Mod</span>}
               </div>
-            );
-          })}
+              <div className="flex gap-2 items-start">
+                {msg.avatarUrl ? (
+                  <img src={msg.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover mt-0.5 shrink-0" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#2a3a5a] to-[#1a2540] flex items-center justify-center text-[10px] font-black text-white/60 shrink-0">
+                    {msg.user.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('text-[11px] font-black', msg.role === 'owner' ? 'text-yellow-400' : msg.role === 'moderator' ? 'text-sky-400' : 'text-white/70')}>
+                      {msg.user}
+                    </span>
+                    <span className="text-[9px] text-white/25">
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className={cn('text-xs leading-relaxed break-words', msg.tone === 'win' ? 'text-[#00FF88]/90 font-medium' : 'text-white/80')}>
+                    {msg.text}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="p-4 border-t border-white/5">
-          <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-black/30 px-3 py-2">
-            <input
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  submitMessage();
-                }
-              }}
-              placeholder={isAuthenticated ? 'Send a message...' : 'Sign in to chat'}
-              disabled={!isAuthenticated}
-              className="flex-1 bg-transparent text-sm text-white/70 placeholder:text-white/20 focus:outline-none disabled:cursor-not-allowed"
-            />
-            <button
-              onClick={submitMessage}
-              disabled={!isAuthenticated || !draft.trim() || isSubmitting}
-              className="w-10 h-10 rounded-xl bg-[#00FF88] text-black flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+          {tipDraft ? (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="flex gap-2 items-center rounded-2xl border border-[#d9bb63]/20 bg-[#d9bb63]/10 px-4 py-3"
             >
-              <SendHorizontal size={16} />
-            </button>
-          </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] text-[#d9bb63]/70 font-black uppercase tracking-widest truncate">Tip {tipDraft.targetUsername}</div>
+                <input
+                  type="number"
+                  value={tipDraft.amount}
+                  onChange={(e) => setTipDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
+                  placeholder="Amount"
+                  className="w-full bg-transparent text-sm text-white font-mono focus:outline-none mt-0.5"
+                />
+              </div>
+              <button onClick={submitTip} disabled={isSubmitting} className="rounded-xl bg-[#d9bb63] text-black px-3 py-2 text-[10px] font-black uppercase tracking-wider shrink-0 disabled:opacity-40">
+                Send
+              </button>
+              <button onClick={() => setTipDraft(null)} className="rounded-xl bg-white/5 text-white/40 px-2 py-2 shrink-0 hover:bg-white/10">
+                <X size={14} />
+              </button>
+            </motion.div>
+          ) : isAuthenticated ? (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); submitMessage(); }
+                  if (e.key === 'Escape') { setDraft(''); }
+                }}
+                placeholder="Say something..."
+                className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-white/25 focus:outline-none focus:border-white/25"
+              />
+              <button onClick={submitMessage} className="rounded-xl bg-white/10 hover:bg-white/15 px-3 py-2.5 text-xs text-white/60 font-black uppercase tracking-wider">
+                Send
+              </button>
+            </div>
+          ) : (
+            <div className="text-center text-[10px] text-white/25">
+              Sign in to chat
+            </div>
+          )}
         </div>
       </div>
 
       <AnimatePresence>
-        {tipDraft ? (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/70 z-20"
-              onClick={() => setTipDraft(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.96 }}
-              className="absolute left-4 right-4 top-24 rounded-3xl border border-white/10 bg-[#141821] p-5 z-30 space-y-4 shadow-2xl"
-            >
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Tip User</div>
-                <div className="text-lg font-black mt-2">Send money to {tipDraft.username}</div>
-              </div>
-              <input
-                type="number"
-                value={tipDraft.amount}
-                onChange={(e) => setTipDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
-                placeholder="Amount"
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
-              />
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setTipDraft(null)}
-                  className="flex-1 rounded-2xl bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em]"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={submitTip}
-                  disabled={isSubmitting || !tipDraft.amount || Number(tipDraft.amount) <= 0}
-                  className="flex-1 rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
-                >
-                  {isSubmitting ? 'Sending...' : 'Send Tip'}
-                </button>
-              </div>
-            </motion.div>
-          </>
-        ) : null}
         {rainDraft ? (
           <>
             <motion.div
@@ -4608,23 +4561,28 @@ const RightRail = () => {
               initial={{ opacity: 0, y: 10, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.96 }}
-            className="absolute left-4 right-4 top-24 rounded-3xl border border-white/10 bg-[#141821] p-5 z-30 space-y-4 shadow-2xl"
-          >
-            <div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">{rainDraft.target === 'custom' ? 'Tip Custom Rain' : 'Tip Main Rain'}</div>
-                <div className="text-lg font-black mt-2">{rainDraft.target === 'custom' ? 'Add money to the active custom rain' : 'Add money to the active hourly rain pool'}</div>
+              className="absolute left-4 right-4 top-24 rounded-3xl border border-white/10 bg-[#141821] p-5 z-30 space-y-4 shadow-2xl"
+            >
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">
+                  {rainDraft.target === 'custom' ? 'Tip Custom Rain' : 'Tip Rain Pool'}
+                </div>
+                <div className="text-lg font-black mt-2">
+                  {rainDraft.target === 'custom' ? 'Add to custom rain' : 'Add to hourly rain pool'}
+                </div>
               </div>
-              <input
-                type="number"
-                value={rainDraft.amount}
-                onChange={(e) => setRainDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
-                placeholder="Amount in coins"
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
-              />
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 text-lg font-bold">$</span>
+                <input
+                  type="number"
+                  value={rainDraft.amount}
+                  onChange={(e) => setRainDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
+                  placeholder="0.00"
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 pl-8 pr-4 py-3 text-lg font-mono text-white focus:outline-none"
+                />
+              </div>
               <div className="text-[11px] text-white/40">
-                {rainDraft.target === 'custom'
-                  ? 'This increases the current custom rain amount immediately. Enter the amount in coins.'
-                  : 'This contributes directly to the current hourly rain pool. Enter the amount in coins.'}
+                Enter the dollar amount. 100 coins = $1.00
               </div>
               <div className="flex gap-3">
                 <button
@@ -4638,7 +4596,7 @@ const RightRail = () => {
                   disabled={isSubmitting || !rainDraft.amount || Number(rainDraft.amount) <= 0}
                   className="flex-1 rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
                 >
-                  {isSubmitting ? 'Sending...' : 'Tip Rain'}
+                  {isSubmitting ? 'Sending...' : `Tip $${rainDraft.amount || '0'}`}
                 </button>
               </div>
             </motion.div>
@@ -4661,17 +4619,20 @@ const RightRail = () => {
             >
               <div>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Custom Rain</div>
-                <div className="text-lg font-black mt-2">Create a smaller custom rain</div>
+                <div className="text-lg font-black mt-2">Create a custom rain</div>
               </div>
-              <input
-                type="number"
-                value={customRainDraft.amount}
-                onChange={(e) => setCustomRainDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
-                placeholder="Amount in coins"
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
-              />
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 text-lg font-bold">$</span>
+                <input
+                  type="number"
+                  value={customRainDraft.amount}
+                  onChange={(e) => setCustomRainDraft((prev) => prev ? { ...prev, amount: e.target.value } : prev)}
+                  placeholder="0.00"
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 pl-8 pr-4 py-3 text-lg font-mono text-white focus:outline-none"
+                />
+              </div>
               <div className="text-[11px] text-white/40">
-                This creates a 5-minute custom rain card under the main rain with your username and amount. Enter the amount in coins.
+                Creates a 5-minute custom rain. Your username will be shown.
               </div>
               <div className="flex gap-3">
                 <button
@@ -4685,7 +4646,7 @@ const RightRail = () => {
                   disabled={isSubmitting || !customRainDraft.amount || Number(customRainDraft.amount) <= 0}
                   className="flex-1 rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Rain'}
+                  {isSubmitting ? 'Creating...' : 'Create'}
                 </button>
               </div>
             </motion.div>
