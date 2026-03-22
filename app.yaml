@@ -1,6 +1,6 @@
+kind: wasmer.io/App.v0
 name: pasusgambling
 app_id: da_K0DIkt5U4Pre
 owner: brentishere41848
-package: brentishere41848/pasusgamblingnew
+package: .
 debug: true
-kind: wasmer.io/App.v0
