@@ -3033,7 +3033,22 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Invalid adjustment.' });
     }
 
+    const MAX_BALANCE = 99999999999999;
+
     await ensureWallet(pool, req.auth!.user.id);
+
+    const current = await pool.query(
+      `SELECT balance FROM wallets WHERE user_id = $1`,
+      [req.auth!.user.id]
+    );
+    if (!current.rowCount) {
+      return res.status(400).json({ error: 'Wallet not found.' });
+    }
+
+    const currentBalance = Number(current.rows[0].balance);
+    if (delta > 0 && currentBalance + delta > MAX_BALANCE) {
+      return res.status(400).json({ error: `Balance cannot exceed ${MAX_BALANCE.toLocaleString()}.` });
+    }
 
     let result;
     if (delta > 0) {
