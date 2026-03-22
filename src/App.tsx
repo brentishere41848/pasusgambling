@@ -5732,10 +5732,8 @@ const RightRail = ({
   const loadRoom = async (silent?: boolean) => {
     if (!silent) setIsLoading(true);
     try {
-      const [chatData, rainData, customRainData, broadcastsData] = await Promise.all([
-        apiFetch('/api/chat/messages?limit=50').then(r => r.json().catch(() => ({}))),
-        apiFetch('/api/rain/current').then(r => r.json().catch(() => ({}))),
-        apiFetch('/api/rain/custom/current').then(r => r.json().catch(() => ({}))),
+      const [chatData, broadcastsData] = await Promise.all([
+        apiFetch('/api/chat/room').then(r => r.json().catch(() => ({}))),
         apiFetch('/api/broadcasts').then(r => r.json().catch(() => ({}))),
       ]);
       if (Array.isArray(chatData.messages)) {
@@ -5782,7 +5780,7 @@ const RightRail = ({
   }, [messages, shouldAutoScroll]);
 
   useEffect(() => {
-    apiFetch('/api/chat/messages?limit=50')
+    apiFetch('/api/chat/room')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data.messages)) {
