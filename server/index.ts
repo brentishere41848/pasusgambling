@@ -5470,10 +5470,10 @@ async function processJackpotRounds() {
         for (const p of partResult.rows) { cumulative += Number(p.tickets); if (cumulative > winnerTicket) { winnerId = p.user_id; break; } }
         if (!winnerId) winnerId = partResult.rows[partResult.rows.length - 1].user_id;
         await client.query(`UPDATE jackpot_rounds SET status = 'completed', winner_user_id = $1, winner_seed = $2 WHERE id = $3`, [winnerId, serverSeed, round.id]);
-        const winnerResult = await client.query(`SELECT username, avatar_url FROM users WHERE id = $1`, [winnerId]);
+        const winnerResult = await client.query(`SELECT username, avatar FROM users WHERE id = $1`, [winnerId]);
         await client.query(`UPDATE wallets SET balance = balance + $1 WHERE user_id = $2`, [Number(round.total_pool), winnerId]);
         await client.query(`INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url) VALUES ($1,$2,$3,'win','user',$4)`,
-          [winnerId, winnerResult.rows[0].username, `won the Jackpot of ${(Number(round.total_pool) / 100).toFixed(2)}!`, winnerResult.rows[0].avatar_url]);
+          [winnerId, winnerResult.rows[0].username, `won the Jackpot of ${(Number(round.total_pool) / 100).toFixed(2)}!`, winnerResult.rows[0].avatar || null]);
         await client.query('COMMIT');
       } catch (e) { await client.query('ROLLBACK'); console.error('Jackpot error:', e); }
       finally { client.release(); }
