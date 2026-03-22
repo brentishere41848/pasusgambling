@@ -3054,8 +3054,8 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
     if (delta > 0) {
       result = await pool.query(
         `UPDATE wallets
-         SET balance = balance + $1,
-             total_deposited = total_deposited + $1,
+         SET balance = balance + $1::numeric,
+             total_deposited = total_deposited + $1::numeric,
              updated_at = NOW()
          WHERE user_id = $2
          RETURNING balance::text AS balance,
@@ -3066,11 +3066,11 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
     } else {
       result = await pool.query(
         `UPDATE wallets
-         SET balance = balance + $1,
-             total_withdrawn = total_withdrawn + (-$1),
+         SET balance = balance + $1::numeric,
+             total_withdrawn = total_withdrawn + (-$1::numeric),
              updated_at = NOW()
          WHERE user_id = $2
-           AND balance >= (-$1)
+           AND balance >= (-$1::numeric)
          RETURNING balance::text AS balance,
                    total_deposited::text AS total_deposited,
                    total_withdrawn::text AS total_withdrawn`,
@@ -3621,8 +3621,8 @@ app.post('/api/admin/wallet/adjust', requireAuth, requireOwner, async (req: Auth
     if (delta > 0) {
       result = await pool.query(
         `UPDATE wallets
-         SET balance = balance + $1,
-             total_deposited = total_deposited + $1,
+         SET balance = balance + $1::numeric,
+             total_deposited = total_deposited + $1::numeric,
              updated_at = NOW()
          WHERE user_id = $2
          RETURNING balance::text AS balance,
@@ -3633,11 +3633,11 @@ app.post('/api/admin/wallet/adjust', requireAuth, requireOwner, async (req: Auth
     } else {
       result = await pool.query(
         `UPDATE wallets
-         SET balance = balance + $1,
-             total_withdrawn = total_withdrawn + (-$1),
+         SET balance = balance + $1::numeric,
+             total_withdrawn = total_withdrawn + (-$1::numeric),
              updated_at = NOW()
          WHERE user_id = $2
-           AND balance >= (-$1)
+           AND balance >= (-$1::numeric)
          RETURNING balance::text AS balance,
                    total_deposited::text AS total_deposited,
                    total_withdrawn::text AS total_withdrawn`,
