@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
@@ -47,7 +47,27 @@ import {
   Mail,
   Lock,
   SendHorizontal,
-  LoaderCircle
+  LoaderCircle,
+  Sparkles,
+  Gift,
+  Eye,
+  UsersRound,
+  DollarSign,
+  Award,
+  ChevronUp,
+  ChevronLeft,
+  MapPin,
+  BarChart3,
+  Gamepad,
+  CircleDollarSign,
+  Smartphone,
+  Monitor,
+  Tablet,
+  Trash2,
+  Download,
+  History,
+  KeyRound,
+  QrCode
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BalanceProvider, useBalance } from './context/BalanceContext';
@@ -61,6 +81,7 @@ import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
 import { PlinkoGame } from './components/games/PlinkoGame';
 import { RouletteGame } from './components/games/RouletteGame';
+import { ScratchGame } from './components/games/ScratchGame';
 import { LimboGame } from './components/games/LimboGame';
 import { KenoGame } from './components/games/KenoGame';
 import { apiFetch } from './lib/api';
@@ -200,6 +221,17 @@ const GAMES = [
     image: 'https://picsum.photos/seed/casino-roulette/800/600'
   },
   {
+    id: 'scratch',
+    name: 'Scratch Cards',
+    description: 'Buy a card and scratch to reveal instant prizes.',
+    icon: CreditCard,
+    color: 'text-cyan-300',
+    bg: 'bg-cyan-300/10',
+    component: ScratchGame,
+    featured: false,
+    image: 'https://picsum.photos/seed/casino-scratch/800/600'
+  },
+  {
     id: 'wheel',
     name: 'Wheel',
     description: 'Simple wheel game with high multipliers.',
@@ -287,6 +319,59 @@ function formatMoneyFromCoins(value: number) {
 function usdToCoins(value: number) {
   return Math.round(Number(value || 0) * COINS_PER_DOLLAR);
 }
+
+type BalanceChange = {
+  id: number;
+  amount: number;
+  isPositive: boolean;
+};
+
+const AnimatedBalanceDisplay = ({ balance, className = '', style = {} as React.CSSProperties }: { balance: number; className?: string; style?: React.CSSProperties }) => {
+  const [changes, setChanges] = useState<BalanceChange[]>([]);
+  const prevBalanceRef = useRef(balance);
+  const idCounterRef = useRef(0);
+
+  useEffect(() => {
+    const diff = balance - prevBalanceRef.current;
+    if (diff !== 0) {
+      const newChange: BalanceChange = {
+        id: idCounterRef.current++,
+        amount: Math.abs(diff),
+        isPositive: diff > 0,
+      };
+      setChanges(prev => [...prev, newChange]);
+      setTimeout(() => {
+        setChanges(prev => prev.filter(c => c.id !== newChange.id));
+      }, 1800);
+    }
+    prevBalanceRef.current = balance;
+  }, [balance]);
+
+  return (
+    <div className={`relative inline-flex items-center gap-1 ${className}`} style={style}>
+      <CurrencyIcon className="rounded-full object-cover" size={16} />
+      <span className="font-mono font-bold text-[#00FF88]">
+        {formatMoneyFromCoins(balance)}
+      </span>
+      <AnimatePresence>
+        {changes.map(change => (
+          <motion.span
+            key={change.id}
+            initial={{ opacity: 1, y: 0, scale: 1 }}
+            animate={{ opacity: 0, y: -40, scale: 0.8 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.2, ease: 'easeOut' }}
+            className={`absolute left-1/2 -translate-x-1/2 -top-6 font-mono font-black text-sm whitespace-nowrap ${
+              change.isPositive ? 'text-[#00FF88]' : 'text-red-400'
+            }`}
+          >
+            {change.isPositive ? '+' : '-'}{formatMoneyFromCoins(change.amount)}
+          </motion.span>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 function resolveRoute(pathname: string): { gameId: string | null; view: MainView } {
   const normalized = pathname.replace(/\/+$/, '') || '/';
@@ -510,135 +595,253 @@ const Sidebar = ({
   onSelectGame,
   onHome,
   onOpenView,
+  isOpen,
+  onClose,
 }: {
   activeGame: string | null,
   currentView: MainView,
   onSelectGame: (id: string) => void,
   onHome: () => void,
   onOpenView: (view: MainView) => void,
+  isOpen?: boolean,
+  onClose?: () => void,
 }) => {
   const { user } = useAuth();
-  const [isOriginalsExpanded, setIsOriginalsExpanded] = useState(false);
+  const [isOriginalsExpanded, setIsOriginalsExpanded] = useState(true);
+
+  const handleNav = (action: () => void) => {
+    action();
+    if (onClose) onClose();
+  };
 
   return (
-    <aside className="w-64 border-r border-white/5 bg-[linear-gradient(180deg,#162229_0%,#171d2a_100%)] h-screen sticky top-0 hidden lg:flex flex-col p-4 overflow-y-auto custom-scrollbar">
-      <button onClick={onHome} className="flex items-center gap-3 px-4 mb-8 group shrink-0">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center rotate-3 group-hover:rotate-12 transition-transform overflow-hidden">
-          <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
-        </div>
-        <span className="text-xl font-black tracking-tighter uppercase italic">Pasus</span>
-      </button>
-
-      <nav className="flex-1 space-y-1">
-        <button 
-          onClick={onHome}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-            !activeGame ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-          )}
-        >
-          <Home size={18} /> Home
+    <>
+      <aside className="w-64 border-r border-white/5 bg-[linear-gradient(180deg,#162229_0%,#171d2a_100%)] h-screen sticky top-0 hidden lg:flex flex-col p-4 overflow-y-auto custom-scrollbar shrink-0">
+        <button onClick={onHome} className="flex items-center gap-3 px-4 mb-8 group shrink-0">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center rotate-3 group-hover:rotate-12 transition-transform overflow-hidden">
+            <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
+          </div>
+          <span className="text-xl font-black tracking-tighter uppercase italic">Pasus</span>
         </button>
-        
-        <div className="pt-4 pb-1">
+
+        <nav className="flex-1 space-y-1">
           <button 
-            onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
-            className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <LayoutGrid size={12} />
-              Originals
-            </div>
-            <ChevronDown size={12} className={cn("transition-transform", isOriginalsExpanded && "rotate-180")} />
-          </button>
-          
-          <AnimatePresence>
-            {isOriginalsExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden space-y-1 mt-1"
-              >
-                {GAMES.map(game => (
-                  <button 
-                    key={game.id}
-                    onClick={() => onSelectGame(game.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all pl-8",
-                      activeGame === game.id ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-                    )}
-                  >
-                    <game.icon size={16} /> {game.name}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Platform</div>
-        <button
-          onClick={() => onOpenView('leaderboard')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-            currentView === 'leaderboard' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-          )}
-        >
-          <Trophy size={18} /> Leaderboard
-        </button>
-        <button
-          onClick={() => onOpenView('vip')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-            currentView === 'vip' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-          )}
-        >
-          <Star size={18} /> VIP Club
-        </button>
-        <button
-          onClick={() => onOpenView('affiliate')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-            currentView === 'affiliate' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-          )}
-        >
-          <Users size={18} /> Affiliate
-        </button>
-        <button
-          onClick={() => onOpenView('provably-fair')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-            currentView === 'provably-fair' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-          )}
-        >
-          <ShieldCheck size={18} /> Provably Fair
-        </button>
-        {user?.role === 'owner' ? (
-          <button
-            onClick={() => onOpenView('admin')}
+            onClick={onHome}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-              currentView === 'admin' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+              !activeGame ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
             )}
           >
-            <Shield size={18} /> Admin
+            <Home size={18} /> Home
           </button>
-        ) : null}
-      </nav>
+          
+          <div className="pt-4 pb-1">
+            <button 
+              onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
+              className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <LayoutGrid size={12} />
+                Originals
+              </div>
+              <ChevronDown size={12} className={cn("transition-transform", isOriginalsExpanded && "rotate-180")} />
+            </button>
+            
+            <AnimatePresence>
+              {isOriginalsExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden space-y-1 mt-1"
+                >
+                  {GAMES.map(game => (
+                    <button 
+                      key={game.id}
+                      onClick={() => onSelectGame(game.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all pl-8",
+                        activeGame === game.id ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+                      )}
+                    >
+                      <game.icon size={16} /> {game.name}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-      <div className="mt-auto pt-4 border-t border-white/5 shrink-0">
-        <button
-          onClick={() => onOpenView('support')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-            currentView === 'support' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-          )}
-        >
-          <MessageSquare size={18} /> Live Support
-        </button>
-      </div>
-    </aside>
+          <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Platform</div>
+          <button
+            onClick={() => onOpenView('leaderboard')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+              currentView === 'leaderboard' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <Trophy size={18} /> Leaderboard
+          </button>
+          <button
+            onClick={() => onOpenView('vip')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+              currentView === 'vip' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <Star size={18} /> VIP Club
+          </button>
+          <button
+            onClick={() => onOpenView('affiliate')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+              currentView === 'affiliate' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <Users size={18} /> Affiliate
+          </button>
+          <button
+            onClick={() => onOpenView('provably-fair')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+              currentView === 'provably-fair' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <ShieldCheck size={18} /> Provably Fair
+          </button>
+          {user?.role === 'owner' ? (
+            <button
+              onClick={() => onOpenView('admin')}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+                currentView === 'admin' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+              )}
+            >
+              <Shield size={18} /> Admin
+            </button>
+          ) : null}
+        </nav>
+
+        <div className="mt-auto pt-4 border-t border-white/5 shrink-0">
+          <button
+            onClick={() => onOpenView('support')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+              currentView === 'support' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <MessageSquare size={18} /> Live Support
+          </button>
+        </div>
+      </aside>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
+              onClick={onClose}
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed left-0 top-0 bottom-0 w-[280px] bg-[#162229] z-50 lg:hidden flex flex-col p-4 overflow-y-auto custom-scrollbar border-r border-white/5"
+            >
+              <div className="flex items-center justify-between mb-8 px-4">
+                <button onClick={onHome} className="flex items-center gap-3 group">
+                  <div className="w-8 h-8 rounded-lg overflow-hidden rotate-3 group-hover:rotate-12 transition-transform">
+                    <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
+                  </div>
+                  <span className="text-xl font-black tracking-tighter uppercase italic">Pasus</span>
+                </button>
+                <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+                  <X size={20} className="text-white/40" />
+                </button>
+              </div>
+
+              <nav className="flex-1 space-y-1">
+                <button 
+                  onClick={() => handleNav(onHome)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+                    !activeGame ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+                  )}
+                >
+                  <Home size={18} /> Home
+                </button>
+                
+                <div className="pt-4 pb-1">
+                  <button 
+                    onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
+                    className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <LayoutGrid size={12} />
+                      Originals
+                    </div>
+                    <ChevronDown size={12} className={cn("transition-transform", isOriginalsExpanded && "rotate-180")} />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {isOriginalsExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden space-y-1 mt-1"
+                      >
+                        {GAMES.map(game => (
+                          <button 
+                            key={game.id}
+                            onClick={() => handleNav(() => onSelectGame(game.id))}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all pl-8",
+                              activeGame === game.id ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
+                            )}
+                          >
+                            <game.icon size={16} /> {game.name}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Platform</div>
+                <button onClick={() => handleNav(() => onOpenView('leaderboard'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'leaderboard' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
+                  <Trophy size={18} /> Leaderboard
+                </button>
+                <button onClick={() => handleNav(() => onOpenView('vip'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'vip' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
+                  <Star size={18} /> VIP Club
+                </button>
+                <button onClick={() => handleNav(() => onOpenView('affiliate'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'affiliate' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
+                  <Users size={18} /> Affiliate
+                </button>
+                <button onClick={() => handleNav(() => onOpenView('provably-fair'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'provably-fair' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
+                  <ShieldCheck size={18} /> Provably Fair
+                </button>
+                {user?.role === 'owner' ? (
+                  <button onClick={() => handleNav(() => onOpenView('admin'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'admin' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
+                    <Shield size={18} /> Admin
+                  </button>
+                ) : null}
+              </nav>
+
+              <div className="mt-auto pt-4 border-t border-white/5 shrink-0">
+                <button onClick={() => handleNav(() => onOpenView('support'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'support' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
+                  <MessageSquare size={18} /> Live Support
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 
@@ -669,7 +872,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
   const { user } = useAuth();
   const { balance, totalDeposited, refreshWallet } = useBalance();
   const [amount, setAmount] = useState('25');
-  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
+  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'redeem'>('deposit');
   const [selectedCrypto, setSelectedCrypto] = useState(SUPPORTED_CRYPTO[0]);
   const [withdrawAddress, setWithdrawAddress] = useState('');
   const [copied, setCopied] = useState(false);
@@ -677,6 +880,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [depositTransaction, setDepositTransaction] = useState<DepositTransaction | null>(null);
+  const [promoCode, setPromoCode] = useState('');
 
   useEffect(() => {
     if (!depositTransaction || ['finished', 'confirmed', 'sending', 'failed', 'expired'].includes(depositTransaction.paymentStatus)) {
@@ -824,7 +1028,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
     : '';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -835,7 +1039,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
       <motion.div
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="relative w-full max-w-md bg-[#1a1d23] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+        className="relative w-full sm:max-w-md bg-[#1a1d23] border border-white/10 rounded-none sm:rounded-3xl overflow-hidden shadow-2xl sm:max-h-[90vh] h-full sm:h-auto"
       >
         <div className="p-6 border-b border-white/5 flex items-center justify-between">
           <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3">
@@ -875,6 +1079,19 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             >
               <ArrowUpRight size={14} /> Withdraw
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('redeem');
+                setError('');
+                setSuccess('');
+              }}
+              className={cn(
+                'flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2',
+                activeTab === 'redeem' ? 'bg-purple-500 text-white' : 'text-white/40 hover:text-white'
+              )}
+            >
+              <Gift size={14} /> Redeem
+            </button>
           </div>
 
           {(error || success) && (
@@ -886,27 +1103,90 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             </div>
           )}
 
-          <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Select Currency</label>
-            <div className="grid grid-cols-5 gap-2">
-              {SUPPORTED_CRYPTO.map((crypto) => (
-                <button
-                  key={crypto.id}
-                  onClick={() => setSelectedCrypto(crypto)}
-                  className={cn(
-                    'flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all',
-                    selectedCrypto.id === crypto.id ? 'bg-white/10 border-[#00FF88]/50' : 'bg-black/20 border-white/5 hover:border-white/10'
-                  )}
-                >
-                  <div className={cn('w-8 h-8 rounded-full flex items-center justify-center', crypto.bg)}>
-                    {crypto.id === 'btc' ? <Bitcoin size={16} className={crypto.color} /> : <Coins size={16} className={crypto.color} />}
-                  </div>
-                  <span className="text-[10px] font-bold">{crypto.symbol}</span>
-                </button>
-              ))}
+          {activeTab === 'redeem' && (
+            <div className="bg-black/40 border border-purple-500/20 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Gift size={20} className="text-purple-400" />
+                <span className="text-sm font-black uppercase tracking-wide">Redeem Promo Code</span>
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="Enter promo code"
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold tracking-widest focus:outline-none focus:border-purple-500/50 transition-all text-center"
+                  maxLength={32}
+                />
+              </div>
+              <button
+                onClick={async () => {
+                  if (!promoCode.trim()) {
+                    setError('Please enter a promo code.');
+                    return;
+                  }
+                  const token = localStorage.getItem('pasus_auth_token');
+                  if (!token) {
+                    setError('You must be signed in to redeem codes.');
+                    return;
+                  }
+                  setIsProcessing(true);
+                  setError('');
+                  setSuccess('');
+                  try {
+                    const response = await apiFetch('/api/promo/claim', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ code: promoCode.trim() }),
+                    });
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                      throw new Error(data.error || 'Failed to redeem code.');
+                    }
+                    setSuccess(data.message || 'Promo code redeemed successfully!');
+                    setPromoCode('');
+                    await refreshWallet();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Failed to redeem code.');
+                  } finally {
+                    setIsProcessing(false);
+                  }
+                }}
+                disabled={isProcessing || !promoCode.trim()}
+                className="w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest bg-purple-500 text-white hover:bg-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isProcessing ? <LoaderCircle size={16} className="animate-spin" /> : <Gift size={16} />}
+                {isProcessing ? 'Redeeming...' : 'Redeem Code'}
+              </button>
+              <p className="text-[11px] text-white/40 text-center">Enter a promo code to receive bonus coins.</p>
             </div>
+          )}
 
-            {activeTab === 'deposit' ? (
+          {activeTab !== 'redeem' && (
+            <div className="space-y-4">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Select Currency</label>
+              <div className="grid grid-cols-5 gap-2">
+                {SUPPORTED_CRYPTO.map((crypto) => (
+                  <button
+                    key={crypto.id}
+                    onClick={() => setSelectedCrypto(crypto)}
+                    className={cn(
+                      'flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all',
+                      selectedCrypto.id === crypto.id ? 'bg-white/10 border-[#00FF88]/50' : 'bg-black/20 border-white/5 hover:border-white/10'
+                    )}
+                  >
+                    <div className={cn('w-8 h-8 rounded-full flex items-center justify-center', crypto.bg)}>
+                      {crypto.id === 'btc' ? <Bitcoin size={16} className={crypto.color} /> : <Coins size={16} className={crypto.color} />}
+                    </div>
+                    <span className="text-[10px] font-bold">{crypto.symbol}</span>
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === 'deposit' ? (
               <div className="bg-black/40 border border-white/5 rounded-2xl p-6 space-y-4">
                 {depositTransaction?.payAddress ? (
                   <>
@@ -970,8 +1250,9 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
                   </p>
                 </div>
               </div>
-            )}
+              )}
           </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">
@@ -1011,26 +1292,24 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
           <div className="bg-black/40 rounded-2xl p-4 flex items-center justify-between border border-white/5">
             <span className="text-xs font-bold text-white/40">Current Balance</span>
             <div className="text-right">
-              <div className="group flex items-center justify-end gap-2 font-mono font-bold text-[#00FF88]">
-                <CurrencyIcon className="rounded-full object-cover" size={16} />
-                <span className="group-hover:hidden">{formatMoneyFromCoins(balance)}</span>
-                <span className="hidden group-hover:inline">{formatMoney(coinsToUsd(balance))}</span>
-              </div>
+              <AnimatedBalanceDisplay balance={balance} className="relative" />
             </div>
           </div>
 
-          <button
-            onClick={handleAction}
-            disabled={isProcessing}
-            className={cn(
-              'w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3',
-              isProcessing ? 'opacity-50 cursor-not-allowed' : '',
-              activeTab === 'deposit' ? 'bg-[#00FF88] text-black hover:bg-[#00FF88]/90' : 'bg-red-500 text-white hover:bg-red-600'
-            )}
-          >
-            {isProcessing && <RotateCcw className="animate-spin" size={16} />}
-            {isProcessing ? 'Processing...' : activeTab === 'deposit' ? 'Create Deposit Invoice' : 'Submit Withdrawal Request'}
-          </button>
+          {activeTab !== 'redeem' && (
+            <button
+              onClick={handleAction}
+              disabled={isProcessing}
+              className={cn(
+                'w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3',
+                isProcessing ? 'opacity-50 cursor-not-allowed' : '',
+                activeTab === 'deposit' ? 'bg-[#00FF88] text-black hover:bg-[#00FF88]/90' : 'bg-red-500 text-white hover:bg-red-600'
+              )}
+            >
+              {isProcessing && <RotateCcw className="animate-spin" size={16} />}
+              {isProcessing ? 'Processing...' : activeTab === 'deposit' ? 'Create Deposit Invoice' : 'Submit Withdrawal Request'}
+            </button>
+          )}
         </div>
       </motion.div>
     </div>
@@ -1042,6 +1321,8 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [totpCode, setTotpCode] = useState('');
+  const [requiresTotp, setRequiresTotp] = useState(false);
   const [affiliateCode, setAffiliateCode] = useState('');
   const [isRegister, setIsRegister] = useState(false);
   const [error, setError] = useState('');
@@ -1071,23 +1352,35 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
       return;
     }
 
+    if (requiresTotp && !totpCode.trim()) {
+      setError('Please enter your 2FA code.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       if (isRegister) {
         await register(username.trim(), email.trim(), password, affiliateCode.trim());
       } else {
-        await login(username.trim(), password);
+        await login(username.trim(), password, requiresTotp ? totpCode.trim() : undefined);
       }
+      setTotpCode('');
+      setRequiresTotp(false);
       onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication failed.');
+    } catch (err: any) {
+      if (err.message?.includes('2FA')) {
+        setRequiresTotp(true);
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : 'Authentication failed.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -1098,9 +1391,9 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
       <motion.div 
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="relative w-full max-w-md bg-[#1a1d23] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+        className="relative w-full sm:max-w-md bg-[#1a1d23] border border-white/10 rounded-none sm:rounded-3xl overflow-hidden shadow-2xl sm:max-h-[90vh] h-full sm:h-auto"
       >
-        <div className="p-8 space-y-8">
+        <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto max-h-full sm:max-h-none custom-scrollbar">
           <div className="text-center space-y-2">
             <h2 className="text-3xl font-black italic uppercase tracking-tighter">
               {isRegister ? 'Join Pasus' : 'Welcome Back'}
@@ -1180,6 +1473,24 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
               </div>
             </div>
 
+            {requiresTotp && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">2FA Code</label>
+                <div className="relative">
+                  <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+                  <input 
+                    type="text"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold tracking-[0.3em] text-center focus:outline-none focus:border-[#00FF88]/50 transition-all"
+                    placeholder="000000"
+                    maxLength={6}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <button 
               type="submit"
               disabled={isSubmitting}
@@ -1194,12 +1505,260 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
               onClick={() => {
                 setIsRegister(!isRegister);
                 setError('');
+                setRequiresTotp(false);
+                setTotpCode('');
               }}
               className="text-xs font-bold text-white/40 hover:text-white transition-colors"
             >
               {isRegister ? 'Already have an account? Sign In' : "Don't have an account? Register"}
             </button>
           </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const DailyBonusModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+  const { refreshWallet } = useBalance();
+  const [status, setStatus] = useState<{
+    streak: number;
+    amount: number;
+    xp: number;
+    level: number;
+    xpToNextLevel: number;
+    nextClaimAt: string | null;
+  } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+  const [leveledUp, setLeveledUp] = useState(false);
+  const [previousLevel, setPreviousLevel] = useState(1);
+
+  const loadStatus = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await apiFetch('/api/daily-claim/status', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load status.');
+      }
+      setStatus({
+        streak: data.streak || 1,
+        amount: 0,
+        xp: data.xp || 0,
+        level: data.level || 1,
+        xpToNextLevel: data.xpToNextLevel || 0,
+        nextClaimAt: data.nextClaimAt || null,
+      });
+      setPreviousLevel(data.level || 1);
+    } catch {
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadStatus();
+    }
+  }, [isOpen, loadStatus]);
+
+  const claimReward = async () => {
+    try {
+      setIsClaiming(true);
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await apiFetch('/api/daily-claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to claim reward.');
+      }
+
+      const leveledUpNew = data.level > previousLevel;
+      setLeveledUp(leveledUpNew);
+      setClaimed(true);
+      setStatus({
+        streak: data.streak || 1,
+        amount: data.amount || 0,
+        xp: (status?.xp || 0) + (data.xp || 0),
+        level: data.level || 1,
+        xpToNextLevel: data.level >= 5 ? 0 : Math.max(0, (data.xpToNextLevel || 0) - (data.xp || 0)),
+        nextClaimAt: data.nextClaimAt || null,
+      });
+      await refreshWallet();
+    } catch (error) {
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const xpProgress = status ? (
+    status.level >= 5 ? 100 :
+    Math.round(((status.xp - [0, 1000, 3000, 6000, 10000][status.level - 1]) /
+    ([0, 1000, 3000, 6000, 10000][status.level] - [0, 1000, 3000, 6000, 10000][status.level - 1])) * 100)
+  ) : 0;
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 sm:p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        className="relative w-full sm:max-w-md bg-[#1a1d23] border border-[#00FF88]/20 rounded-none sm:rounded-3xl overflow-hidden shadow-2xl shadow-[#00FF88]/10 sm:max-h-[90vh] h-full sm:h-auto"
+      >
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#00FF88]/20 to-transparent" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-[#00FF88]/10 blur-[100px] rounded-full" />
+
+        <div className="relative p-8 text-center">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#00FF88]/20 mb-4">
+            <Gift size={40} className="text-[#00FF88]" />
+          </div>
+
+          <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2">
+            Daily Bonus
+          </h2>
+
+          {isLoading ? (
+            <div className="py-8 text-white/40">Loading...</div>
+          ) : claimed ? (
+            <div className="space-y-6 py-4">
+              <motion.div
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                className="space-y-2"
+              >
+                <div className="text-[#00FF88] text-sm font-black uppercase tracking-widest">Claimed!</div>
+                <div className="text-4xl font-black italic">
+                  +{formatMoneyFromCoins(status?.amount || 0)}
+                </div>
+              </motion.div>
+
+              <div className="flex justify-center gap-8">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 text-2xl font-black text-[#00FF88]">
+                    <Flame size={20} />
+                    {status?.streak}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-widest text-white/30">Day Streak</div>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 text-2xl font-black text-purple-400">
+                    <Sparkles size={20} />
+                    +{status?.xp || 0} XP
+                  </div>
+                  <div className="text-[10px] uppercase tracking-widest text-white/30">Experience</div>
+                </div>
+              </div>
+
+              {leveledUp && (
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="rounded-2xl border border-purple-400/30 bg-purple-400/10 px-6 py-4"
+                >
+                  <div className="text-sm font-black uppercase tracking-widest text-purple-400">
+                    Level Up!
+                  </div>
+                  <div className="text-2xl font-black italic">
+                    Level {status?.level}
+                  </div>
+                </motion.div>
+              )}
+
+              <button
+                onClick={onClose}
+                className="w-full py-4 bg-[#00FF88] text-black rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all"
+              >
+                Awesome!
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6 py-4">
+              <div className="space-y-1">
+                <div className="text-white/40 text-sm">Your streak</div>
+                <div className="flex items-center justify-center gap-2 text-4xl font-black">
+                  <Flame className="text-[#00FF88]" size={32} />
+                  <span className="text-[#00FF88]">{status?.streak || 1}</span>
+                  <span className="text-xl text-white/30">days</span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-white/40">Reward</span>
+                  <span className="font-black text-[#00FF88]">
+                    {formatMoneyFromCoins((status?.streak || 1) * 100)} coins
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-white/40">XP Earned</span>
+                  <span className="font-black text-purple-400">
+                    +{Math.min((status?.streak || 1) * 10, 300)} XP
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Star size={14} className="text-amber-400" />
+                    <span className="text-white/60">Level {status?.level || 1}</span>
+                  </div>
+                  <span className="text-white/40">
+                    {status?.xpToNextLevel || 0} XP to next level
+                  </span>
+                </div>
+                <div className="h-2 bg-black/40 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${xpProgress}%` }}
+                    className="h-full bg-gradient-to-r from-purple-500 to-purple-400 rounded-full"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={claimReward}
+                disabled={isClaiming}
+                className="w-full py-4 bg-[#00FF88] text-black rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isClaiming ? (
+                  <>
+                    <LoaderCircle size={18} className="animate-spin" />
+                    Claiming...
+                  </>
+                ) : (
+                  <>
+                    <Gift size={18} />
+                    Claim Reward
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
@@ -1214,6 +1773,11 @@ const Header = ({
   onOpenSettings,
   onOpenAdmin,
   onOpenLeaderboard,
+  onOpenSidebar,
+  userLevel,
+  userStreak,
+  userXp,
+  userXpToNextLevel,
 }: {
   onOpenWallet: () => void,
   onOpenLogin: () => void,
@@ -1221,24 +1785,36 @@ const Header = ({
   onOpenConnections: () => void,
   onOpenSettings: () => void,
   onOpenAdmin: () => void,
-  onOpenLeaderboard: () => void
+  onOpenLeaderboard: () => void,
+  onOpenSidebar: () => void,
+  userLevel?: number;
+  userStreak?: number;
+  userXp?: number;
+  userXpToNextLevel?: number;
 }) => {
   const { balance } = useBalance();
   const { user, logout, isAuthenticated } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileBalance, setShowMobileBalance] = useState(false);
   
   return (
-    <header className="h-16 border-b border-white/5 bg-[linear-gradient(90deg,rgba(20,49,54,0.9),rgba(23,31,47,0.9))] backdrop-blur-xl sticky top-0 z-50">
-      <div className="max-w-full h-full px-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-4 lg:hidden">
-            <Menu className="text-white/40" />
-          </div>
+    <header className="h-14 md:h-16 border-b border-white/5 bg-[linear-gradient(90deg,rgba(20,49,54,0.9),rgba(23,31,47,0.9))] backdrop-blur-xl sticky top-0 z-50">
+      <div className="max-w-full h-full px-3 md:px-6 flex items-center justify-between">
+        <div className="flex items-center gap-2 md:gap-3">
+          <button onClick={onOpenSidebar} className="lg:hidden p-2 hover:bg-white/5 rounded-xl transition-colors">
+            <Menu size={22} className="text-white/60" />
+          </button>
+          <button
+            onClick={() => {}}
+            className="lg:hidden p-2 hover:bg-white/5 rounded-xl transition-colors"
+          >
+            <MessageSquare size={20} className="text-white/40" />
+          </button>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg overflow-hidden">
+            <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg overflow-hidden">
               <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
             </div>
-            <span className="text-xl font-black italic">PASUS</span>
+            <span className="text-lg md:text-xl font-black italic tracking-tighter uppercase">PASUS</span>
           </div>
           <button
             onClick={onOpenLeaderboard}
@@ -1252,31 +1828,47 @@ const Header = ({
         </div>
 
         <div className="hidden md:flex flex-1 items-center justify-center gap-4">
-          <div className="group rounded-full border border-white/10 bg-[#1a1d23] px-5 py-2">
-            <div className="flex items-center gap-2 font-mono font-bold text-sm text-[#00FF88]">
-              <CurrencyIcon className="rounded-full object-cover" size={16} />
-              <span className="group-hover:hidden">{formatMoneyFromCoins(balance)}</span>
-              <span className="hidden group-hover:inline">{formatMoney(coinsToUsd(balance))}</span>
+          {isAuthenticated && (userLevel || userStreak) ? (
+            <>
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#1a1d23] px-3 py-1.5">
+                <Flame size={14} className="text-[#00FF88]" />
+                <span className="text-xs font-black text-[#00FF88]">{userStreak || 0}</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#1a1d23] px-3 py-1.5">
+                <Star size={14} className="text-amber-400" />
+                <span className="text-xs font-black text-amber-400">Lv.{userLevel || 1}</span>
+              </div>
+            </>
+          ) : null}
+          <div className="group relative rounded-full border border-white/10 bg-[#1a1d23] px-5 py-2">
+            <AnimatedBalanceDisplay balance={balance} />
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <ChevronUp size={10} className="text-[#00FF88]" />
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
+          <button
+            onClick={() => setShowMobileBalance(!showMobileBalance)}
+            className="md:hidden relative rounded-full border border-white/10 bg-[#1a1d23] px-3 py-1.5"
+          >
+            <AnimatedBalanceDisplay balance={balance} className="text-xs" />
+          </button>
+
           {isAuthenticated ? (
             <>
-              <div className="bg-[#1f2228] border border-white/10 rounded-full p-1 flex items-center">
-                <button 
-                  onClick={onOpenWallet}
-                  className="bg-[#00FF88] text-black text-sm font-black px-4 py-2 rounded-full hover:bg-[#00FF88]/90 transition-colors"
-                >
-                  +
-                </button>
-              </div>
+              <button 
+                onClick={onOpenWallet}
+                className="bg-[#00FF88] text-black text-sm font-black px-3 md:px-4 py-1.5 md:py-2 rounded-full hover:bg-[#00FF88]/90 transition-colors text-xs md:text-sm"
+              >
+                + Add
+              </button>
 
               <div className="relative">
                 <button 
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="w-10 h-10 rounded-full border border-white/10 overflow-hidden hover:border-[#00FF88]/50 transition-all"
+                  className="w-9 h-9 md:w-10 md:h-10 rounded-full border border-white/10 overflow-hidden hover:border-[#00FF88]/50 transition-all"
                 >
                   <img src={getPreferredAvatar(user)} alt="Avatar" className="w-full h-full object-cover" />
                 </button>
@@ -1289,7 +1881,7 @@ const Header = ({
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute right-0 mt-2 w-48 bg-[#1a1d23] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50"
+                        className="absolute right-0 mt-2 w-56 bg-[#1a1d23] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50"
                       >
                         <div className="p-4 border-b border-white/5">
                           <div className="text-sm font-bold truncate">{user?.username}</div>
@@ -1297,48 +1889,33 @@ const Header = ({
                         </div>
                         <div className="p-2">
                           <button 
-                            onClick={() => {
-                              onOpenProfile();
-                              setShowUserMenu(false);
-                            }}
+                            onClick={() => { onOpenProfile(); setShowUserMenu(false); }}
                             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all"
                           >
                             <User size={14} /> Profile
                           </button>
                           <button
-                            onClick={() => {
-                              onOpenConnections();
-                              setShowUserMenu(false);
-                            }}
+                            onClick={() => { onOpenConnections(); setShowUserMenu(false); }}
                             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all"
                           >
                             <Users size={14} /> Connections
                           </button>
                           <button 
-                            onClick={() => {
-                              onOpenSettings();
-                              setShowUserMenu(false);
-                            }}
+                            onClick={() => { onOpenSettings(); setShowUserMenu(false); }}
                             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all"
                           >
                             <Settings size={14} /> Settings
                           </button>
                           {user?.role === 'owner' ? (
                             <button
-                              onClick={() => {
-                                onOpenAdmin();
-                                setShowUserMenu(false);
-                              }}
+                              onClick={() => { onOpenAdmin(); setShowUserMenu(false); }}
                               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all"
                             >
                               <Shield size={14} /> Admin
                             </button>
                           ) : null}
                           <button 
-                            onClick={() => {
-                              logout();
-                              setShowUserMenu(false);
-                            }}
+                            onClick={() => { logout(); setShowUserMenu(false); }}
                             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-red-400 hover:bg-red-400/10 transition-all"
                           >
                             <LogOut size={14} /> Logout
@@ -1354,13 +1931,13 @@ const Header = ({
             <div className="flex items-center gap-2">
               <button 
                 onClick={onOpenLogin}
-                className="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest text-white/60 hover:text-white transition-all"
+                className="px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest text-white/60 hover:text-white transition-all"
               >
                 Sign In
               </button>
               <button 
                 onClick={onOpenLogin}
-                className="bg-[#00FF88] text-black px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/10"
+                className="bg-[#00FF88] text-black px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/10"
               >
                 Register
               </button>
@@ -1706,29 +2283,182 @@ const LiveBetsStrip = () => {
 };
 
 const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => {
-  const featuredGames = GAMES.filter(g => g.featured).slice(0, 3);
-  const originals = GAMES;
+  const featuredGames = GAMES.filter(g => g.featured).slice(0, 4);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [stats, setStats] = useState({ playersOnline: 0, totalWageredToday: 0, biggestWin: 0 });
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const response = await apiFetch('/api/stats/site');
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.stats) {
+          setStats({
+            playersOnline: Number(data.stats.playersOnline || 0),
+            totalWageredToday: Number(data.stats.totalWageredToday || 0),
+            biggestWin: Number(data.stats.biggestWin || 0),
+          });
+        }
+      } catch { /* silent */ }
+      finally { setIsLoadingStats(false); }
+    };
+    loadStats();
+    const interval = window.setInterval(loadStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (featuredGames.length <= 1) return;
+    const interval = window.setInterval(() => {
+      setHeroIndex(i => (i + 1) % featuredGames.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [featuredGames.length]);
+
+  const heroGame = featuredGames[heroIndex];
 
   return (
-    <div className="p-6 lg:p-10 space-y-12">
-      {/* Featured Section */}
-      <section>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3">
-            <Zap className="text-[#00FF88]" size={20} fill="currentColor" />
-            Top Picks
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {featuredGames.map(game => (
-            <FeaturedGame key={game.id} game={game} onClick={() => onSelectGame(game.id)} />
-          ))}
-        </div>
-      </section>
+    <div className="space-y-10">
+      <div className="p-4 md:p-6 lg:p-8 space-y-6">
+        <section className="space-y-4">
+          {heroGame && (
+            <div className="relative rounded-[28px] overflow-hidden border border-white/10">
+              <div className="relative aspect-[16/6] md:aspect-[16/5] min-h-[160px] md:min-h-[200px]">
+                <motion.img
+                  key={heroIndex}
+                  initial={{ opacity: 0, scale: 1.05 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                  src={heroGame.image}
+                  alt={heroGame.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-[#00FF88] text-[10px] font-black uppercase tracking-[0.22em] bg-[#00FF88]/20 px-3 py-1 rounded-full">
+                      <span className="flex items-center gap-1"><Flame size={10} fill="currentColor" /> Featured</span>
+                    </span>
+                  </div>
+                  <h2 className="text-2xl md:text-4xl font-black italic uppercase tracking-tighter text-white">{heroGame.name}</h2>
+                  <p className="text-white/60 text-sm mt-1 max-w-md">{heroGame.description}</p>
+                  <button
+                    onClick={() => onSelectGame(heroGame.id)}
+                    className="mt-4 bg-[#00FF88] text-black px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/20"
+                  >
+                    Play Now
+                  </button>
+                </div>
+              </div>
+              {featuredGames.length > 1 && (
+                <div className="absolute bottom-4 right-4 md:right-6 flex gap-2">
+                  {featuredGames.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setHeroIndex(i)}
+                      className={cn(
+                        'w-2 h-2 rounded-full transition-all',
+                        i === heroIndex ? 'bg-[#00FF88] w-5' : 'bg-white/30 hover:bg-white/50'
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
 
-      <DailyRewardsCard />
-      <LiveBetsStrip />
-      <RecentActivity />
+        <section className="grid grid-cols-3 md:grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-white/10 bg-[#141821] p-4 text-center">
+            <div className="flex items-center justify-center gap-1 text-[#00FF88] mb-1">
+              <UsersRound size={14} />
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#00FF88]">Players</span>
+            </div>
+            <div className="text-lg md:text-xl font-black italic">
+              {isLoadingStats ? '...' : stats.playersOnline.toLocaleString()}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-[#141821] p-4 text-center">
+            <div className="flex items-center justify-center gap-1 text-amber-400 mb-1">
+              <CircleDollarSign size={14} />
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Wagered Today</span>
+            </div>
+            <div className="text-lg md:text-xl font-black italic">
+              {isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday)}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-[#141821] p-4 text-center">
+            <div className="flex items-center justify-center gap-1 text-purple-400 mb-1">
+              <Award size={14} />
+              <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">Biggest Win</span>
+            </div>
+            <div className="text-lg md:text-xl font-black italic text-[#00FF88]">
+              {isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin)}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="px-4 md:px-6 lg:px-8">
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg md:text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+              <LayoutGrid size={18} className="text-[#00FF88]" />
+              All Games
+            </h2>
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/25">{GAMES.length} games</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+            {GAMES.map(game => {
+              const GameIcon = typeof game.icon === 'string' ? null : game.icon;
+              return (
+                <motion.button
+                  key={game.id}
+                  whileHover={{ y: -4, scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => onSelectGame(game.id)}
+                  className={cn(
+                    'relative rounded-2xl overflow-hidden border transition-all group',
+                    game.featured ? 'border-[#00FF88]/25 hover:border-[#00FF88]/50' : 'border-white/8 hover:border-white/20',
+                    'bg-[#141821]'
+                  )}
+                >
+                  <div className="aspect-[4/3] relative overflow-hidden">
+                    <img
+                      src={game.image}
+                      alt={game.name}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    {game.featured && (
+                      <div className="absolute top-2 right-2 bg-[#00FF88] text-black text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                        <Flame size={8} /> HOT
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-2 md:p-3">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      {GameIcon && <GameIcon size={12} className={game.color} />}
+                      <span className="text-xs font-black uppercase tracking-tight">{game.name}</span>
+                    </div>
+                    <p className="text-[10px] text-white/35 leading-tight line-clamp-1 hidden md:block">{game.description}</p>
+                  </div>
+                  <div className="absolute inset-0 bg-[#00FF88]/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none" />
+                </motion.button>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+
+      <div className="px-4 md:px-6 lg:px-8 pb-6 space-y-6">
+        <DailyRewardsCard />
+        <LiveBetsStrip />
+        <RecentActivity />
+      </div>
     </div>
   );
 };
@@ -1745,6 +2475,204 @@ const ProfileView = () => {
   const [robloxSuccess, setRobloxSuccess] = useState('');
   const [isRobloxLoading, setIsRobloxLoading] = useState(false);
   const [copiedPhrase, setCopiedPhrase] = useState(false);
+
+  const [sessions, setSessions] = useState<Array<{ id: number; ipAddress: string; deviceType: string; createdAt: string; lastActiveAt: string; isCurrent: boolean }>>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+
+  const [totpSetup, setTotpSetup] = useState<{ secret: string; qrCodeUrl: string } | null>(null);
+  const [totpCode, setTotpCode] = useState('');
+  const [totpError, setTotpError] = useState('');
+  const [totpSuccess, setTotpSuccess] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [isTotpLoading, setIsTotpLoading] = useState(false);
+
+  const [betExportFrom, setBetExportFrom] = useState('');
+  const [betExportTo, setBetExportTo] = useState('');
+  const [betExportGame, setBetExportGame] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const loadSessions = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    setIsLoadingSessions(true);
+    try {
+      const response = await apiFetch('/api/sessions', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.sessions)) {
+        setSessions(data.sessions.map((s: any) => ({
+          id: Number(s.id),
+          ipAddress: s.ipAddress,
+          deviceType: s.deviceType,
+          createdAt: s.createdAt,
+          lastActiveAt: s.lastActiveAt,
+          isCurrent: s.isCurrent,
+        })));
+      }
+    } catch {} finally {
+      setIsLoadingSessions(false);
+    }
+  }, []);
+
+  const revokeSession = async (sessionId: number) => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      const response = await apiFetch(`/api/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+      }
+    } catch {}
+  };
+
+  const revokeAllOtherSessions = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      const response = await apiFetch('/api/sessions', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        setSessions(prev => prev.filter(s => s.isCurrent));
+      }
+    } catch {}
+  };
+
+  const startTotpSetup = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    setIsTotpLoading(true);
+    setTotpError('');
+    setTotpSuccess('');
+    try {
+      const response = await apiFetch('/api/2fa/setup', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to setup 2FA');
+      setTotpSetup({ secret: data.secret, qrCodeUrl: data.qrCodeUrl });
+    } catch (err) {
+      setTotpError(err instanceof Error ? err.message : 'Failed to setup 2FA');
+    } finally {
+      setIsTotpLoading(false);
+    }
+  };
+
+  const verifyTotpSetup = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token || !totpCode.trim()) return;
+    setIsTotpLoading(true);
+    setTotpError('');
+    setTotpSuccess('');
+    try {
+      const response = await apiFetch('/api/2fa/verify-setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: totpCode.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to verify 2FA');
+      setUser(data.user);
+      setBackupCodes(data.backupCodes || []);
+      setTotpSetup(null);
+      setTotpCode('');
+      setTotpSuccess('2FA enabled! Save your backup codes.');
+    } catch (err) {
+      setTotpError(err instanceof Error ? err.message : 'Failed to verify 2FA');
+    } finally {
+      setIsTotpLoading(false);
+    }
+  };
+
+  const disableTotp = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token || !totpCode.trim()) return;
+    if (!confirm('Disable 2FA? This will remove the authenticator protection.')) return;
+    setIsTotpLoading(true);
+    setTotpError('');
+    try {
+      const response = await apiFetch('/api/2fa/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: totpCode.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to disable 2FA');
+      setUser(data.user);
+      setTotpCode('');
+      setTotpSuccess('2FA has been disabled.');
+    } catch (err) {
+      setTotpError(err instanceof Error ? err.message : 'Failed to disable 2FA');
+    } finally {
+      setIsTotpLoading(false);
+    }
+  };
+
+  const exportBets = async (format: 'csv' | 'json') => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (betExportFrom) params.set('from', betExportFrom);
+      if (betExportTo) params.set('to', betExportTo);
+      if (betExportGame) params.set('gameKey', betExportGame);
+      params.set('format', format);
+
+      const response = await fetch(`/api/activity/bets/export?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (format === 'csv') {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bet-history-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch {} finally {
+      setIsExporting(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    apiFetch('/api/roblox/link/status', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((response) => response.json().then((data) => ({ ok: response.ok, data })).catch(() => ({ ok: response.ok, data: {} })))
+      .then(({ ok, data }) => {
+        if (!ok || !data.roblox) {
+          return;
+        }
+
+        setRobloxPhrase(data.roblox.pendingPhrase || '');
+        setRobloxUsernameInput(data.roblox.username || user?.robloxUsername || '');
+        setRobloxAvatarPreview(data.roblox.avatarUrl || user?.robloxAvatarUrl || '');
+        setRobloxDisplayNamePreview(data.roblox.displayName || user?.robloxDisplayName || '');
+        setRobloxProfileUrl(data.roblox.userId ? `https://www.roblox.com/users/${data.roblox.userId}/profile` : '');
+      })
+      .catch(() => undefined);
+  }, [user?.robloxUsername, user?.robloxAvatarUrl, user?.robloxDisplayName]);
+
+  const getDeviceIcon = (deviceType: string) => {
+    if (deviceType === 'Mobile') return <Smartphone size={14} />;
+    if (deviceType === 'Tablet') return <Tablet size={14} />;
+    return <Monitor size={14} />;
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -1873,11 +2801,7 @@ const ProfileView = () => {
           <div className="flex flex-wrap justify-center md:justify-start gap-4">
             <div className="bg-black/40 border border-white/5 rounded-2xl px-6 py-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Total Balance</div>
-              <div className="group flex items-center gap-2 font-mono font-bold text-[#00FF88] text-xl">
-                <CurrencyIcon className="rounded-full object-cover" size={18} />
-                <span className="group-hover:hidden">{formatMoneyFromCoins(balance)}</span>
-                <span className="hidden group-hover:inline">{formatMoney(coinsToUsd(balance))}</span>
-              </div>
+              <AnimatedBalanceDisplay balance={balance} className="text-xl" />
             </div>
             <div className="bg-black/40 border border-white/5 rounded-2xl px-6 py-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Games Played</div>
@@ -1914,21 +2838,145 @@ const ProfileView = () => {
           </h3>
           <div className="space-y-4">
             <div className="p-4 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-bold mb-1">Two-Factor Auth</div>
-                <div className="text-[10px] text-white/20 font-bold">Protect your account with 2FA</div>
+              <div className="flex items-center gap-3">
+                <KeyRound size={18} className="text-white/40" />
+                <div>
+                  <div className="text-xs font-bold mb-1">Two-Factor Auth</div>
+                  <div className="text-[10px] text-white/20 font-bold">{user?.totpEnabled ? 'Enabled' : 'Protect your account with 2FA'}</div>
+                </div>
               </div>
-              <div className="w-12 h-6 bg-white/5 rounded-full relative cursor-pointer">
-                <div className="absolute left-1 top-1 w-4 h-4 bg-white/20 rounded-full" />
+              <div className={cn("w-12 h-6 rounded-full relative", user?.totpEnabled ? 'bg-[#00FF88]' : 'bg-white/5')}>
+                <div className={cn("absolute top-1 w-4 h-4 rounded-full", user?.totpEnabled ? 'left-[22px] bg-black' : 'left-1 bg-white/20')} />
               </div>
             </div>
-            <button className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-bold transition-all">
+            {user?.totpEnabled ? (
+              <>
+                <button onClick={startTotpSetup} disabled={isTotpLoading} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-bold transition-all">
+                  {isTotpLoading ? 'Loading...' : 'Manage 2FA'}
+                </button>
+                {totpSetup ? (
+                  <div className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-4">
+                    <div className="text-xs font-bold text-[#00FF88]">Scan this QR code with your authenticator app:</div>
+                    <div className="flex justify-center">
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(totpSetup.qrCodeUrl)}`} alt="QR Code" className="w-32 h-32" />
+                    </div>
+                    <div className="text-[10px] text-white/40 font-mono break-all">Secret: {totpSetup.secret}</div>
+                    <input type="text" value={totpCode} onChange={(e) => setTotpCode(e.target.value)} placeholder="Enter 6-digit code" maxLength={6} className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-center font-mono tracking-widest focus:outline-none" />
+                    <button onClick={verifyTotpSetup} disabled={isTotpLoading || totpCode.length !== 6} className="w-full py-3 bg-[#00FF88] text-black rounded-2xl text-xs font-bold disabled:opacity-40">
+                      {isTotpLoading ? 'Verifying...' : 'Verify & Enable'}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <button onClick={startTotpSetup} disabled={isTotpLoading} className="w-full py-3 bg-[#00FF88] hover:bg-[#00FF88]/90 text-black rounded-2xl text-xs font-bold transition-all">
+                  {isTotpLoading ? 'Loading...' : 'Enable 2FA'}
+                </button>
+                {totpSetup ? (
+                  <div className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-4">
+                    <div className="text-xs font-bold text-[#00FF88]">Scan this QR code with your authenticator app:</div>
+                    <div className="flex justify-center">
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(totpSetup.qrCodeUrl)}`} alt="QR Code" className="w-32 h-32" />
+                    </div>
+                    <div className="text-[10px] text-white/40 font-mono break-all">Manual code: {totpSetup.secret}</div>
+                    <input type="text" value={totpCode} onChange={(e) => setTotpCode(e.target.value)} placeholder="Enter 6-digit code" maxLength={6} className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-center font-mono tracking-widest focus:outline-none" />
+                    <button onClick={verifyTotpSetup} disabled={isTotpLoading || totpCode.length !== 6} className="w-full py-3 bg-[#00FF88] text-black rounded-2xl text-xs font-bold disabled:opacity-40">
+                      {isTotpLoading ? 'Verifying...' : 'Verify & Enable'}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            )}
+            {totpError ? <div className="text-xs text-red-300">{totpError}</div> : null}
+            {totpSuccess ? (
+              <div className="rounded-2xl border border-[#00FF88]/20 bg-[#00FF88]/10 p-4 space-y-2">
+                <div className="text-xs font-bold text-[#00FF88]">{totpSuccess}</div>
+                {backupCodes.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[10px] text-white/50">Backup codes (save these!):</div>
+                    {backupCodes.map((code, i) => <div key={i} className="text-xs font-mono text-white/70">{code}</div>)}
+                    <button onClick={() => { navigator.clipboard.writeText(backupCodes.join('\n')); setTotpSuccess('Backup codes copied!'); }} className="mt-2 text-[10px] text-[#00FF88] underline">Copy codes</button>
+                  </div>
+                )}
+              </div>
+            ) : null}
+            <button onClick={() => setUser((prev: any) => ({ ...prev, totpEnabled: false }))} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-bold transition-all">
               Change Password
             </button>
-            <button className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-bold transition-all">
-              Session History
-            </button>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-[#1a1d23] border border-white/10 rounded-3xl p-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-3">
+            <History className="text-[#00FF88]" size={20} />
+            Active Sessions
+          </h3>
+          <button onClick={revokeAllOtherSessions} className="text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors">
+            Revoke All Others
+          </button>
+        </div>
+        <div className="space-y-3">
+          {isLoadingSessions ? (
+            <div className="text-sm text-white/40">Loading sessions...</div>
+          ) : sessions.length > 0 ? sessions.map((session) => (
+            <div key={session.id} className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-white/5">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40">
+                  {getDeviceIcon(session.deviceType)}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold">{session.deviceType}</span>
+                    {session.isCurrent && <span className="text-[10px] px-2 py-0.5 bg-[#00FF88]/20 text-[#00FF88] rounded-full font-bold">Current</span>}
+                  </div>
+                  <div className="text-[10px] text-white/40 mt-1">
+                    {session.ipAddress} • Last active: {new Date(session.lastActiveAt).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              {!session.isCurrent && (
+                <button onClick={() => revokeSession(session.id)} className="p-2 hover:bg-red-500/10 rounded-xl text-red-400 transition-colors">
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          )) : (
+            <div className="text-sm text-white/40">No active sessions found.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-[#1a1d23] border border-white/10 rounded-3xl p-8 space-y-6">
+        <h3 className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-3">
+          <Download className="text-[#00FF88]" size={20} />
+          Export Bet History
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">From Date</label>
+            <input type="date" value={betExportFrom} onChange={(e) => setBetExportFrom(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">To Date</label>
+            <input type="date" value={betExportTo} onChange={(e) => setBetExportTo(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Game (optional)</label>
+            <input type="text" value={betExportGame} onChange={(e) => setBetExportGame(e.target.value)} placeholder="e.g. crash" className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={() => exportBets('csv')} disabled={isExporting} className="flex-1 py-3 bg-[#00FF88] text-black rounded-2xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-40">
+            {isExporting ? <LoaderCircle size={14} className="animate-spin" /> : <Download size={14} />}
+            Export CSV
+          </button>
+          <button onClick={() => exportBets('json')} disabled={isExporting} className="flex-1 py-3 bg-white/10 hover:bg-white/15 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-40">
+            {isExporting ? <LoaderCircle size={14} className="animate-spin" /> : <Download size={14} />}
+            Export JSON
+          </button>
         </div>
       </div>
 
@@ -2423,7 +3471,7 @@ const SettingsView = () => {
 const AdminView = () => {
   const { user } = useAuth();
   const { refreshWallet } = useBalance();
-  const [adminSection, setAdminSection] = useState<'overview' | 'history' | 'payments' | 'support'>('overview');
+  const [adminSection, setAdminSection] = useState<'overview' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'rainbot'>('overview');
   const [selectedWithdrawalId, setSelectedWithdrawalId] = useState<number | null>(null);
   const [withdrawalStatusDraft, setWithdrawalStatusDraft] = useState<'pending' | 'processing' | 'completed'>('pending');
   const [isUpdatingWithdrawal, setIsUpdatingWithdrawal] = useState(false);
@@ -2442,6 +3490,36 @@ const AdminView = () => {
   const [selectedSupportTicketId, setSelectedSupportTicketId] = useState<number | null>(null);
   const [supportReply, setSupportReply] = useState('');
   const [isReplyingToSupport, setIsReplyingToSupport] = useState(false);
+  const [promos, setPromos] = useState<Array<{ id: number; code: string; coinAmount: number; maxUses: number; currentUses: number; expiresAt: string | null; createdAt: string; createdBy: string }>>([]);
+  const [newPromoCode, setNewPromoCode] = useState('');
+  const [newPromoCoins, setNewPromoCoins] = useState('');
+  const [newPromoMaxUses, setNewPromoMaxUses] = useState('1');
+  const [newPromoExpires, setNewPromoExpires] = useState('');
+  const [broadcasts, setBroadcasts] = useState<Array<{ id: number; message: string; createdAt: string; expiresAt: string | null; isActive: boolean }>>([]);
+  const [newBroadcastMessage, setNewBroadcastMessage] = useState('');
+  const [newBroadcastExpires, setNewBroadcastExpires] = useState('');
+
+  const [moderationHistory, setModerationHistory] = useState<Array<{ id: number; userId: number; username: string; moderatorUsername: string; action: string; reason: string; durationMinutes: number | null; expiresAt: string | null; createdAt: string }>>([]);
+  const [modUserId, setModUserId] = useState('');
+  const [modAction, setModAction] = useState<'ban' | 'mute'>('ban');
+  const [modReason, setModReason] = useState('');
+  const [modDuration, setModDuration] = useState('');
+  const [moderationFilter, setModerationFilter] = useState<'all' | 'ban' | 'mute'>('all');
+  const [isModLoading, setIsModLoading] = useState(false);
+
+  const [analytics, setAnalytics] = useState<any | null>(null);
+  const [rainBotSchedules, setRainBotSchedules] = useState<Array<{
+    id: number;
+    intervalMinutes: number;
+    minPoolAmount: number;
+    rainAmount: number;
+    isActive: boolean;
+    createdAt: string;
+    lastTriggeredAt: string | null;
+  }>>([]);
+  const [newRainInterval, setNewRainInterval] = useState('60');
+  const [newRainMinPool, setNewRainMinPool] = useState('100');
+  const [newRainAmount, setNewRainAmount] = useState('500');
 
   const loadOverview = useCallback(async () => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -2497,11 +3575,138 @@ const AdminView = () => {
     })));
   }, [activityTab]);
 
+  const loadPromos = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    const response = await apiFetch('/api/admin/promo/list', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load promo codes.');
+    }
+    setPromos(Array.isArray(data.promos) ? data.promos : []);
+  }, []);
+
+  const loadBroadcasts = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    const response = await apiFetch('/api/broadcasts', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok && Array.isArray(data.broadcasts)) {
+      setBroadcasts(data.broadcasts.map((b: any) => ({
+        id: Number(b.id),
+        message: String(b.message || ''),
+        createdAt: b.createdAt || '',
+        expiresAt: b.expiresAt || null,
+        isActive: Boolean(b.isActive),
+      })));
+    }
+  }, []);
+
+  const loadAnalytics = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      const response = await apiFetch('/api/admin/analytics', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.analytics) {
+        setAnalytics(data.analytics);
+      }
+    } catch {}
+  }, []);
+
+  const loadRainBotSchedules = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      const response = await apiFetch('/api/admin/rain-bot', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.schedules)) {
+        setRainBotSchedules(data.schedules);
+      }
+    } catch {}
+  }, []);
+
+  const loadModerationHistory = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    setIsModLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (moderationFilter !== 'all') params.set('action', moderationFilter);
+      const response = await apiFetch(`/api/admin/moderation/history?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.history)) {
+        setModerationHistory(data.history.map((h: any) => ({
+          id: Number(h.id),
+          userId: Number(h.userId),
+          username: h.username,
+          moderatorUsername: h.moderatorUsername,
+          action: h.action,
+          reason: h.reason,
+          durationMinutes: h.durationMinutes,
+          expiresAt: h.expiresAt,
+          createdAt: h.createdAt,
+        })));
+      }
+    } catch {} finally {
+      setIsModLoading(false);
+    }
+  }, [moderationFilter]);
+
+  const submitModerationAction = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token || !modUserId.trim() || !modAction) return;
+    setIsModLoading(true);
+    setStatus('');
+    try {
+      const response = await apiFetch(`/api/admin/moderation/${modAction}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          userId: Number(modUserId),
+          reason: modReason.trim(),
+          durationMinutes: modDuration ? Number(modDuration) : null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Failed to ${modAction} user`);
+      setStatus(`${modAction === 'ban' ? 'User banned' : 'User muted'} successfully.`);
+      setModUserId('');
+      setModReason('');
+      setModDuration('');
+      await loadModerationHistory();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : `Failed to ${modAction} user`);
+    } finally {
+      setIsModLoading(false);
+    }
+  };
+
   useEffect(() => {
-    Promise.all([loadOverview(), loadSupportTickets(), loadActivity(activityTab)]).catch((error) => {
+    Promise.all([loadOverview(), loadSupportTickets(), loadActivity(activityTab), loadPromos(), loadBroadcasts()]).catch((error) => {
       setStatus(error instanceof Error ? error.message : 'Failed to load admin overview.');
     });
-  }, [activityTab, loadActivity, loadOverview, loadSupportTickets]);
+  }, [activityTab, loadActivity, loadOverview, loadPromos, loadBroadcasts, loadSupportTickets]);
+
+  useEffect(() => {
+    if (adminSection === 'moderation') {
+      loadModerationHistory().catch(() => undefined);
+    }
+    if (adminSection === 'analytics') {
+      loadAnalytics().catch(() => undefined);
+    }
+    if (adminSection === 'rainbot') {
+      loadRainBotSchedules().catch(() => undefined);
+    }
+  }, [adminSection, loadModerationHistory, loadAnalytics, loadRainBotSchedules]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -2652,10 +3857,15 @@ const AdminView = () => {
           ['history', 'Game History'],
           ['payments', 'Payments'],
           ['support', 'Support'],
+          ['promos', 'Promo Codes'],
+          ['broadcasts', 'Broadcasts'],
+          ['moderation', 'Moderation'],
+          ['analytics', 'Analytics'],
+          ['rainbot', 'Rain Bot'],
         ].map(([value, label]) => (
           <button
             key={value}
-            onClick={() => setAdminSection(value as 'overview' | 'history' | 'payments' | 'support')}
+            onClick={() => setAdminSection(value as 'overview' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'rainbot')}
             className={cn(
               'rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] transition-all',
               adminSection === value ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/55 hover:text-white'
@@ -2885,6 +4095,549 @@ const AdminView = () => {
             >
               {isReplyingToSupport ? 'Replying...' : 'Send Support Reply'}
             </button>
+          </div>
+        </div>
+      </div>
+      ) : null}
+
+      {adminSection === 'promos' ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Create Promo Code</div>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Code</label>
+              <input
+                type="text"
+                value={newPromoCode}
+                onChange={(e) => setNewPromoCode(e.target.value.toUpperCase())}
+                placeholder="PROMO2024"
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-bold tracking-widest focus:outline-none"
+                maxLength={32}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Coin Amount</label>
+              <input
+                type="number"
+                value={newPromoCoins}
+                onChange={(e) => setNewPromoCoins(e.target.value)}
+                placeholder="1000"
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Max Uses</label>
+              <input
+                type="number"
+                value={newPromoMaxUses}
+                onChange={(e) => setNewPromoMaxUses(e.target.value)}
+                placeholder="1"
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Expires At (optional)</label>
+              <input
+                type="datetime-local"
+                value={newPromoExpires}
+                onChange={(e) => setNewPromoExpires(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={async () => {
+                if (!newPromoCode.trim()) {
+                  setStatus('Enter a promo code.');
+                  return;
+                }
+                const token = localStorage.getItem('pasus_auth_token');
+                try {
+                  const response = await apiFetch('/api/admin/promo/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                      code: newPromoCode.trim(),
+                      coinAmount: parseInt(newPromoCoins) || 0,
+                      maxUses: parseInt(newPromoMaxUses) || 1,
+                      expiresAt: newPromoExpires || null,
+                    }),
+                  });
+                  const data = await response.json().catch(() => ({}));
+                  if (!response.ok) throw new Error(data.error || 'Failed to create promo code.');
+                  setStatus(`Promo code ${data.code} created successfully!`);
+                  setNewPromoCode('');
+                  setNewPromoCoins('');
+                  setNewPromoMaxUses('1');
+                  setNewPromoExpires('');
+                  loadPromos();
+                } catch (err) {
+                  setStatus(err instanceof Error ? err.message : 'Failed to create promo code.');
+                }
+              }}
+              className="w-full rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em]"
+            >
+              Create Promo Code
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Promo Codes ({promos.length})</div>
+          <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {promos.length ? promos.map((promo) => (
+              <div key={promo.id} className="rounded-2xl border border-white/5 bg-black/25 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-black tracking-widest">{promo.code}</div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-bold">
+                    {formatMoneyFromCoins(promo.coinAmount)}
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-white/35">
+                  <span>{promo.currentUses} / {promo.maxUses} used</span>
+                  <span>{promo.expiresAt ? `Exp: ${new Date(promo.expiresAt).toLocaleDateString()}` : 'Never expires'}</span>
+                </div>
+                <div className="mt-1 text-[10px] text-white/20">By {promo.createdBy}</div>
+              </div>
+            )) : (
+              <div className="text-sm text-white/35">No promo codes yet.</div>
+            )}
+          </div>
+        </div>
+      </div>
+      ) : null}
+
+      {adminSection === 'broadcasts' ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Create Broadcast</div>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Message</label>
+              <textarea
+                value={newBroadcastMessage}
+                onChange={(e) => setNewBroadcastMessage(e.target.value)}
+                placeholder="Announcement message..."
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none"
+                maxLength={500}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Expires At (optional)</label>
+              <input
+                type="datetime-local"
+                value={newBroadcastExpires}
+                onChange={(e) => setNewBroadcastExpires(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={async () => {
+                if (!newBroadcastMessage.trim()) {
+                  setStatus('Enter a message.');
+                  return;
+                }
+                const token = localStorage.getItem('pasus_auth_token');
+                try {
+                  const response = await apiFetch('/api/admin/broadcast/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                      message: newBroadcastMessage.trim(),
+                      expiresAt: newBroadcastExpires || null,
+                    }),
+                  });
+                  const data = await response.json().catch(() => ({}));
+                  if (!response.ok) throw new Error(data.error || 'Failed to create broadcast.');
+                  setStatus('Broadcast created successfully!');
+                  setNewBroadcastMessage('');
+                  setNewBroadcastExpires('');
+                  loadBroadcasts();
+                } catch (err) {
+                  setStatus(err instanceof Error ? err.message : 'Failed to create broadcast.');
+                }
+              }}
+              className="w-full rounded-2xl bg-amber-500 text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em]"
+            >
+              Create Broadcast
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Broadcasts ({broadcasts.length})</div>
+          <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {broadcasts.length ? broadcasts.map((broadcast) => (
+              <div key={broadcast.id} className={cn(
+                'rounded-2xl border px-4 py-4',
+                broadcast.isActive ? 'border-amber-500/30 bg-amber-500/10' : 'border-red-500/30 bg-red-500/10'
+              )}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 text-sm text-white/90 whitespace-pre-wrap">{broadcast.message}</div>
+                  <button
+                    onClick={async () => {
+                      const token = localStorage.getItem('pasus_auth_token');
+                      try {
+                        await apiFetch(`/api/admin/broadcast/${broadcast.id}/toggle`, {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        loadBroadcasts();
+                      } catch {}
+                    }}
+                    className={cn(
+                      'shrink-0 rounded-xl px-3 py-1 text-[10px] font-black uppercase tracking-widest',
+                      broadcast.isActive ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'
+                    )}
+                  >
+                    {broadcast.isActive ? 'Deactivate' : 'Activate'}
+                  </button>
+                </div>
+                <div className="mt-2 text-[10px] text-white/35">
+                  Created: {new Date(broadcast.createdAt).toLocaleString()}
+                  {broadcast.expiresAt && ` • Expires: ${new Date(broadcast.expiresAt).toLocaleString()}`}
+                </div>
+              </div>
+            )) : (
+              <div className="text-sm text-white/35">No broadcasts yet.</div>
+            )}
+          </div>
+        </div>
+      </div>
+      ) : null}
+
+      {adminSection === 'moderation' ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Moderation Actions</div>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">User ID</label>
+              <input
+                type="number"
+                value={modUserId}
+                onChange={(e) => setModUserId(e.target.value)}
+                placeholder="Enter user ID"
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Action</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setModAction('ban')}
+                  className={cn(
+                    'py-3 rounded-2xl text-xs font-black uppercase tracking-[0.16em] transition-all',
+                    modAction === 'ban' ? 'bg-red-500 text-white' : 'bg-white/5 text-white/55'
+                  )}
+                >
+                  Ban User
+                </button>
+                <button
+                  onClick={() => setModAction('mute')}
+                  className={cn(
+                    'py-3 rounded-2xl text-xs font-black uppercase tracking-[0.16em] transition-all',
+                    modAction === 'mute' ? 'bg-amber-500 text-black' : 'bg-white/5 text-white/55'
+                  )}
+                >
+                  Mute User
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Reason</label>
+              <input
+                type="text"
+                value={modReason}
+                onChange={(e) => setModReason(e.target.value)}
+                placeholder="Reason for action"
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Duration (minutes, optional)</label>
+              <input
+                type="number"
+                value={modDuration}
+                onChange={(e) => setModDuration(e.target.value)}
+                placeholder="Permanent if empty"
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={submitModerationAction}
+              disabled={isModLoading || !modUserId.trim()}
+              className={cn(
+                'w-full py-3 rounded-2xl text-xs font-black uppercase tracking-[0.16em] transition-all',
+                modAction === 'ban' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-amber-500 hover:bg-amber-600 text-black',
+                (isModLoading || !modUserId.trim()) && 'opacity-40'
+              )}
+            >
+              {isModLoading ? 'Processing...' : modAction === 'ban' ? 'Ban User' : 'Mute User'}
+            </button>
+            {status && <div className="text-xs text-white/60">{status}</div>}
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-lg font-black uppercase tracking-tight">Moderation History</div>
+            <div className="flex gap-2">
+              {(['all', 'ban', 'mute'] as const).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setModerationFilter(filter)}
+                  className={cn(
+                    'px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-[0.14em]',
+                    moderationFilter === filter ? 'bg-white/10 text-white' : 'text-white/40'
+                  )}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {isModLoading ? (
+              <div className="text-sm text-white/40">Loading...</div>
+            ) : moderationHistory.length > 0 ? moderationHistory.map((entry) => (
+              <div key={entry.id} className={cn(
+                'rounded-2xl border px-4 py-4',
+                entry.action === 'ban' ? 'border-red-500/30 bg-red-500/10' : 'border-amber-500/30 bg-amber-500/10'
+              )}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      'text-[10px] px-2 py-0.5 rounded-full font-black uppercase',
+                      entry.action === 'ban' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'
+                    )}>
+                      {entry.action}
+                    </span>
+                    <span className="text-sm font-bold">{entry.username}</span>
+                  </div>
+                  <span className="text-[10px] text-white/30">
+                    by {entry.moderatorUsername}
+                  </span>
+                </div>
+                {entry.reason && <div className="mt-2 text-xs text-white/60">{entry.reason}</div>}
+                <div className="mt-2 flex items-center gap-4 text-[10px] text-white/35">
+                  <span>{new Date(entry.createdAt).toLocaleString()}</span>
+                  {entry.durationMinutes && <span>Duration: {entry.durationMinutes} min</span>}
+                </div>
+              </div>
+            )) : (
+              <div className="text-sm text-white/35">No moderation history.</div>
+            )}
+          </div>
+        </div>
+      </div>
+      ) : null}
+
+      {adminSection === 'analytics' ? (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Total Users</div>
+            <div className="mt-3 text-3xl font-black italic">{analytics?.users.total ?? 0}</div>
+          </div>
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Active Today</div>
+            <div className="mt-3 text-3xl font-black italic text-[#00FF88]">{analytics?.users.activeToday ?? 0}</div>
+          </div>
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Wagered Today</div>
+            <div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(analytics?.wagering.today ?? 0)}</div>
+          </div>
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Revenue Today</div>
+            <div className="mt-3 text-3xl font-black italic text-emerald-400">{formatMoneyFromCoins(analytics?.revenue.today ?? 0)}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+            <div className="text-sm font-black uppercase tracking-tight mb-4">User Acquisition</div>
+            <div className="space-y-3">
+              <div className="flex justify-between"><span className="text-xs text-white/40">Today</span><span className="text-sm font-bold">{analytics?.users.today ?? 0}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-white/40">This Week</span><span className="text-sm font-bold">{analytics?.users.week ?? 0}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-white/40">This Month</span><span className="text-sm font-bold">{analytics?.users.month ?? 0}</span></div>
+              <div className="border-t border-white/5 pt-2 mt-2 flex justify-between"><span className="text-xs text-white/40">Active Today</span><span className="text-sm font-bold text-[#00FF88]">{analytics?.users.activeToday ?? 0}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-white/40">Active Week</span><span className="text-sm font-bold text-[#00FF88]">{analytics?.users.activeWeek ?? 0}</span></div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+            <div className="text-sm font-black uppercase tracking-tight mb-4">Wagering</div>
+            <div className="space-y-3">
+              <div className="flex justify-between"><span className="text-xs text-white/40">Today</span><span className="text-sm font-bold">{formatMoneyFromCoins(analytics?.wagering.today ?? 0)}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-white/40">This Week</span><span className="text-sm font-bold">{formatMoneyFromCoins(analytics?.wagering.week ?? 0)}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-white/40">This Month</span><span className="text-sm font-bold">{formatMoneyFromCoins(analytics?.wagering.month ?? 0)}</span></div>
+              <div className="border-t border-white/5 pt-2 mt-2 flex justify-between"><span className="text-xs text-white/40">Total</span><span className="text-sm font-bold">{formatMoneyFromCoins(analytics?.wagering.total ?? 0)}</span></div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+            <div className="text-sm font-black uppercase tracking-tight mb-4">Deposits & Withdrawals</div>
+            <div className="space-y-3">
+              <div className="flex justify-between"><span className="text-xs text-white/40">Total Deposited</span><span className="text-sm font-bold text-[#00FF88]">${analytics?.deposits.total ?? 0}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-white/40">Today</span><span className="text-sm font-bold">${analytics?.deposits.today ?? 0}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-white/40">This Week</span><span className="text-sm font-bold">${analytics?.deposits.week ?? 0}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-white/40">This Month</span><span className="text-sm font-bold">${analytics?.deposits.month ?? 0}</span></div>
+              <div className="border-t border-white/5 pt-2 mt-2 flex justify-between"><span className="text-xs text-white/40">Total Withdrawn</span><span className="text-sm font-bold text-red-400">{formatMoneyFromCoins(analytics?.withdrawals.total ?? 0)}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+          <div className="text-sm font-black uppercase tracking-tight mb-4">Game Performance</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] font-black uppercase tracking-[0.18em] text-white/25">
+                  <th className="px-3 py-2">Game</th>
+                  <th className="px-3 py-2 text-right">Bets</th>
+                  <th className="px-3 py-2 text-right">Wagered</th>
+                  <th className="px-3 py-2 text-right">Payout</th>
+                  <th className="px-3 py-2 text-right">Win%</th>
+                  <th className="px-3 py-2 text-right">Max Mult</th>
+                  <th className="px-3 py-2 text-right">House Edge</th>
+                </tr>
+              </thead>
+              <tbody className="text-xs">
+                {(analytics?.games || []).map((game: any) => {
+                  const totalBets = game.totalBets || 0;
+                  const wins = game.wins || 0;
+                  const winRate = totalBets > 0 ? ((wins / totalBets) * 100).toFixed(1) : '0.0';
+                  return (
+                    <tr key={game.gameKey} className="border-t border-white/5 hover:bg-white/[0.02]">
+                      <td className="px-3 py-2 font-black uppercase">{game.gameKey}</td>
+                      <td className="px-3 py-2 text-right font-mono">{game.totalBets.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono">{formatMoneyFromCoins(game.totalWagered)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-[#00FF88]">{formatMoneyFromCoins(game.totalPayout)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <span className={Number(winRate) > 45 ? 'text-red-400' : 'text-white/60'}>{winRate}%</span>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-amber-400">{game.maxMultiplier > 0 ? `${game.maxMultiplier.toFixed(2)}x` : '-'}</td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald-400">{game.houseEdge}%</td>
+                    </tr>
+                  );
+                })}
+                {(analytics?.games || []).length === 0 && (
+                  <tr><td colSpan={7} className="px-3 py-4 text-center text-white/30">No game data yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      ) : null}
+
+      {adminSection === 'rainbot' ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Create Schedule</div>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Interval (minutes)</label>
+              <input type="number" value={newRainInterval} onChange={(e) => setNewRainInterval(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="60" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Min Pool Amount (coins)</label>
+              <input type="number" value={newRainMinPool} onChange={(e) => setNewRainMinPool(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="100" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Rain Amount (coins)</label>
+              <input type="number" value={newRainAmount} onChange={(e) => setNewRainAmount(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="500" />
+            </div>
+            <button
+              onClick={async () => {
+                const token = localStorage.getItem('pasus_auth_token');
+                if (!token) return;
+                try {
+                  const response = await apiFetch('/api/admin/rain-bot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                      intervalMinutes: parseInt(newRainInterval) || 60,
+                      minPoolAmount: parseInt(newRainMinPool) || 100,
+                      rainAmount: parseInt(newRainAmount) || 500,
+                    }),
+                  });
+                  const data = await response.json().catch(() => ({}));
+                  if (!response.ok) throw new Error(data.error || 'Failed to create schedule.');
+                  setStatus('Rain bot schedule created!');
+                  setNewRainInterval('60');
+                  setNewRainMinPool('100');
+                  setNewRainAmount('500');
+                  loadRainBotSchedules();
+                } catch (err) {
+                  setStatus(err instanceof Error ? err.message : 'Failed to create schedule.');
+                }
+              }}
+              className="w-full rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em]"
+            >
+              Create Schedule
+            </button>
+            {status && <div className="text-xs text-white/60">{status}</div>}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-lg font-black uppercase tracking-tight">Schedules ({rainBotSchedules.length})</div>
+            <button onClick={loadRainBotSchedules} className="px-3 py-1 bg-white/5 rounded-xl text-[10px] text-white/40 hover:text-white">Refresh</button>
+          </div>
+          <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {rainBotSchedules.length > 0 ? rainBotSchedules.map((schedule) => (
+              <div key={schedule.id} className={cn('rounded-2xl border px-4 py-4', schedule.isActive ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/5 bg-white/5')}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={cn('w-2 h-2 rounded-full', schedule.isActive ? 'bg-emerald-400' : 'bg-white/20')} />
+                      <span className="text-sm font-black">{schedule.intervalMinutes}min</span>
+                    </div>
+                    <div className="text-[10px] text-white/40">
+                      Min pool: {schedule.minPoolAmount} | Rain: {schedule.rainAmount} coins
+                    </div>
+                    {schedule.lastTriggeredAt && (
+                      <div className="text-[10px] text-white/20">
+                        Last: {new Date(schedule.lastTriggeredAt).toLocaleString()}
+                      </div>
+                    )}
+                    <div className="text-[10px] text-white/20">
+                      Created: {new Date(schedule.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        const token = localStorage.getItem('pasus_auth_token');
+                        if (!token) return;
+                        await apiFetch(`/api/admin/rain-bot/${schedule.id}/toggle`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+                        loadRainBotSchedules();
+                      }}
+                      className={cn('px-3 py-1 rounded-xl text-[10px] font-black uppercase', schedule.isActive ? 'bg-red-500/20 text-red-300' : 'bg-emerald-500/20 text-emerald-300')}
+                    >
+                      {schedule.isActive ? 'Disable' : 'Enable'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const token = localStorage.getItem('pasus_auth_token');
+                        if (!token) return;
+                        await apiFetch(`/api/admin/rain-bot/${schedule.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+                        loadRainBotSchedules();
+                      }}
+                      className="px-3 py-1 rounded-xl text-[10px] font-black uppercase bg-white/10 text-white/50 hover:text-red-400"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div className="text-sm text-white/35 text-center py-8">No rain bot schedules. Create one to auto-fund rain pools.</div>
+            )}
           </div>
         </div>
       </div>
@@ -3930,106 +5683,121 @@ type CustomRainState = {
   hasEnded: boolean;
 };
 
-const RightRail = () => {
-  const { isAuthenticated, user } = useAuth();
-  const { refreshWallet } = useBalance();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [rain, setRain] = useState<RainState | null>(null);
-  const [customRain, setCustomRain] = useState<CustomRainState | null>(null);
+const RightRail = ({
+  isMobileOpen,
+  onCloseMobile,
+}: {
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}) => {
+  const { subtractBalance, refreshWallet } = useBalance();
+  const { user, isAuthenticated } = useAuth();
   const [draft, setDraft] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isJoiningRain, setIsJoiningRain] = useState(false);
   const [roomError, setRoomError] = useState('');
-  const [lastSeenRainId, setLastSeenRainId] = useState<number | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const [onlineCount, setOnlineCount] = useState(0);
-  const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
+  const [messages, setMessages] = useState<Array<{
+    id: number; user: string; role: string; text: string; tone: string; createdAt: string; avatarUrl: string;
+  }>>([]);
+  const [broadcasts, setBroadcasts] = useState<Array<{
+    id: number; message: string; createdAt: string; expiresAt: string | null; isActive: boolean;
+  }>>([]);
+  const [commandNotifications, setCommandNotifications] = useState<Array<{
+    id: number; title: string; lines: string[]; createdAt: string;
+  }>>([]);
+  const [dismissedBroadcasts, setDismissedBroadcasts] = useState<Set<number>>(new Set());
+  const [rain, setRain] = useState<{
+    id: number; poolAmount: number; startsAt: string; joinOpensAt: string; endsAt: string; participantCount: number; joined: boolean; hasEnded: boolean;
+  } | null>(null);
+  const [customRain, setCustomRain] = useState<{
+    id: number; creatorUsername: string; poolAmount: number; endsAt: string; participantCount: number; joined: boolean; hasEnded: boolean;
+  } | null>(null);
+  const [rainDraft, setRainDraft] = useState<{
+    amount: string; target: string; targetUsername?: string;
+  } | null>(null);
+  const [customRainDraft, setCustomRainDraft] = useState<{
+    amount: string;
+  } | null>(null);
+  const [tipDraft, setTipDraft] = useState<{
+    targetUsername: string; amount: string;
+  } | null>(null);
+  const [isJoiningRain, setIsJoiningRain] = useState(false);
+  const [nowMs, setNowMs] = useState(Date.now());
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-  const [tipDraft, setTipDraft] = useState<TipDraft | null>(null);
-  const [rainDraft, setRainDraft] = useState<RainDraft | null>(null);
-  const [customRainDraft, setCustomRainDraft] = useState<CustomRainDraft | null>(null);
-  const [commandNotifications, setCommandNotifications] = useState<LocalCommandNotification[]>([]);
+  const [lastSeenRainId, setLastSeenRainId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const token = localStorage.getItem('pasus_auth_token');
 
-  const loadRoom = async (silent = false) => {
-    if (!silent) {
-      setIsLoading(true);
-    }
-
+  const loadRoom = async (silent?: boolean) => {
+    if (!silent) setIsLoading(true);
     try {
-      const token = localStorage.getItem('pasus_auth_token');
-      const response = await apiFetch('/api/chat/room', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load room.');
+      const [chatData, rainData, customRainData, broadcastsData] = await Promise.all([
+        apiFetch('/api/chat/messages?limit=50').then(r => r.json().catch(() => ({}))),
+        apiFetch('/api/rain/current').then(r => r.json().catch(() => ({}))),
+        apiFetch('/api/rain/custom/current').then(r => r.json().catch(() => ({}))),
+        apiFetch('/api/broadcasts').then(r => r.json().catch(() => ({}))),
+      ]);
+      if (Array.isArray(chatData.messages)) {
+        setMessages(chatData.messages.map((m: any) => ({
+          id: Number(m.id), user: String(m.user || ''), role: String(m.role || ''),
+          text: String(m.text || ''), tone: String(m.tone || ''),
+          createdAt: String(m.createdAt || ''), avatarUrl: String(m.avatarUrl || ''),
+        })));
       }
-
-      const nextMessages = Array.isArray(data.messages)
-        ? data.messages.map((message: any) => ({
-            id: Number(message.id),
-            user: String(message.username || 'Guest'),
-            text: String(message.text || ''),
-            tone: message.tone === 'win' ? 'win' : 'normal',
-            role: message.role === 'owner' || message.role === 'moderator' ? message.role : 'user',
-            avatarUrl: message.avatarUrl || message.avatar_url || undefined,
-            createdAt: message.createdAt || message.created_at,
-          }))
-        : [];
-
-      const nextRain = data.rain
-        ? {
-            id: Number(data.rain.id),
-            poolAmount: Number(data.rain.poolAmount ?? data.rain.pool_amount ?? 0),
-            startsAt: String(data.rain.startsAt || data.rain.starts_at || ''),
-            joinOpensAt: String(data.rain.joinOpensAt || data.rain.join_opens_at || ''),
-            endsAt: String(data.rain.endsAt || data.rain.ends_at || ''),
-            participantCount: Number(data.rain.participantCount ?? data.rain.participant_count ?? 0),
-            joined: Boolean(data.rain.joined),
-            hasEnded: Boolean(data.rain.hasEnded),
-          }
-        : null;
-
-      const nextOnlineCount = Number(data.onlineCount || 0);
-      const nextCustomRain = data.customRain
-        ? {
-            id: Number(data.customRain.id),
-            creatorUsername: String(data.customRain.creatorUsername || data.customRain.creator_username || ''),
-            creatorAvatarUrl: data.customRain.creatorAvatarUrl || data.customRain.creator_avatar_url || undefined,
-            poolAmount: Number(data.customRain.poolAmount ?? data.customRain.pool_amount ?? 0),
-            endsAt: String(data.customRain.endsAt || data.customRain.ends_at || ''),
-            participantCount: Number(data.customRain.participantCount ?? data.customRain.participant_count ?? 0),
-            joined: Boolean(data.customRain.joined),
-            hasEnded: Boolean(data.customRain.hasEnded),
-          }
-        : null;
-
-      if (lastSeenRainId && nextRain && nextRain.id !== lastSeenRainId) {
-        refreshWallet().catch(() => undefined);
+      setOnlineCount(Number(chatData.onlineCount ?? 0));
+      const newRain = chatData.rain || null;
+      if (newRain && newRain.id !== lastSeenRainId) {
+        setRain(newRain);
+        setLastSeenRainId(newRain.id);
       }
-
-      setMessages(nextMessages);
-      setRain(nextRain);
-      setCustomRain(nextCustomRain);
-      setLastSeenRainId((prev) => prev ?? nextRain?.id ?? null);
-      if (nextRain) {
-        setLastSeenRainId(nextRain.id);
+      setBroadcasts(Array.isArray(broadcastsData.broadcasts) ? broadcastsData.broadcasts.map((b: any) => ({
+        id: Number(b.id), message: String(b.message || ''), createdAt: b.createdAt || '',
+        expiresAt: b.expiresAt || null, isActive: Boolean(b.isActive),
+      })) : []);
+      const cr = chatData.customRain;
+      if (cr) {
+        setCustomRain({
+          id: Number(cr.id), creatorUsername: String(cr.creatorUsername || ''),
+          poolAmount: Number(cr.poolAmount || 0), endsAt: String(cr.endsAt || cr.ends_at || ''),
+          participantCount: Number(cr.participantCount || cr.participant_count || 0),
+          joined: Boolean(cr.joined), hasEnded: Boolean(cr.hasEnded),
+        });
+      } else {
+        setCustomRain(null);
       }
-      setOnlineCount(nextOnlineCount);
-      setRoomError('');
-    } catch (error) {
-      setRoomError(error instanceof Error ? error.message : 'Failed to load room.');
-    } finally {
-      if (!silent) {
-        setIsLoading(false);
-      }
-    }
+    } catch { /* silent */ }
+    finally { if (!silent) setIsLoading(false); }
   };
 
   useEffect(() => {
-    loadRoom().catch(() => undefined);
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (shouldAutoScroll && chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [messages, shouldAutoScroll]);
+
+  useEffect(() => {
+    apiFetch('/api/chat/messages?limit=50')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.messages)) {
+          setMessages(data.messages.map((m: any) => ({
+            id: Number(m.id),
+            user: String(m.user || ''),
+            role: String(m.role || ''),
+            text: String(m.text || ''),
+            tone: String(m.tone || ''),
+            createdAt: String(m.createdAt || ''),
+            avatarUrl: String(m.avatarUrl || ''),
+          })));
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -4338,7 +6106,29 @@ const RightRail = () => {
           : 'Join Opens Soon';
 
   return (
-    <aside className="hidden xl:flex w-[340px] shrink-0 border-l border-white/5 bg-[linear-gradient(180deg,#171f2b_0%,#142026_100%)] flex-col h-screen sticky top-0 relative overflow-hidden">
+    <>
+      <AnimatePresence>
+        {isMobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 xl:hidden"
+            onClick={onCloseMobile}
+          />
+        )}
+      </AnimatePresence>
+
+      <aside className={cn(
+        "w-[340px] shrink-0 border-l border-white/5 bg-[linear-gradient(180deg,#171f2b_0%,#142026_100%)] flex-col h-screen sticky top-0 relative overflow-hidden xl:flex",
+        isMobileOpen ? "fixed right-0 top-0 bottom-0 z-50 xl:hidden flex" : "hidden xl:flex"
+      )}>
+        <div className="flex items-center justify-between xl:hidden px-4 py-3 border-b border-white/5">
+          <span className="text-sm font-black uppercase tracking-widest text-white/60">Chat & Rain</span>
+          <button onClick={onCloseMobile} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+            <ChevronDown size={18} className="text-white/40" />
+          </button>
+        </div>
       <div className="p-5 border-b border-white/5 space-y-3">
         {/* Hourly Rain */}
         <div className="rounded-3xl border border-[#00FF88]/15 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-5">
@@ -4420,6 +6210,30 @@ const RightRail = () => {
             <div className="text-[10px] text-white/30 uppercase tracking-[0.18em]">{onlineCount} online</div>
           </div>
         </div>
+
+        {broadcasts.filter(b => !dismissedBroadcasts.has(b.id) && (b.isActive || user?.role === 'owner' || user?.role === 'moderator')).length > 0 && (
+          <div className="px-4 py-3 border-b border-white/5 space-y-2">
+            {broadcasts.filter(b => !dismissedBroadcasts.has(b.id) && (b.isActive || user?.role === 'owner' || user?.role === 'moderator')).map((broadcast) => (
+              <div key={broadcast.id} className={cn(
+                'rounded-xl px-4 py-3 text-sm border',
+                broadcast.isActive ? 'border-amber-500/30 bg-amber-500/10' : 'border-red-500/30 bg-red-500/10'
+              )}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 text-white/90 whitespace-pre-wrap">{broadcast.message}</div>
+                  <button
+                    onClick={() => setDismissedBroadcasts((prev) => new Set([...prev, broadcast.id]))}
+                    className="shrink-0 rounded-full p-1 text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {!broadcast.isActive && (
+                  <div className="text-[10px] text-red-400 mt-1 font-bold">INACTIVE</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div
           ref={chatScrollRef}
@@ -4659,6 +6473,7 @@ const RightRail = () => {
         ) : null}
       </AnimatePresence>
     </aside>
+    </>
   );
 };
 
@@ -4668,7 +6483,17 @@ const AppContent = () => {
   const [activeGame, setActiveGame] = useState<string | null>(initialRoute.gameId);
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isDailyBonusOpen, setIsDailyBonusOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRightRailOpen, setIsRightRailOpen] = useState(false);
   const [currentView, setCurrentView] = useState<MainView>(initialRoute.view);
+  const [dailyBonusStatus, setDailyBonusStatus] = useState<{
+    canClaim: boolean;
+    streak: number;
+    level: number;
+    xp: number;
+    xpToNextLevel: number;
+  }>({ canClaim: false, streak: 0, level: 1, xp: 0, xpToNextLevel: 0 });
   const { isAuthenticated } = useAuth();
 
   const navigateTo = useCallback((path: string, gameId: string | null, view: MainView) => {
@@ -4690,6 +6515,43 @@ const AppContent = () => {
   const openGame = useCallback((id: string) => {
     navigateTo(`/${id}`, id, 'dashboard');
   }, [navigateTo]);
+
+  const loadDailyBonusStatus = useCallback(async () => {
+    if (!isAuthenticated) {
+      return;
+    }
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await apiFetch('/api/daily-claim/status', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return;
+      }
+      setDailyBonusStatus({
+        canClaim: data.canClaim || false,
+        streak: data.streak || 0,
+        level: data.level || 1,
+        xp: data.xp || 0,
+        xpToNextLevel: data.xpToNextLevel || 0,
+      });
+      if (data.canClaim) {
+        setIsDailyBonusOpen(true);
+      }
+    } catch {
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    loadDailyBonusStatus();
+  }, [loadDailyBonusStatus]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -4720,6 +6582,8 @@ const AppContent = () => {
         onSelectGame={handleSelectGame} 
         onHome={openDashboard}
         onOpenView={openView}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -4731,6 +6595,11 @@ const AppContent = () => {
           onOpenSettings={() => openView('settings')}
           onOpenAdmin={() => openView('admin')}
           onOpenLeaderboard={() => openView('leaderboard')}
+          onOpenSidebar={() => setIsSidebarOpen(true)}
+          userLevel={dailyBonusStatus.level}
+          userStreak={dailyBonusStatus.streak}
+          userXp={dailyBonusStatus.xp}
+          userXpToNextLevel={dailyBonusStatus.xpToNextLevel}
         />
 
         <div
@@ -4960,7 +6829,15 @@ const AppContent = () => {
         </main>
       </div>
 
-      <RightRail />
+      <RightRail isMobileOpen={isRightRailOpen} onCloseMobile={() => setIsRightRailOpen(false)} />
+
+      <button
+        onClick={() => setIsRightRailOpen(true)}
+        className="fixed bottom-6 right-6 z-30 xl:hidden bg-[#00FF88] text-black w-14 h-14 rounded-full shadow-lg shadow-[#00FF88]/30 flex items-center justify-center hover:bg-[#00FF88]/90 transition-all active:scale-95"
+        aria-label="Open chat and rain"
+      >
+        <MessageSquare size={22} />
+      </button>
 
       <AnimatePresence>
         {isWalletOpen && (
@@ -4968,6 +6845,9 @@ const AppContent = () => {
         )}
         {isLoginOpen && (
           <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+        )}
+        {isDailyBonusOpen && (
+          <DailyBonusModal isOpen={isDailyBonusOpen} onClose={() => setIsDailyBonusOpen(false)} />
         )}
       </AnimatePresence>
 

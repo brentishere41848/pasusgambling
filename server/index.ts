@@ -117,6 +117,7 @@ type AuthUser = {
   discordDisplayName?: string;
   discordAvatarUrl?: string;
   discordVerifiedAt?: string;
+  totpEnabled?: boolean;
 };
 
 type Wallet = {
@@ -252,6 +253,7 @@ type RawBodyRequest = express.Request & { rawBody?: string };
 type AuthedRequest = RawBodyRequest & {
   auth?: {
     token: string;
+    tokenHash: string;
     user: AuthUser;
   };
 };
@@ -275,6 +277,72 @@ function hashToken(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+const totpSecrets = new Map<number, string>();
+
+function generateTotpSecret(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let secret = '';
+  for (let i = 0; i < 20; i++) {
+    secret += chars[crypto.randomInt(chars.length)];
+  }
+  return secret;
+}
+
+function generateTotpCode(secret: string): string {
+  const timeStep = Math.floor(Date.now() / 30000);
+  const key = Buffer.from(secret);
+  const counter = Buffer.alloc(8);
+  counter.writeBigInt64BE(BigInt(timeStep), 0);
+  const hmac = crypto.createHmac('sha1', key);
+  hmac.update(counter);
+  const h = hmac.digest();
+  const offset = h[19] & 0xf;
+  const code = ((h[offset] & 0x7f) << 24) | ((h[offset + 1] & 0xff) << 16) | ((h[offset + 2] & 0xff) << 8) | (h[offset + 3] & 0xff);
+  return String(code % 1000000).padStart(6, '0');
+}
+
+function verifyTotpCode(secret: string, code: string): boolean {
+  const window = 1;
+  for (let i = -window; i <= window; i++) {
+    const timeStep = Math.floor(Date.now() / 30000) + i;
+    const key = Buffer.from(secret);
+    const counter = Buffer.alloc(8);
+    counter.writeBigInt64BE(BigInt(timeStep), 0);
+    const hmac = crypto.createHmac('sha1', key);
+    hmac.update(counter);
+    const h = hmac.digest();
+    const offset = h[19] & 0xf;
+    const expected = ((h[offset] & 0x7f) << 24) | ((h[offset + 1] & 0xff) << 16) | ((h[offset + 2] & 0xff) << 8) | (h[offset + 3] & 0xff);
+    const expectedCode = String(expected % 1000000).padStart(6, '0');
+    if (expectedCode === code) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getDeviceType(userAgent: string): string {
+  const ua = userAgent.toLowerCase();
+  if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) {
+    return 'Mobile';
+  }
+  if (ua.includes('tablet') || ua.includes('ipad')) {
+    return 'Tablet';
+  }
+  return 'Desktop';
+}
+
+function maskIp(ip: string): string {
+  const parts = ip.split('.');
+  if (parts.length === 4) {
+    return `${parts[0]}.${parts[1]}.***.***`;
+  }
+  if (ip.includes(':')) {
+    return ip.slice(0, 8) + ':***:***';
+  }
+  return ip.slice(0, 4) + '***';
+}
+
 function sanitizeUser(row: any): AuthUser {
   return {
     id: Number(row.id),
@@ -295,6 +363,7 @@ function sanitizeUser(row: any): AuthUser {
     discordDisplayName: row.discord_display_name || undefined,
     discordAvatarUrl: row.discord_avatar_url || undefined,
     discordVerifiedAt: row.discord_verified_at || undefined,
+    totpEnabled: Boolean(row.totp_enabled),
   };
 }
 
@@ -374,6 +443,28 @@ function getDailyRewardStatus(row: any, now = new Date()): DailyRewardStatus {
     canClaim,
     nextClaimAt,
     lastClaimedAt: lastClaimedAt ? lastClaimedAt.toISOString() : null,
+  };
+}
+
+function calculateLevel(xp: number): { level: number; xpToNextLevel: number } {
+  const xpThresholds = [0, 1000, 3000, 6000, 10000];
+  let level = 1;
+  for (let i = xpThresholds.length - 1; i >= 0; i--) {
+    if (xp >= xpThresholds[i]) {
+      level = i + 1;
+      break;
+    }
+  }
+  const nextThreshold = xpThresholds[level] || xpThresholds[xpThresholds.length - 1];
+  const xpToNextLevel = level >= 5 ? 0 : Math.max(0, nextThreshold - xp);
+  return { level, xpToNextLevel };
+}
+
+function calculateRewardForStreak(streak: number): { coins: number; xp: number } {
+  const cappedStreak = Math.min(streak, 30);
+  return {
+    coins: cappedStreak * 100,
+    xp: Math.min(cappedStreak * 10, 300),
   };
 }
 
@@ -1117,15 +1208,22 @@ function requireOwner(req: AuthedRequest, res: express.Response, next: express.N
   return next();
 }
 
-async function createSession(client: Pool | PoolClient, user: AuthUser) {
+function requireStaff(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
+  if (!req.auth?.user || (req.auth.user.role !== 'owner' && req.auth.user.role !== 'moderator')) {
+    return res.status(403).json({ error: 'Forbidden.' });
+  }
+  return next();
+}
+
+async function createSession(client: Pool | PoolClient, user: AuthUser, ipAddress?: string, userAgent?: string) {
   const token = signToken(user);
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   await client.query(
-    `INSERT INTO user_sessions (user_id, token_hash, expires_at, updated_at)
-     VALUES ($1, $2, $3, NOW())`,
-    [user.id, tokenHash, expiresAt]
+    `INSERT INTO user_sessions (user_id, token_hash, ip_address, user_agent, expires_at, last_active_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())`,
+    [user.id, tokenHash, ipAddress || null, userAgent || null, expiresAt]
   );
 
   return token;
@@ -1134,7 +1232,7 @@ async function createSession(client: Pool | PoolClient, user: AuthUser) {
 async function touchSessionActivity(client: Pool | PoolClient, userId: number, tokenHash: string) {
   await client.query(
     `UPDATE user_sessions
-     SET updated_at = NOW()
+     SET last_active_at = NOW()
      WHERE user_id = $1
        AND token_hash = $2
        AND (expires_at IS NULL OR expires_at > NOW())`,
@@ -1237,6 +1335,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rakeback_last_claimed_monthly TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_reward_streak INT NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_reward_last_claimed TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS xp_amount BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS user_level INT NOT NULL DEFAULT 1`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
 
@@ -1328,6 +1428,29 @@ async function initDb() {
     )
   `);
   await pool.query(`ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await pool.query(`ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS ip_address TEXT`);
+  await pool.query(`ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS user_agent TEXT`);
+  await pool.query(`ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT[]`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS moderation_history (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      moderator_user_id BIGINT NOT NULL REFERENCES users(id),
+      action TEXT NOT NULL,
+      reason TEXT,
+      duration_minutes INT,
+      expires_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      resolved_at TIMESTAMPTZ,
+      resolved_by_user_id BIGINT REFERENCES users(id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_moderation_history_user_id ON moderation_history(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_moderation_history_moderator_id ON moderation_history(moderator_user_id)`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payment_transactions (
@@ -1471,6 +1594,110 @@ async function initDb() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS promo_codes (
+      id BIGSERIAL PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      coin_amount BIGINT NOT NULL,
+      max_uses INT NOT NULL DEFAULT 1,
+      current_uses INT NOT NULL DEFAULT 0,
+      expires_at TIMESTAMPTZ,
+      created_by_user_id BIGINT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS promo_code_claims (
+      id BIGSERIAL PRIMARY KEY,
+      promo_code_id BIGINT NOT NULL REFERENCES promo_codes(id),
+      user_id BIGINT NOT NULL REFERENCES users(id),
+      claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (promo_code_id, user_id)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS broadcasts (
+      id BIGSERIAL PRIMARY KEY,
+      message TEXT NOT NULL,
+      created_by_user_id BIGINT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rain_bot_schedules (
+      id BIGSERIAL PRIMARY KEY,
+      interval_minutes INT NOT NULL,
+      min_pool_amount BIGINT NOT NULL DEFAULT 100,
+      rain_amount BIGINT NOT NULL DEFAULT 500,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_by_user_id BIGINT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_triggered_at TIMESTAMPTZ
+    )
+  `);
+
+  await pool.query(`ALTER TABLE rain_bot_schedules ADD COLUMN IF NOT EXISTS rain_amount BIGINT NOT NULL DEFAULT 500`);
+  await pool.query(`ALTER TABLE rain_bot_schedules ADD COLUMN IF NOT EXISTS last_triggered_at TIMESTAMPTZ`);
+
+}
+
+async function processRainBotSchedules() {
+  try {
+    const schedules = await pool.query(
+      `SELECT * FROM rain_bot_schedules WHERE is_active = TRUE ORDER BY id ASC LIMIT 10`
+    );
+
+    for (const schedule of schedules.rows) {
+      const now = new Date();
+      const lastTriggered = schedule.last_triggered_at ? new Date(schedule.last_triggered_at) : null;
+      const intervalMs = schedule.interval_minutes * 60 * 1000;
+
+      if (lastTriggered && now.getTime() - lastTriggered.getTime() < intervalMs) {
+        continue;
+      }
+
+      const rainResult = await pool.query(
+        `SELECT COALESCE(SUM(pool_amount), 0)::bigint AS total_pool
+         FROM rain_rounds
+         WHERE status = 'active'
+         LIMIT 1`
+      );
+
+      const currentPool = Number(rainResult.rows[0]?.total_pool || 0);
+
+      if (currentPool < Number(schedule.min_pool_amount || 0)) {
+        const addAmount = Number(schedule.rain_amount || DEFAULT_RAIN_POOL_COINS);
+        const ownerId = await getPrimaryOwnerId(pool);
+
+        if (ownerId) {
+          await pool.query(
+            `UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE user_id = $2 AND balance >= $1`,
+            [addAmount, ownerId]
+          );
+
+          await pool.query(
+            `UPDATE rain_rounds
+             SET pool_amount = pool_amount + $1, updated_at = NOW()
+             WHERE status = 'active'
+             RETURNING id`,
+            [addAmount]
+          );
+        }
+      }
+
+      await pool.query(
+        `UPDATE rain_bot_schedules SET last_triggered_at = NOW() WHERE id = $1`,
+        [schedule.id]
+      );
+    }
+  } catch (error) {
+    console.error('Rain bot error:', error);
+  }
 }
 
 async function requireAuth(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
@@ -1488,7 +1715,8 @@ async function requireAuth(req: AuthedRequest, res: express.Response, next: expr
     const result = await pool.query(
       `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.custom_avatar_url, u.avatar_source, u.role,
               u.roblox_user_id, u.roblox_username, u.roblox_display_name, u.roblox_avatar_url, u.roblox_verified_at,
-              u.discord_user_id, u.discord_username, u.discord_display_name, u.discord_avatar_url, u.discord_verified_at
+              u.discord_user_id, u.discord_username, u.discord_display_name, u.discord_avatar_url, u.discord_verified_at,
+              u.totp_enabled
        FROM user_sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.user_id = $1
@@ -1506,6 +1734,7 @@ async function requireAuth(req: AuthedRequest, res: express.Response, next: expr
 
     req.auth = {
       token,
+      tokenHash,
       user: sanitizeUser(result.rows[0]),
     };
 
@@ -1594,6 +1823,25 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
 
     const onlineCount = await getOnlineUserCount(client);
 
+    let isStaff = false;
+    if (authedUserId) {
+      const staffCheck = await client.query(
+        `SELECT role FROM users WHERE id = $1 LIMIT 1`,
+        [authedUserId]
+      );
+      if (staffCheck.rowCount) {
+        const role = staffCheck.rows[0].role;
+        isStaff = role === 'owner' || role === 'moderator';
+      }
+    }
+
+    let broadcastsQuery = `SELECT id, message, created_at, expires_at, is_active FROM broadcasts WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())`;
+    if (isStaff) {
+      broadcastsQuery = `SELECT id, message, created_at, expires_at, is_active FROM broadcasts ORDER BY created_at DESC LIMIT 10`;
+    }
+
+    const broadcastsResult = await client.query(broadcastsQuery);
+
     await client.query('COMMIT');
     return res.json({
       messages: messagesResult.rows.reverse().map(mapChatMessage),
@@ -1601,6 +1849,13 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
       customRain,
       tipNotifications,
       onlineCount,
+      broadcasts: broadcastsResult.rows.map((row) => ({
+        id: Number(row.id),
+        message: row.message,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        isActive: Boolean(row.is_active),
+      })),
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -2022,6 +2277,64 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
   }
 });
 
+app.get('/api/activity/bets/export', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const fromDate = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const toDate = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const gameKey = req.query.gameKey ? String(req.query.gameKey) : null;
+    const format = String(req.query.format || 'json').toLowerCase();
+
+    let query = `
+      SELECT b.id, b.game_key, b.wager, b.payout, b.multiplier, b.outcome, b.created_at, b.detail
+      FROM bet_activities b
+      WHERE b.user_id = $1 AND b.created_at >= $2 AND b.created_at <= $3
+    `;
+    const params: any[] = [req.auth!.user.id, fromDate, toDate];
+
+    if (gameKey) {
+      params.push(gameKey);
+      query += ` AND b.game_key = $${params.length}`;
+    }
+
+    query += ` ORDER BY b.created_at DESC LIMIT 10000`;
+
+    const result = await pool.query(query, params);
+
+    const bets = result.rows.map((row) => ({
+      date: row.created_at,
+      game: row.game_key,
+      wager: (Number(row.wager || 0) / 100).toFixed(2),
+      payout: (Number(row.payout || 0) / 100).toFixed(2),
+      multiplier: Number(row.multiplier || 0).toFixed(4),
+      outcome: row.outcome,
+    }));
+
+    if (format === 'csv') {
+      const headers = ['Date', 'Game', 'Wager (USD)', 'Payout (USD)', 'Multiplier', 'Outcome'];
+      const csvRows = [headers.join(',')];
+      for (const bet of bets) {
+        csvRows.push([
+          bet.date,
+          bet.game,
+          bet.wager,
+          bet.payout,
+          bet.multiplier,
+          bet.outcome,
+        ].map(v => `"${v}"`).join(','));
+      }
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="bet-history-${new Date().toISOString().slice(0, 10)}.csv"`);
+      return res.send(csvRows.join('\n'));
+    }
+
+    return res.json({ bets });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to export bet history.' });
+  }
+});
+
 app.get('/api/activity/bets', async (req, res) => {
   try {
     const tab = String(req.query.tab || 'all').trim().toLowerCase();
@@ -2150,6 +2463,128 @@ app.post('/api/rewards/daily/claim', requireAuth, async (req: AuthedRequest, res
       reward: getDailyRewardStatus({ daily_reward_streak: nextStreak, daily_reward_last_claimed: now }),
       claimed: reward.rewardAmount,
       wallet: sanitizeWallet(walletResult.rows[0]),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to claim daily reward.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/daily-claim/status', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT daily_reward_streak, daily_reward_last_claimed, xp_amount, user_level
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [req.auth!.user.id]
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const row = result.rows[0];
+    const lastClaimedAt = row?.daily_reward_last_claimed ? new Date(row.daily_reward_last_claimed) : null;
+    const todayStart = getStartOfUtcDay(new Date());
+    const lastStart = lastClaimedAt ? getStartOfUtcDay(lastClaimedAt) : null;
+    const canClaim = lastStart === null || lastStart < todayStart;
+    const currentStreak = Math.max(0, Number(row?.daily_reward_streak || 0));
+    const nextStreak = canClaim ? (lastStart !== null && todayStart - lastStart === 24 * 60 * 60 * 1000 ? currentStreak + 1 : 1) : currentStreak || 1;
+    const xp = Number(row?.xp_amount || 0);
+    const levelInfo = calculateLevel(xp);
+
+    const nextClaimAt = canClaim ? null : new Date(todayStart + 24 * 60 * 60 * 1000).toISOString();
+
+    return res.json({
+      canClaim,
+      streak: nextStreak,
+      lastClaimed: lastClaimedAt ? lastClaimedAt.toISOString() : null,
+      nextClaimAt,
+      level: levelInfo.level,
+      xp,
+      xpToNextLevel: levelInfo.xpToNextLevel,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load daily claim status.' });
+  }
+});
+
+app.post('/api/daily-claim', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const userResult = await client.query(
+      `SELECT daily_reward_streak, daily_reward_last_claimed, xp_amount
+       FROM users
+       WHERE id = $1
+       FOR UPDATE`,
+      [req.auth!.user.id]
+    );
+
+    if (!userResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const row = userResult.rows[0];
+    const lastClaimedAt = row?.daily_reward_last_claimed ? new Date(row.daily_reward_last_claimed) : null;
+    const todayStart = getStartOfUtcDay(new Date());
+    const lastStart = lastClaimedAt ? getStartOfUtcDay(lastClaimedAt) : null;
+    const canClaim = lastStart === null || lastStart < todayStart;
+
+    if (!canClaim) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Daily reward already claimed.' });
+    }
+
+    const currentStreak = Math.max(0, Number(row?.daily_reward_streak || 0));
+    const continuesStreak = lastStart !== null && todayStart - lastStart === 24 * 60 * 60 * 1000;
+    const nextStreak = continuesStreak ? currentStreak + 1 : 1;
+
+    const { coins, xp: rewardXp } = calculateRewardForStreak(nextStreak);
+    const currentXp = Number(row?.xp_amount || 0);
+    const newXp = currentXp + rewardXp;
+    const newLevelInfo = calculateLevel(newXp);
+
+    await ensureWallet(client, req.auth!.user.id);
+
+    const walletResult = await client.query(
+      `UPDATE wallets
+       SET balance = balance + $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [coins, req.auth!.user.id]
+    );
+
+    await client.query(
+      `UPDATE users
+       SET daily_reward_streak = $1,
+           daily_reward_last_claimed = NOW(),
+           xp_amount = $2,
+           user_level = $3
+       WHERE id = $4`,
+      [nextStreak, newXp, newLevelInfo.level, req.auth!.user.id]
+    );
+
+    await client.query('COMMIT');
+
+    const nextClaimAt = new Date(todayStart + 24 * 60 * 60 * 1000).toISOString();
+
+    return res.json({
+      claimed: true,
+      streak: nextStreak,
+      amount: coins,
+      xp: rewardXp,
+      level: newLevelInfo.level,
+      nextClaimAt,
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -2641,6 +3076,7 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const username = String(req.body.username || '').trim();
     const password = String(req.body.password || '');
+    const totpCode = String(req.body.totpCode || '').trim();
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required.' });
@@ -2650,7 +3086,7 @@ app.post('/api/auth/login', async (req, res) => {
       `SELECT id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
               roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
               discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at,
-              password_hash
+              password_hash, totp_enabled, totp_secret
        FROM users
        WHERE username = $1
        LIMIT 1`,
@@ -2668,10 +3104,31 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
+    if (row.totp_enabled && row.totp_secret) {
+      if (!totpCode) {
+        return res.status(403).json({ error: '2FA code required.', requiresTotp: true });
+      }
+      if (!verifyTotpCode(row.totp_secret, totpCode)) {
+        return res.status(401).json({ error: 'Invalid 2FA code.' });
+      }
+    } else {
+      const pendingSecret = totpSecrets.get(row.id);
+      if (pendingSecret) {
+        if (!totpCode) {
+          return res.status(403).json({ error: '2FA code required.', requiresTotp: true });
+        }
+        if (!verifyTotpCode(pendingSecret, totpCode)) {
+          return res.status(401).json({ error: 'Invalid 2FA code.' });
+        }
+      }
+    }
+
     const user = sanitizeUser(row);
+    const ipAddress = String(req.ip || req.socket.remoteAddress || '');
+    const userAgent = String(req.headers['user-agent'] || '');
 
     await client.query('BEGIN');
-    const token = await createSession(client, user);
+    const token = await createSession(client, user, ipAddress, userAgent);
     const wallet = await getWallet(client, user.id);
     await client.query('COMMIT');
 
@@ -2682,6 +3139,134 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(500).json({ error: 'Failed to log in.' });
   } finally {
     client.release();
+  }
+});
+
+app.get('/api/2fa/setup', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+
+    const result = await pool.query(
+      `SELECT totp_enabled, totp_secret FROM users WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (result.rows[0]?.totp_enabled) {
+      return res.status(400).json({ error: '2FA is already enabled.' });
+    }
+
+    const secret = generateTotpSecret();
+    totpSecrets.set(userId, secret);
+
+    const qrCodeUrl = `otpauth://totp/Pasus:${encodeURIComponent(req.auth!.user.username)}?secret=${secret}&issuer=Pasus`;
+
+    return res.json({ secret, qrCodeUrl });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to setup 2FA.' });
+  }
+});
+
+app.post('/api/2fa/verify-setup', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const code = String(req.body.code || '').trim();
+
+    if (!code || code.length !== 6) {
+      return res.status(400).json({ error: 'Invalid 2FA code.' });
+    }
+
+    const secret = totpSecrets.get(userId);
+    if (!secret) {
+      return res.status(400).json({ error: 'No pending 2FA setup. Please request a new setup first.' });
+    }
+
+    if (!verifyTotpCode(secret, code)) {
+      return res.status(401).json({ error: 'Invalid 2FA code.' });
+    }
+
+    const backupCodes: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+      backupCodes.push(`${code.slice(0, 4)}-${code.slice(4)}`);
+    }
+
+    await pool.query(
+      `UPDATE users SET totp_secret = $1, totp_enabled = TRUE, totp_backup_codes = $2 WHERE id = $3`,
+      [secret, backupCodes, userId]
+    );
+
+    totpSecrets.delete(userId);
+
+    const result = await pool.query(
+      `SELECT id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
+              roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
+              discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at,
+              totp_enabled
+       FROM users WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    return res.json({ user: sanitizeUser(result.rows[0]), backupCodes });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to enable 2FA.' });
+  }
+});
+
+app.post('/api/2fa/disable', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const code = String(req.body.code || '').trim();
+
+    if (!code || code.length !== 6) {
+      return res.status(400).json({ error: 'Invalid 2FA code.' });
+    }
+
+    const result = await pool.query(
+      `SELECT totp_enabled, totp_secret FROM users WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (!result.rows[0]?.totp_enabled || !result.rows[0]?.totp_secret) {
+      return res.status(400).json({ error: '2FA is not enabled.' });
+    }
+
+    if (!verifyTotpCode(result.rows[0].totp_secret, code)) {
+      return res.status(401).json({ error: 'Invalid 2FA code.' });
+    }
+
+    await pool.query(
+      `UPDATE users SET totp_secret = NULL, totp_enabled = FALSE, totp_backup_codes = NULL WHERE id = $1`,
+      [userId]
+    );
+
+    const updated = await pool.query(
+      `SELECT id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
+              roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
+              discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at,
+              totp_enabled
+       FROM users WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    return res.json({ user: sanitizeUser(updated.rows[0]) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to disable 2FA.' });
+  }
+});
+
+app.get('/api/2fa/status', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT totp_enabled FROM users WHERE id = $1 LIMIT 1`,
+      [req.auth!.user.id]
+    );
+    return res.json({ enabled: Boolean(result.rows[0]?.totp_enabled) });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to check 2FA status.' });
   }
 });
 
@@ -2994,13 +3579,88 @@ app.post('/api/auth/logout', requireAuth, async (req: AuthedRequest, res) => {
     await pool.query(
       `DELETE FROM user_sessions
        WHERE user_id = $1 AND token_hash = $2`,
-      [req.auth!.user.id, hashToken(req.auth!.token)]
+      [req.auth!.user.id, req.auth!.tokenHash]
     );
 
     return res.status(204).send();
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to log out.' });
+  }
+});
+
+app.get('/api/sessions', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, ip_address, user_agent, created_at, last_active_at, expires_at
+       FROM user_sessions
+       WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())
+       ORDER BY last_active_at DESC`,
+      [req.auth!.user.id]
+    );
+
+    const sessions = result.rows.map((row) => ({
+      id: Number(row.id),
+      ipAddress: maskIp(row.ip_address || 'Unknown'),
+      ipAddressRaw: row.ip_address,
+      deviceType: getDeviceType(row.user_agent || ''),
+      userAgent: row.user_agent,
+      createdAt: row.created_at,
+      lastActiveAt: row.last_active_at,
+      expiresAt: row.expires_at,
+      isCurrent: row.token_hash === req.auth!.tokenHash,
+    }));
+
+    const currentSessionId = result.rows.find(r => r.token_hash === req.auth!.tokenHash)?.id;
+
+    return res.json({ sessions, currentSessionId });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load sessions.' });
+  }
+});
+
+app.delete('/api/sessions/:id', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Invalid session ID.' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, token_hash FROM user_sessions WHERE id = $1 AND user_id = $2 LIMIT 1`,
+      [sessionId, req.auth!.user.id]
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({ error: 'Session not found.' });
+    }
+
+    if (result.rows[0].token_hash === req.auth!.tokenHash) {
+      return res.status(400).json({ error: 'Cannot revoke current session. Use logout instead.' });
+    }
+
+    await pool.query(`DELETE FROM user_sessions WHERE id = $1`, [sessionId]);
+
+    return res.status(204).send();
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to revoke session.' });
+  }
+});
+
+app.delete('/api/sessions', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    await pool.query(
+      `DELETE FROM user_sessions
+       WHERE user_id = $1 AND token_hash != $2`,
+      [req.auth!.user.id, req.auth!.tokenHash]
+    );
+
+    return res.status(204).send();
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to revoke sessions.' });
   }
 });
 
@@ -3101,6 +3761,259 @@ app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
     const err = error as Error;
     console.error('Wallet adjust error:', err.message, err.stack);
     return res.status(500).json({ error: 'Failed to update wallet.', details: err.message });
+  }
+});
+
+app.post('/api/promo/claim', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const code = String(req.body.code || '').trim().toUpperCase();
+    if (!code) {
+      return res.status(400).json({ error: 'Promo code is required.' });
+    }
+
+    await client.query('BEGIN');
+
+    const promoResult = await client.query(
+      `SELECT id, code, coin_amount, max_uses, current_uses, expires_at
+       FROM promo_codes
+       WHERE UPPER(code) = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [code]
+    );
+
+    if (!promoResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Promo code not found.' });
+    }
+
+    const promo = promoResult.rows[0];
+
+    if (promo.expires_at && new Date(promo.expires_at).getTime() < Date.now()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'This promo code has expired.' });
+    }
+
+    if (promo.current_uses >= promo.max_uses) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'This promo code has reached its usage limit.' });
+    }
+
+    const claimCheck = await client.query(
+      `SELECT 1 FROM promo_code_claims WHERE promo_code_id = $1 AND user_id = $2 LIMIT 1`,
+      [promo.id, req.auth!.user.id]
+    );
+
+    if (claimCheck.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'You have already claimed this promo code.' });
+    }
+
+    await client.query(
+      `INSERT INTO promo_code_claims (promo_code_id, user_id)
+       VALUES ($1, $2)`,
+      [promo.id, req.auth!.user.id]
+    );
+
+    await client.query(
+      `UPDATE promo_codes SET current_uses = current_uses + 1 WHERE id = $1`,
+      [promo.id]
+    );
+
+    const coinAmount = Number(promo.coin_amount);
+    await ensureWallet(client, req.auth!.user.id);
+    const walletResult = await client.query(
+      `UPDATE wallets
+       SET balance = balance + $1,
+           updated_at = NOW()
+       WHERE user_id = $2
+       RETURNING balance, total_deposited, total_withdrawn`,
+      [coinAmount, req.auth!.user.id]
+    );
+
+    await client.query('COMMIT');
+    return res.json({
+      success: true,
+      amount: coinAmount,
+      message: `You received ${formatCoinsLabel(coinAmount)} coins!`,
+      wallet: sanitizeWallet(walletResult.rows[0]),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to claim promo code.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/admin/promo/create', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  try {
+    const code = String(req.body.code || '').trim().toUpperCase();
+    const coinAmount = normalizeCoins(req.body.coinAmount);
+    const maxUses = Math.max(1, Math.min(1000000, Number(req.body.maxUses) || 1));
+    const expiresAt = req.body.expiresAt ? new Date(req.body.expiresAt) : null;
+
+    if (!code || code.length < 3 || code.length > 32) {
+      return res.status(400).json({ error: 'Promo code must be between 3 and 32 characters.' });
+    }
+
+    if (coinAmount <= 0) {
+      return res.status(400).json({ error: 'Coin amount must be greater than 0.' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO promo_codes (code, coin_amount, max_uses, expires_at, created_by_user_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, code`,
+      [code, coinAmount, maxUses, expiresAt, req.auth!.user.id]
+    );
+
+    return res.status(201).json({ id: Number(result.rows[0].id), code: result.rows[0].code });
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      return res.status(409).json({ error: 'This promo code already exists.' });
+    }
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to create promo code.' });
+  }
+});
+
+app.get('/api/admin/promo/list', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.id, p.code, p.coin_amount, p.max_uses, p.current_uses, p.expires_at, p.created_at, u.username as created_by
+       FROM promo_codes p
+       LEFT JOIN users u ON u.id = p.created_by_user_id
+       ORDER BY p.created_at DESC
+       LIMIT 100`
+    );
+
+    return res.json({
+      promos: result.rows.map((row) => ({
+        id: Number(row.id),
+        code: row.code,
+        coinAmount: Number(row.coin_amount || 0),
+        maxUses: Number(row.max_uses || 1),
+        currentUses: Number(row.current_uses || 0),
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+        createdBy: row.created_by || 'System',
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load promo codes.' });
+  }
+});
+
+app.get('/api/broadcasts', async (req: AuthedRequest, res) => {
+  try {
+    let isStaff = false;
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+    if (token) {
+      try {
+        const payload = jwt.verify(token, jwtSecret) as { id: number };
+        const sessionResult = await pool.query(
+          `SELECT u.role FROM user_sessions s JOIN users u ON u.id = s.user_id WHERE s.user_id = $1 LIMIT 1`,
+          [payload.id]
+        );
+        if (sessionResult.rowCount) {
+          const role = sessionResult.rows[0].role;
+          isStaff = role === 'owner' || role === 'moderator';
+        }
+      } catch {
+        isStaff = false;
+      }
+    }
+
+    let query = `SELECT id, message, created_at, expires_at, is_active FROM broadcasts WHERE 1=1`;
+    if (!isStaff) {
+      query += ` AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())`;
+    }
+    query += ` ORDER BY created_at DESC LIMIT 10`;
+
+    const result = await pool.query(query);
+    return res.json({
+      broadcasts: result.rows.map((row) => ({
+        id: Number(row.id),
+        message: row.message,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        isActive: Boolean(row.is_active),
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load broadcasts.' });
+  }
+});
+
+app.post('/api/admin/broadcast/create', requireAuth, requireStaff, async (req: AuthedRequest, res) => {
+  try {
+    const message = String(req.body.message || '').trim();
+    const expiresAt = req.body.expiresAt ? new Date(req.body.expiresAt) : null;
+
+    if (!message || message.length < 3 || message.length > 500) {
+      return res.status(400).json({ error: 'Message must be between 3 and 500 characters.' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO broadcasts (message, created_by_user_id, expires_at)
+       VALUES ($1, $2, $3)
+       RETURNING id, message, created_at, expires_at, is_active`,
+      [message, req.auth!.user.id, expiresAt]
+    );
+
+    const row = result.rows[0];
+    return res.status(201).json({
+      broadcast: {
+        id: Number(row.id),
+        message: row.message,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        isActive: Boolean(row.is_active),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to create broadcast.' });
+  }
+});
+
+app.post('/api/admin/broadcast/:id/toggle', requireAuth, requireStaff, async (req: AuthedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) {
+      return res.status(400).json({ error: 'Invalid broadcast ID.' });
+    }
+
+    const result = await pool.query(
+      `UPDATE broadcasts SET is_active = NOT is_active WHERE id = $1 RETURNING id, message, created_at, expires_at, is_active`,
+      [id]
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({ error: 'Broadcast not found.' });
+    }
+
+    const row = result.rows[0];
+    return res.json({
+      broadcast: {
+        id: Number(row.id),
+        message: row.message,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        isActive: Boolean(row.is_active),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to toggle broadcast.' });
   }
 });
 
@@ -3442,6 +4355,196 @@ app.post('/api/payments/withdrawals/request', requireAuth, async (req: AuthedReq
   }
 });
 
+app.get('/api/admin/moderation/history', requireAuth, requireStaff, async (req: AuthedRequest, res) => {
+  try {
+    const userIdFilter = req.query.userId ? Number(req.query.userId) : null;
+    const actionFilter = req.query.action ? String(req.query.action) : null;
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+
+    let query = `
+      SELECT mh.id, mh.user_id, mh.moderator_user_id, mh.action, mh.reason, mh.duration_minutes,
+             mh.expires_at, mh.created_at, mh.resolved_at, mh.resolved_by_user_id,
+             u.username, mu.username as moderator_username, ru.username as resolver_username
+      FROM moderation_history mh
+      JOIN users u ON u.id = mh.user_id
+      JOIN users mu ON mu.id = mh.moderator_user_id
+      LEFT JOIN users ru ON ru.id = mh.resolved_by_user_id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (userIdFilter) {
+      params.push(userIdFilter);
+      query += ` AND mh.user_id = $${params.length}`;
+    }
+
+    if (actionFilter) {
+      params.push(actionFilter);
+      query += ` AND mh.action = $${params.length}`;
+    }
+
+    params.push(limit);
+    query += ` ORDER BY mh.created_at DESC LIMIT $${params.length}`;
+
+    const result = await pool.query(query, params);
+
+    return res.json({
+      history: result.rows.map((row) => ({
+        id: Number(row.id),
+        userId: Number(row.user_id),
+        username: row.username,
+        moderatorUserId: Number(row.moderator_user_id),
+        moderatorUsername: row.moderator_username,
+        action: row.action,
+        reason: row.reason,
+        durationMinutes: row.duration_minutes,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+        resolvedAt: row.resolved_at,
+        resolvedByUserId: row.resolved_by_user_id ? Number(row.resolved_by_user_id) : null,
+        resolverUsername: row.resolver_username,
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load moderation history.' });
+  }
+});
+
+app.post('/api/admin/moderation/ban', requireAuth, requireStaff, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const userId = Number(req.body.userId);
+    const reason = String(req.body.reason || '').trim();
+    const durationMinutes = req.body.durationMinutes ? Number(req.body.durationMinutes) : null;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required.' });
+    }
+
+    const targetResult = await client.query(`SELECT id FROM users WHERE id = $1 LIMIT 1`, [userId]);
+    if (!targetResult.rowCount) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    await client.query('BEGIN');
+
+    const expiresAt = durationMinutes ? new Date(Date.now() + durationMinutes * 60000) : null;
+
+    const historyResult = await client.query(
+      `INSERT INTO moderation_history (user_id, moderator_user_id, action, reason, duration_minutes, expires_at)
+       VALUES ($1, $2, 'ban', $3, $4, $5)
+       RETURNING id, created_at`,
+      [userId, req.auth!.user.id, reason || null, durationMinutes, expiresAt]
+    );
+
+    await client.query(
+      `DELETE FROM user_sessions WHERE user_id = $1`,
+      [userId]
+    );
+
+    await client.query('COMMIT');
+
+    return res.status(201).json({
+      id: Number(historyResult.rows[0].id),
+      userId,
+      moderatorUserId: req.auth!.user.id,
+      action: 'ban',
+      reason,
+      durationMinutes,
+      expiresAt,
+      createdAt: historyResult.rows[0].created_at,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to ban user.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/admin/moderation/mute', requireAuth, requireStaff, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+
+  try {
+    const userId = Number(req.body.userId);
+    const reason = String(req.body.reason || '').trim();
+    const durationMinutes = req.body.durationMinutes ? Number(req.body.durationMinutes) : null;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required.' });
+    }
+
+    const targetResult = await client.query(`SELECT id FROM users WHERE id = $1 LIMIT 1`, [userId]);
+    if (!targetResult.rowCount) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    await client.query('BEGIN');
+
+    const expiresAt = durationMinutes ? new Date(Date.now() + durationMinutes * 60000) : null;
+
+    const historyResult = await client.query(
+      `INSERT INTO moderation_history (user_id, moderator_user_id, action, reason, duration_minutes, expires_at)
+       VALUES ($1, $2, 'mute', $3, $4, $5)
+       RETURNING id, created_at`,
+      [userId, req.auth!.user.id, reason || null, durationMinutes, expiresAt]
+    );
+
+    await client.query('COMMIT');
+
+    return res.status(201).json({
+      id: Number(historyResult.rows[0].id),
+      userId,
+      moderatorUserId: req.auth!.user.id,
+      action: 'mute',
+      reason,
+      durationMinutes,
+      expiresAt,
+      createdAt: historyResult.rows[0].created_at,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to mute user.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/moderation/my-history', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT mh.id, mh.action, mh.reason, mh.duration_minutes, mh.expires_at, mh.created_at, mh.resolved_at,
+              mu.username as moderator_username
+       FROM moderation_history mh
+       JOIN users mu ON mu.id = mh.moderator_user_id
+       WHERE mh.user_id = $1
+       ORDER BY mh.created_at DESC
+       LIMIT 50`,
+      [req.auth!.user.id]
+    );
+
+    return res.json({
+      history: result.rows.map((row) => ({
+        id: Number(row.id),
+        action: row.action,
+        reason: row.reason,
+        durationMinutes: row.duration_minutes,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+        resolvedAt: row.resolved_at,
+        moderatorUsername: row.moderator_username,
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load moderation history.' });
+  }
+});
+
 app.get('/api/admin/overview', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
   try {
     const [statsResult, usersResult, withdrawalsResult] = await Promise.all([
@@ -3733,6 +4836,228 @@ app.post('/api/payments/nowpayments/ipn', async (req: RawBodyRequest, res) => {
   }
 });
 
+app.get('/api/admin/rain-bot', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, interval_minutes, min_pool_amount, rain_amount, is_active, created_by_user_id, created_at, last_triggered_at
+       FROM rain_bot_schedules
+       ORDER BY created_at DESC
+       LIMIT 20`
+    );
+
+    return res.json({
+      schedules: result.rows.map((row) => ({
+        id: Number(row.id),
+        intervalMinutes: Number(row.interval_minutes),
+        minPoolAmount: Number(row.min_pool_amount),
+        rainAmount: Number(row.rain_amount),
+        isActive: Boolean(row.is_active),
+        createdByUserId: row.created_by_user_id ? Number(row.created_by_user_id) : null,
+        createdAt: row.created_at,
+        lastTriggeredAt: row.last_triggered_at,
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load rain bot schedules.' });
+  }
+});
+
+app.post('/api/admin/rain-bot', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  try {
+    const intervalMinutes = Math.max(1, Math.min(1440, Number(req.body.intervalMinutes || 60)));
+    const minPoolAmount = Math.max(1, normalizeCoins(req.body.minPoolAmount || 100));
+    const rainAmount = Math.max(1, normalizeCoins(req.body.rainAmount || 500));
+
+    const result = await pool.query(
+      `INSERT INTO rain_bot_schedules (interval_minutes, min_pool_amount, rain_amount, created_by_user_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, interval_minutes, min_pool_amount, rain_amount, is_active, created_at`,
+      [intervalMinutes, minPoolAmount, rainAmount, req.auth!.user.id]
+    );
+
+    const row = result.rows[0];
+    return res.status(201).json({
+      schedule: {
+        id: Number(row.id),
+        intervalMinutes: Number(row.interval_minutes),
+        minPoolAmount: Number(row.min_pool_amount),
+        rainAmount: Number(row.rain_amount),
+        isActive: Boolean(row.is_active),
+        createdAt: row.created_at,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to create rain bot schedule.' });
+  }
+});
+
+app.post('/api/admin/rain-bot/:id/toggle', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid schedule ID.' });
+
+    const result = await pool.query(
+      `UPDATE rain_bot_schedules SET is_active = NOT is_active WHERE id = $1 RETURNING id, interval_minutes, min_pool_amount, rain_amount, is_active, created_at, last_triggered_at`,
+      [id]
+    );
+
+    if (!result.rowCount) return res.status(404).json({ error: 'Schedule not found.' });
+
+    const row = result.rows[0];
+    return res.json({
+      schedule: {
+        id: Number(row.id),
+        intervalMinutes: Number(row.interval_minutes),
+        minPoolAmount: Number(row.min_pool_amount),
+        rainAmount: Number(row.rain_amount),
+        isActive: Boolean(row.is_active),
+        createdAt: row.created_at,
+        lastTriggeredAt: row.last_triggered_at,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to toggle rain bot schedule.' });
+  }
+});
+
+app.delete('/api/admin/rain-bot/:id', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid schedule ID.' });
+
+    await pool.query(`DELETE FROM rain_bot_schedules WHERE id = $1`, [id]);
+    return res.status(204).send();
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to delete rain bot schedule.' });
+  }
+});
+
+app.get('/api/admin/analytics', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
+  try {
+    const now = new Date();
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const weekStart = new Date(dayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(dayStart.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      userStats,
+      wagerStats,
+      depositStats,
+      gameStats,
+    ] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)::int AS total_users,
+          COUNT(*) FILTER (WHERE created_at >= $1)::int AS users_today,
+          COUNT(*) FILTER (WHERE created_at >= $2)::int AS users_week,
+          COUNT(*) FILTER (WHERE created_at >= $3)::int AS users_month,
+          COUNT(DISTINCT us.user_id) FILTER (WHERE us.updated_at >= $1)::int AS active_today,
+          COUNT(DISTINCT us.user_id) FILTER (WHERE us.updated_at >= $2)::int AS active_week,
+          COUNT(DISTINCT us.user_id) FILTER (WHERE us.updated_at >= $3)::int AS active_month
+        FROM users u
+        LEFT JOIN user_sessions us ON us.user_id = u.id AND (us.expires_at IS NULL OR us.expires_at > NOW())
+      `, [dayStart, weekStart, monthStart]),
+      pool.query(`
+        SELECT
+          COALESCE(SUM(wager), 0)::bigint AS total_wagered,
+          COALESCE(SUM(wager) FILTER (WHERE created_at >= $1), 0)::bigint AS wagered_today,
+          COALESCE(SUM(wager) FILTER (WHERE created_at >= $2), 0)::bigint AS wagered_week,
+          COALESCE(SUM(wager) FILTER (WHERE created_at >= $3), 0)::bigint AS wagered_month,
+          COALESCE(SUM(payout) FILTER (WHERE created_at >= $1), 0)::bigint AS payout_today,
+          COALESCE(SUM(payout) FILTER (WHERE created_at >= $1), 0)::bigint AS payout_today
+        FROM bet_activities
+      `, [dayStart, weekStart, monthStart]),
+      pool.query(`
+        SELECT
+          COALESCE(SUM(price_amount), 0) AS total_deposited,
+          COALESCE(SUM(CASE WHEN credited_at IS NOT NULL THEN price_amount ELSE 0 END) FILTER (WHERE created_at >= $1), 0) AS deposited_today,
+          COALESCE(SUM(CASE WHEN credited_at IS NOT NULL THEN price_amount ELSE 0 END) FILTER (WHERE created_at >= $2), 0) AS deposited_week,
+          COALESCE(SUM(CASE WHEN credited_at IS NOT NULL THEN price_amount ELSE 0 END) FILTER (WHERE created_at >= $3), 0) AS deposited_month,
+          COALESCE(SUM(amount), 0)::bigint AS total_withdrawn
+        FROM payment_transactions
+        LEFT JOIN withdrawal_requests ON withdrawal_requests.created_at >= $3
+      `, [dayStart, weekStart, monthStart]),
+      pool.query(`
+        SELECT
+          game_key,
+          COUNT(*)::int AS total_bets,
+          COALESCE(SUM(wager), 0)::bigint AS total_wagered,
+          COALESCE(SUM(payout), 0)::bigint AS total_payout,
+          COUNT(*) FILTER (WHERE outcome = 'win')::int AS wins,
+          COUNT(*) FILTER (WHERE outcome = 'loss')::int AS losses,
+          COUNT(*) FILTER (WHERE outcome = 'push')::int AS pushes,
+          COALESCE(MAX(multiplier), 0) AS max_multiplier
+        FROM bet_activities
+        GROUP BY game_key
+        ORDER BY total_wagered DESC
+      `),
+    ]);
+
+    const wStats = wagerStats.rows[0] || {};
+    const dStats = depositStats.rows[0] || {};
+    const uStats = userStats.rows[0] || {};
+
+    return res.json({
+      analytics: {
+        users: {
+          total: Number(uStats.total_users || 0),
+          today: Number(uStats.users_today || 0),
+          week: Number(uStats.users_week || 0),
+          month: Number(uStats.users_month || 0),
+          activeToday: Number(uStats.active_today || 0),
+          activeWeek: Number(uStats.active_week || 0),
+          activeMonth: Number(uStats.active_month || 0),
+        },
+        wagering: {
+          total: Number(wStats.total_wagered || 0),
+          today: Number(wStats.wagered_today || 0),
+          week: Number(wStats.wagered_week || 0),
+          month: Number(wStats.wagered_month || 0),
+        },
+        payouts: {
+          today: Number(wStats.payout_today || 0),
+          week: Number(wStats.payout_today || 0),
+          month: Number(wStats.payout_today || 0),
+        },
+        deposits: {
+          total: Number(dStats.total_deposited || 0),
+          today: Number(dStats.deposited_today || 0),
+          week: Number(dStats.deposited_week || 0),
+          month: Number(dStats.deposited_month || 0),
+        },
+        withdrawals: {
+          total: Number(dStats.total_withdrawn || 0),
+        },
+        revenue: {
+          today: Math.max(0, Number(wStats.wagered_today || 0) - Number(wStats.payout_today || 0)),
+          week: Math.max(0, Number(wStats.wagered_week || 0) - Number(wStats.payout_today || 0)),
+          month: Math.max(0, Number(wStats.wagered_month || 0) - Number(wStats.payout_today || 0)),
+        },
+        games: gameStats.rows.map((row) => ({
+          gameKey: row.game_key,
+          totalBets: Number(row.total_bets || 0),
+          totalWagered: Number(row.total_wagered || 0),
+          totalPayout: Number(row.total_payout || 0),
+          wins: Number(row.wins || 0),
+          losses: Number(row.losses || 0),
+          pushes: Number(row.pushes || 0),
+          maxMultiplier: Number(row.max_multiplier || 0),
+          houseEdge: Number(row.total_bets || 0) > 0
+            ? (((Number(row.total_wagered || 0) - Number(row.total_payout || 0)) / Number(row.total_wagered || 0) * 100)).toFixed(2)
+            : '0.00',
+        })),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to load analytics.' });
+  }
+});
+
 app.use(express.static(distPath));
 
 app.get('*', (req, res, next) => {
@@ -3745,6 +5070,7 @@ app.get('*', (req, res, next) => {
 
 initDb()
   .then(() => {
+    setInterval(processRainBotSchedules, 60 * 1000);
     app.listen(port, () => {
       console.log(`Pasus auth server running on http://localhost:${port}`);
     });

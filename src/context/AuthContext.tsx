@@ -20,11 +20,12 @@ interface User {
   discordDisplayName?: string;
   discordAvatarUrl?: string;
   discordVerifiedAt?: string;
+  totpEnabled?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, totpCode?: string) => Promise<void>;
   register: (username: string, email: string, password: string, affiliateCode?: string) => Promise<void>;
   logout: () => void;
   updateCurrency: (currency: string) => void;
@@ -108,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(nextUser);
   };
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string, totpCode?: string) => {
     const data = await parseApiResponse(
       await apiFetch('/api/auth/login', {
         method: 'POST',
@@ -118,6 +119,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify({
           username,
           password,
+          totpCode,
         }),
       })
     );
