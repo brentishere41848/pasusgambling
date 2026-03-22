@@ -267,8 +267,9 @@ const DISPLAY_CURRENCY_RATES: Record<string, number> = {
 
 function formatCoins(value: number) {
   return new Intl.NumberFormat('en-US', {
-    maximumFractionDigits: 0,
-  }).format(Math.round(Number(value || 0)));
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0) / 100);
 }
 
 function coinsToUsd(value: number) {
@@ -4382,10 +4383,10 @@ const RightRail = () => {
               </button>
               <button
                 onClick={() => setRainDraft({ amount: '100', target: 'custom' })}
-                disabled={!isAuthenticated || isSubmitting}
+                disabled
                 className="flex-1 rounded-xl bg-white/8 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white disabled:opacity-40"
               >
-                Tip Rain
+                Tip Disabled
               </button>
             </div>
             <div className="mt-2 text-[10px] text-white/35">

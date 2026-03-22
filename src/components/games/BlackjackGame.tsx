@@ -78,6 +78,7 @@ export const BlackjackGame: React.FC = () => {
 
   const hit = () => {
     if (gameState !== 'playing') return;
+    if (calculateScore(playerHand) >= 21) return;
     const newDeck = [...deck];
     const newCard = newDeck.pop()!;
     const newHand = [...playerHand, newCard];
@@ -98,17 +99,22 @@ export const BlackjackGame: React.FC = () => {
     let currentDeck = [...deck];
 
     const dealerPlay = () => {
-      if (calculateScore(currentDealerHand) < 19) {
+      const pScore = calculateScore(playerHand);
+      const dScore = calculateScore(currentDealerHand);
+      if (pScore === 21 && currentDealerHand.length === 2 && dScore !== 21) {
+        handleEndGame(playerHand, currentDealerHand, 'Blackjack!');
+        return;
+      }
+      if (calculateScore(currentDealerHand) < 17) {
         currentDealerHand.push(currentDeck.pop()!);
         setDealerHand([...currentDealerHand]);
         setTimeout(dealerPlay, 600);
       } else {
-        const pScore = calculateScore(playerHand);
-        const dScore = calculateScore(currentDealerHand);
+        const finalDScore = calculateScore(currentDealerHand);
         
-        if (dScore > 21) handleEndGame(playerHand, currentDealerHand, 'Dealer Busts!');
-        else if (dScore > pScore) handleEndGame(playerHand, currentDealerHand, 'Dealer Wins');
-        else if (dScore < pScore) handleEndGame(playerHand, currentDealerHand, 'You Win!');
+        if (finalDScore > 21) handleEndGame(playerHand, currentDealerHand, 'Dealer Busts!');
+        else if (finalDScore > pScore) handleEndGame(playerHand, currentDealerHand, 'Dealer Wins');
+        else if (finalDScore < pScore) handleEndGame(playerHand, currentDealerHand, 'You Win!');
         else handleEndGame(playerHand, currentDealerHand, 'Push');
       }
     };
@@ -124,14 +130,14 @@ export const BlackjackGame: React.FC = () => {
     const dScore = calculateScore(dHand);
 
     if (msg === 'Blackjack!') {
+      const payout = bet * 3;
+      addBalance(payout);
+      logBetActivity({ gameKey: 'blackjack', wager: bet, payout, multiplier: 3, outcome: 'win', detail: msg });
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    } else if (msg === 'You Win!' || msg === 'Dealer Busts!') {
       const payout = bet * 2;
       addBalance(payout);
       logBetActivity({ gameKey: 'blackjack', wager: bet, payout, multiplier: 2, outcome: 'win', detail: msg });
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-    } else if (msg === 'You Win!' || msg === 'Dealer Busts!') {
-      const payout = bet * 1.6;
-      addBalance(payout);
-      logBetActivity({ gameKey: 'blackjack', wager: bet, payout, multiplier: 1.6, outcome: 'win', detail: msg });
       confetti({ particleCount: 100, spread: 50, origin: { y: 0.6 } });
     } else if (msg === 'Push') {
       addBalance(bet);
@@ -204,11 +210,11 @@ export const BlackjackGame: React.FC = () => {
           <div className="bg-black/40 rounded-xl p-3 border border-white/5">
             <div className="text-[10px] text-white/20 uppercase tracking-widest mb-1">Potential Win</div>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-black text-[#00FF88]">${(bet * 1.6).toFixed(2)}</span>
-              <span className="text-[10px] text-white/40 font-bold">USD (1.6x)</span>
+              <span className="text-xl font-black text-[#00FF88]">${(bet * 2).toFixed(2)}</span>
+              <span className="text-[10px] text-white/40 font-bold">USD (2x)</span>
             </div>
             <div className="text-[10px] text-white/20 mt-1">
-              Blackjack pays ${(bet * 2).toFixed(2)} (2x)
+              Blackjack pays ${(bet * 3).toFixed(2)} (3x)
             </div>
           </div>
         </div>
@@ -238,14 +244,14 @@ export const BlackjackGame: React.FC = () => {
           </button>
         )}
 
-        <div className="mt-auto p-4 bg-black/20 rounded-xl border border-white/5">
-          <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">Rules</div>
-          <ul className="text-[10px] text-white/60 space-y-1">
-            <li>• Dealer hits until 19</li>
-            <li>• Blackjack pays 2x</li>
-            <li>• Win pays 1.6x</li>
-          </ul>
-        </div>
+          <div className="mt-auto p-4 bg-black/20 rounded-xl border border-white/5">
+            <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">Rules</div>
+            <ul className="text-[10px] text-white/60 space-y-1">
+              <li>• Dealer hits until 17</li>
+              <li>• Blackjack pays 3x</li>
+              <li>• Win pays 2x</li>
+            </ul>
+          </div>
       </div>
 
       <div className="lg:col-span-3 bg-[#0f1115] border border-white/5 rounded-2xl p-8 flex flex-col items-center justify-between min-h-[500px] relative overflow-hidden">
