@@ -4134,7 +4134,7 @@ const RightRail = () => {
         },
         body: JSON.stringify({
           username: tipDraft.username,
-          amount: usdToCoins(Number(tipDraft.amount || 0)),
+          amount: Math.max(100, Math.round(Number(tipDraft.amount || 0) * 100)),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -4165,17 +4165,28 @@ const RightRail = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-      body: JSON.stringify({
-        amount: Math.max(100, Math.round(Number(rainDraft.amount || 0) * 100)),
-      }),
+        body: JSON.stringify({
+          amount: Math.max(100, Math.round(Number(rainDraft.amount || 0) * 100)),
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Failed to start rain.');
       }
+      if (data.rain) {
+        setRain({
+          id: Number(data.rain.id),
+          poolAmount: Number(data.rain.poolAmount ?? data.rain.pool_amount ?? 0),
+          startsAt: String(data.rain.startsAt || data.rain.starts_at || ''),
+          joinOpensAt: String(data.rain.joinOpensAt || data.rain.join_opens_at || ''),
+          endsAt: String(data.rain.endsAt || data.rain.ends_at || ''),
+          participantCount: Number(data.rain.participantCount ?? data.rain.participant_count ?? 0),
+          joined: Boolean(data.rain.joined),
+          hasEnded: Boolean(data.rain.hasEnded),
+        });
+      }
       setRainDraft(null);
       await refreshWallet();
-      await loadRoom(true);
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : 'Failed to start rain.');
     } finally {
@@ -4305,8 +4316,18 @@ const RightRail = () => {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to join rain.');
       }
-
-      await loadRoom(true);
+      if (data.rain) {
+        setRain({
+          id: Number(data.rain.id),
+          poolAmount: Number(data.rain.poolAmount ?? data.rain.pool_amount ?? 0),
+          startsAt: String(data.rain.startsAt || data.rain.starts_at || ''),
+          joinOpensAt: String(data.rain.joinOpensAt || data.rain.join_opens_at || ''),
+          endsAt: String(data.rain.endsAt || data.rain.ends_at || ''),
+          participantCount: Number(data.rain.participantCount ?? data.rain.participant_count ?? 0),
+          joined: true,
+          hasEnded: Boolean(data.rain.hasEnded),
+        });
+      }
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : 'Failed to join rain.');
     } finally {
