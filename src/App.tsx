@@ -67,7 +67,8 @@ import {
   Download,
   History,
   KeyRound,
-  QrCode
+   QrCode,
+   MessageCircle
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BalanceProvider, useBalance } from './context/BalanceContext';
@@ -617,242 +618,155 @@ const Sidebar = ({
 }) => {
   const { user } = useAuth();
   const [isOriginalsExpanded, setIsOriginalsExpanded] = useState(true);
+  const [isTableExpanded, setIsTableExpanded] = useState(true);
 
   const handleNav = (action: () => void) => {
     action();
     if (onClose) onClose();
   };
 
-  return (
-    <>
-      <aside className="w-64 border-r border-white/5 bg-[linear-gradient(180deg,#162229_0%,#171d2a_100%)] h-screen sticky top-0 hidden lg:flex flex-col p-4 overflow-y-auto custom-scrollbar shrink-0">
-        <button onClick={onHome} className="flex items-center gap-3 px-4 mb-8 group shrink-0">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center rotate-3 group-hover:rotate-12 transition-transform overflow-hidden">
+  const navItems = [
+    { view: 'dashboard' as MainView, icon: Home, label: 'Home', active: !activeGame && currentView === 'dashboard' },
+    { view: 'leaderboard' as MainView, icon: Trophy, label: 'Leaderboard', active: currentView === 'leaderboard' },
+    { view: 'vip' as MainView, icon: Star, label: 'VIP Club', active: currentView === 'vip' },
+    { view: 'affiliate' as MainView, icon: Users, label: 'Affiliate', active: currentView === 'affiliate' },
+  ];
+
+  const sidebar = (
+    <div className="w-[240px] shrink-0 flex flex-col h-full bg-[#0a0f1a]/95 backdrop-blur-xl border-r border-white/5">
+      <div className="px-5 pt-6 pb-4">
+        <button onClick={onHome} className="flex items-center gap-3 group">
+          <div className="w-9 h-9 rounded-xl overflow-hidden shadow-lg shadow-[#00FF88]/20">
             <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
           </div>
-          <span className="text-xl font-black tracking-tighter uppercase italic">Pasus</span>
+          <span className="text-xl font-black uppercase italic tracking-tight text-white group-hover:text-[#00FF88] transition-colors">Pasus</span>
+        </button>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-0.5">
+        {navItems.map((item) => (
+          <button key={item.label} onClick={() => handleNav(() => onOpenView(item.view))}
+            className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+              item.active ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+            <item.icon size={17} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+
+        <button onClick={onOpenAchievements}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/40 hover:text-white hover:bg-white/5">
+          <Award size={17} />
+          <span>Achievements</span>
         </button>
 
-        <nav className="flex-1 space-y-1">
-          <button 
-            onClick={onHome}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-              !activeGame ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-            )}
-          >
-            <Home size={18} /> Home
-          </button>
-          
-          <div className="pt-4 pb-1">
-            <button 
-              onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
-              className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <LayoutGrid size={12} />
-                Originals
-              </div>
-              <ChevronDown size={12} className={cn("transition-transform", isOriginalsExpanded && "rotate-180")} />
-            </button>
-            
-            <AnimatePresence>
-              {isOriginalsExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden space-y-1 mt-1"
-                >
-                  {GAMES.map(game => (
-                    <button 
-                      key={game.id}
-                      onClick={() => onSelectGame(game.id)}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all pl-8",
-                        activeGame === game.id ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-                      )}
-                    >
-                      <game.icon size={16} /> {game.name}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+        <button onClick={onOpenPF}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/40 hover:text-white hover:bg-white/5">
+          <ShieldCheck size={17} />
+          <span>Provably Fair</span>
+        </button>
 
-          <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Platform</div>
-          <button
-            onClick={() => onOpenView('leaderboard')}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-              currentView === 'leaderboard' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-            )}
-          >
-            <Trophy size={18} /> Leaderboard
-          </button>
-          <button
-            onClick={() => onOpenView('vip')}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-              currentView === 'vip' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-            )}
-          >
-            <Star size={18} /> VIP Club
-          </button>
-          <button
-            onClick={() => onOpenView('affiliate')}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-              currentView === 'affiliate' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-            )}
-          >
-            <Users size={18} /> Affiliate
-          </button>
-          <button
-            onClick={onOpenPF}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all"
-          >
-            <ShieldCheck size={18} /> Provably Fair
-          </button>
-          <button
-            onClick={onOpenAchievements}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all"
-          >
-            <Trophy size={18} /> Achievements
-          </button>
-          {user?.role === 'owner' ? (
-            <button
-              onClick={() => onOpenView('admin')}
-              className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-                currentView === 'admin' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-              )}
-            >
-              <Shield size={18} /> Admin
-            </button>
-          ) : null}
-        </nav>
+        <button onClick={() => handleNav(() => onOpenView('support'))}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/40 hover:text-white hover:bg-white/5">
+          <MessageSquare size={17} />
+          <span>Support</span>
+        </button>
 
-        <div className="mt-auto pt-4 border-t border-white/5 shrink-0">
-          <button
-            onClick={() => onOpenView('support')}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-              currentView === 'support' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-            )}
-          >
-            <MessageSquare size={18} /> Live Support
+        {user?.role === 'owner' && (
+          <button onClick={() => handleNav(() => onOpenView('admin'))}
+            className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+              currentView === 'admin' ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+            <Shield size={17} />
+            <span>Admin</span>
           </button>
-        </div>
-      </aside>
-
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
-              onClick={onClose}
-            />
-            <motion.aside
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed left-0 top-0 bottom-0 w-[280px] bg-[#162229] z-50 lg:hidden flex flex-col p-4 overflow-y-auto custom-scrollbar border-r border-white/5"
-            >
-              <div className="flex items-center justify-between mb-8 px-4">
-                <button onClick={onHome} className="flex items-center gap-3 group">
-                  <div className="w-8 h-8 rounded-lg overflow-hidden rotate-3 group-hover:rotate-12 transition-transform">
-                    <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
-                  </div>
-                  <span className="text-xl font-black tracking-tighter uppercase italic">Pasus</span>
-                </button>
-                <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
-                  <X size={20} className="text-white/40" />
-                </button>
-              </div>
-
-              <nav className="flex-1 space-y-1">
-                <button 
-                  onClick={() => handleNav(onHome)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-                    !activeGame ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-                  )}
-                >
-                  <Home size={18} /> Home
-                </button>
-                
-                <div className="pt-4 pb-1">
-                  <button 
-                    onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
-                    className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <LayoutGrid size={12} />
-                      Originals
-                    </div>
-                    <ChevronDown size={12} className={cn("transition-transform", isOriginalsExpanded && "rotate-180")} />
-                  </button>
-                  
-                  <AnimatePresence>
-                    {isOriginalsExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden space-y-1 mt-1"
-                      >
-                        {GAMES.map(game => (
-                          <button 
-                            key={game.id}
-                            onClick={() => handleNav(() => onSelectGame(game.id))}
-                            className={cn(
-                              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all pl-8",
-                              activeGame === game.id ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5"
-                            )}
-                          >
-                            <game.icon size={16} /> {game.name}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Platform</div>
-                <button onClick={() => handleNav(() => onOpenView('leaderboard'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'leaderboard' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
-                  <Trophy size={18} /> Leaderboard
-                </button>
-                <button onClick={() => handleNav(() => onOpenView('vip'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'vip' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
-                  <Star size={18} /> VIP Club
-                </button>
-                <button onClick={() => handleNav(() => onOpenView('affiliate'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'affiliate' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
-                  <Users size={18} /> Affiliate
-                </button>
-                <button onClick={() => handleNav(() => onOpenView('provably-fair'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'provably-fair' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
-                  <ShieldCheck size={18} /> Provably Fair
-                </button>
-                {user?.role === 'owner' ? (
-                  <button onClick={() => handleNav(() => onOpenView('admin'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'admin' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
-                    <Shield size={18} /> Admin
-                  </button>
-                ) : null}
-              </nav>
-
-              <div className="mt-auto pt-4 border-t border-white/5 shrink-0">
-                <button onClick={() => handleNav(() => onOpenView('support'))} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", currentView === 'support' ? "bg-[#00FF88]/10 text-[#00FF88]" : "text-white/40 hover:text-white hover:bg-white/5")}>
-                  <MessageSquare size={18} /> Live Support
-                </button>
-              </div>
-            </motion.aside>
-          </>
         )}
-      </AnimatePresence>
+
+        <div className="pt-3 pb-1">
+          <button onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
+            className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors">
+            <div className="flex items-center gap-2"><LayoutGrid size={11} /> Originals</div>
+            <ChevronDown size={11} className={cn('transition-transform', isOriginalsExpanded && 'rotate-180')} />
+          </button>
+          <AnimatePresence>
+            {isOriginalsExpanded && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <div className="space-y-0.5 pl-2">
+                  {GAMES.map((game) => {
+                    const GameIcon = typeof game.icon === 'string' ? null : game.icon;
+                    return (
+                      <button key={game.id} onClick={() => handleNav(() => onSelectGame(game.id))}
+                        className={cn('w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all',
+                          activeGame === game.id ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+                        {GameIcon && <GameIcon size={13} className={game.color} />}
+                        <span className="truncate">{game.name}</span>
+                        {game.featured && <span className="ml-auto text-[7px] font-black uppercase text-[#00FF88] tracking-wider">Hot</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="pt-1 pb-1">
+          <button onClick={() => setIsTableExpanded(!isTableExpanded)}
+            className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors">
+            <div className="flex items-center gap-2"><Disc size={11} /> Table Games</div>
+            <ChevronDown size={11} className={cn('transition-transform', isTableExpanded && 'rotate-180')} />
+          </button>
+          <AnimatePresence>
+            {isTableExpanded && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <div className="space-y-0.5 pl-2">
+                  {GAMES.filter(g => g.image?.startsWith('http')).map((game) => {
+                    const GameIcon = typeof game.icon === 'string' ? null : game.icon;
+                    return (
+                      <button key={game.id} onClick={() => handleNav(() => onSelectGame(game.id))}
+                        className={cn('w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all',
+                          activeGame === game.id ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+                        {GameIcon && <GameIcon size={13} className={game.color} />}
+                        <span className="truncate">{game.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </nav>
+
+      <div className="p-3 border-t border-white/5">
+        <button onClick={() => handleNav(() => onOpenView('support'))}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/30 hover:text-white hover:bg-white/5">
+          <MessageCircle size={16} />
+          <span>Help & Support</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="hidden lg:block shrink-0">
+        {sidebar}
+      </div>
+      {isOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="h-full">
+            <div className="flex items-center justify-between p-4 border-b border-white/5">
+              <span className="text-sm font-black uppercase tracking-widest text-white/60">Menu</span>
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-white/40">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="h-[calc(100%-57px)] overflow-y-auto">
+              {sidebar}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 };
@@ -2299,6 +2213,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
   const [heroIndex, setHeroIndex] = useState(0);
   const [stats, setStats] = useState({ playersOnline: 0, totalWageredToday: 0, biggestWin: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [category, setCategory] = useState('all');
 
   useEffect(() => {
     const loadStats = async () => {
@@ -2322,151 +2237,181 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
 
   useEffect(() => {
     if (featuredGames.length <= 1) return;
-    const interval = window.setInterval(() => {
-      setHeroIndex(i => (i + 1) % featuredGames.length);
-    }, 6000);
+    const interval = window.setInterval(() => setHeroIndex(i => (i + 1) % featuredGames.length), 6000);
     return () => clearInterval(interval);
   }, [featuredGames.length]);
 
   const heroGame = featuredGames[heroIndex];
+  const categories = ['all', 'slots', 'table', 'originals', 'featured'];
+  const categoryLabels: Record<string, string> = { all: 'All', slots: 'Slots', table: 'Table', originals: 'Originals', featured: 'Featured' };
+
+  const filteredGames = category === 'all'
+    ? GAMES
+    : category === 'featured'
+      ? GAMES.filter(g => g.featured)
+      : GAMES;
+
+  const categoryColors: Record<string, string> = {
+    all: '#00FF88',
+    slots: '#f59e0b',
+    table: '#3b82f6',
+    originals: '#a855f7',
+    featured: '#ef4444',
+  };
 
   return (
-    <div className="space-y-10">
-      <div className="p-4 md:p-6 lg:p-8 space-y-6">
-        <section className="space-y-4">
-          {heroGame && (
-            <div className="relative rounded-[28px] overflow-hidden border border-white/10">
-              <div className="relative aspect-[16/6] md:aspect-[16/5] min-h-[160px] md:min-h-[200px]">
-                <motion.img
-                  key={heroIndex}
-                  initial={{ opacity: 0, scale: 1.05 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
-                  src={heroGame.image}
-                  alt={heroGame.name}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-[#00FF88] text-[10px] font-black uppercase tracking-[0.22em] bg-[#00FF88]/20 px-3 py-1 rounded-full">
-                      <span className="flex items-center gap-1"><Flame size={10} fill="currentColor" /> Featured</span>
-                    </span>
-                  </div>
-                  <h2 className="text-2xl md:text-4xl font-black italic uppercase tracking-tighter text-white">{heroGame.name}</h2>
-                  <p className="text-white/60 text-sm mt-1 max-w-md">{heroGame.description}</p>
-                  <button
-                    onClick={() => onSelectGame(heroGame.id)}
-                    className="mt-4 bg-[#00FF88] text-black px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/20"
-                  >
-                    Play Now
-                  </button>
-                </div>
+    <div className="min-h-screen">
+      {/* Hero Banner */}
+      <div className="px-4 md:px-6 pt-4 pb-6">
+        <div className="relative rounded-3xl overflow-hidden border border-white/10">
+          {/* Animated Background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#00FF88]/10 via-[#0a0f1a] to-[#1a0a2e]">
+            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #00FF88 0%, transparent 50%), radial-gradient(circle at 80% 20%, #a855f7 0%, transparent 40%)' }} />
+            <div className="absolute inset-0" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(255,255,255,0.02) 50px, rgba(255,255,255,0.02) 51px), repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255,255,255,0.02) 50px, rgba(255,255,255,0.02) 51px)' }} />
+          </div>
+
+          <div className="relative p-6 md:p-10 min-h-[220px] md:min-h-[260px] flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#00FF88] animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#00FF88]/70">Live</span>
               </div>
               {featuredGames.length > 1 && (
-                <div className="absolute bottom-4 right-4 md:right-6 flex gap-2">
+                <div className="flex gap-1.5">
                   {featuredGames.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setHeroIndex(i)}
-                      className={cn(
-                        'w-2 h-2 rounded-full transition-all',
-                        i === heroIndex ? 'bg-[#00FF88] w-5' : 'bg-white/30 hover:bg-white/50'
-                      )}
-                    />
+                    <button key={i} onClick={() => setHeroIndex(i)}
+                      className={cn('h-1 rounded-full transition-all duration-300', i === heroIndex ? 'w-6 bg-[#00FF88]' : 'w-1 bg-white/20 hover:bg-white/40')} />
                   ))}
                 </div>
               )}
             </div>
-          )}
-        </section>
 
-        <section className="grid grid-cols-3 md:grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-white/10 bg-[#141821] p-4 text-center">
-            <div className="flex items-center justify-center gap-1 text-[#00FF88] mb-1">
-              <UsersRound size={14} />
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#00FF88]">Players</span>
-            </div>
-            <div className="text-lg md:text-xl font-black italic">
-              {isLoadingStats ? '...' : stats.playersOnline.toLocaleString()}
+            {heroGame && (
+              <motion.div key={heroIndex} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#00FF88] bg-[#00FF88]/15 px-3 py-1 rounded-full">
+                    Featured Game
+                  </span>
+                </div>
+                <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white leading-none mb-2">
+                  {heroGame.name}
+                </h2>
+                <p className="text-white/40 text-sm max-w-lg mb-5">{heroGame.description}</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => onSelectGame(heroGame.id)}
+                    className="bg-[#00FF88] text-black px-8 py-3 rounded-full text-xs font-black uppercase tracking-[0.2em] hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/30 hover:shadow-[#00FF88]/50"
+                  >
+                    Play Now
+                  </button>
+                  <button
+                    onClick={() => onSelectGame(heroGame.id)}
+                    className="bg-white/8 text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-[0.2em] hover:bg-white/15 transition-all border border-white/10"
+                  >
+                    Demo
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Bottom Stats Bar */}
+            <div className="grid grid-cols-3 gap-3 mt-4 max-w-xl">
+              {[
+                { label: 'Online', value: isLoadingStats ? '...' : stats.playersOnline.toLocaleString(), color: 'text-[#00FF88]' },
+                { label: 'Wagered Today', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday), color: 'text-amber-400' },
+                { label: 'Biggest Win', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin), color: 'text-purple-400' },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-black/30 border border-white/5 rounded-xl px-3 py-2 text-center">
+                  <div className={cn('text-base md:text-lg font-black font-mono', stat.color)}>{stat.value}</div>
+                  <div className="text-[9px] uppercase tracking-[0.2em] text-white/25 font-black">{stat.label}</div>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-[#141821] p-4 text-center">
-            <div className="flex items-center justify-center gap-1 text-amber-400 mb-1">
-              <CircleDollarSign size={14} />
-              <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Wagered Today</span>
-            </div>
-            <div className="text-lg md:text-xl font-black italic">
-              {isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday)}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-[#141821] p-4 text-center">
-            <div className="flex items-center justify-center gap-1 text-purple-400 mb-1">
-              <Award size={14} />
-              <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">Biggest Win</span>
-            </div>
-            <div className="text-lg md:text-xl font-black italic text-[#00FF88]">
-              {isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin)}
-            </div>
-          </div>
-        </section>
+        </div>
       </div>
 
-      <div className="px-4 md:px-6 lg:px-8">
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg md:text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-              <LayoutGrid size={18} className="text-[#00FF88]" />
-              All Games
-            </h2>
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/25">{GAMES.length} games</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-            {GAMES.map(game => {
-              const GameIcon = typeof game.icon === 'string' ? null : game.icon;
-              return (
-                <motion.button
-                  key={game.id}
-                  whileHover={{ y: -4, scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => onSelectGame(game.id)}
-                  className={cn(
-                    'relative rounded-2xl overflow-hidden border transition-all group',
-                    game.featured ? 'border-[#00FF88]/25 hover:border-[#00FF88]/50' : 'border-white/8 hover:border-white/20',
-                    'bg-[#141821]'
-                  )}
-                >
-                  <div className="aspect-[4/3] relative overflow-hidden">
-                    <img
-                      src={game.image}
-                      alt={game.name}
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                    {game.featured && (
-                      <div className="absolute top-2 right-2 bg-[#00FF88] text-black text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                        <Flame size={8} /> HOT
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-2 md:p-3">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      {GameIcon && <GameIcon size={12} className={game.color} />}
-                      <span className="text-xs font-black uppercase tracking-tight">{game.name}</span>
+      {/* Category Filter */}
+      <div className="px-4 md:px-6 pb-4">
+        <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={cn(
+                'shrink-0 px-5 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all border',
+                category === cat
+                  ? 'bg-white text-black border-transparent'
+                  : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white/70'
+              )}
+            >
+              {categoryLabels[cat]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Games Grid */}
+      <div className="px-4 md:px-6 pb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          {filteredGames.map((game) => {
+            const GameIcon = typeof game.icon === 'string' ? null : game.icon;
+            return (
+              <motion.button
+                key={game.id}
+                whileHover={{ y: -6, scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => onSelectGame(game.id)}
+                className={cn(
+                  'relative rounded-2xl overflow-hidden border transition-all duration-300 group cursor-pointer',
+                  game.featured
+                    ? 'border-[#00FF88]/30 hover:border-[#00FF88]/60 hover:shadow-[0_0_30px_rgba(0,255,136,0.15)]'
+                    : 'border-white/8 hover:border-white/20 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]'
+                )}
+              >
+                {/* Game Image */}
+                <div className="aspect-[4/3] relative overflow-hidden">
+                  <img
+                    src={game.image}
+                    alt={game.name}
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+
+                  {/* Featured Badge */}
+                  {game.featured && (
+                    <div className="absolute top-2 left-2 bg-[#00FF88] text-black text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg shadow-[#00FF88]/40">
+                      <TrendingUp size={8} /> Hot
                     </div>
-                    <p className="text-[10px] text-white/35 leading-tight line-clamp-1 hidden md:block">{game.description}</p>
+                  )}
+
+                  {/* Game Name */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      {GameIcon && <GameIcon size={11} className={game.color} />}
+                      <span className="text-sm font-black text-white tracking-tight">{game.name}</span>
+                    </div>
+                    <p className="text-[9px] text-white/35 leading-tight line-clamp-1 hidden sm:block">{game.description}</p>
                   </div>
-                  <div className="absolute inset-0 bg-[#00FF88]/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none" />
-                </motion.button>
-              );
-            })}
-          </div>
-        </section>
+
+                  {/* Hover Glow */}
+                  <div className={cn('absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300', game.featured ? 'bg-[#00FF88]/5' : 'bg-white/5')} />
+                </div>
+
+                {/* Bottom Bar */}
+                <div className="bg-[#0a0f1a]/90 backdrop-blur-sm px-3 py-2 flex items-center justify-between">
+                  <span className={cn('text-[9px] font-bold uppercase tracking-wider', game.color)}>{game.name}</span>
+                  <ChevronRight size={12} className="text-white/20 group-hover:text-white/60 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="px-4 md:px-6 lg:px-8 pb-6 space-y-6">
+      {/* Bottom Section */}
+      <div className="px-4 md:px-6 pb-8 space-y-4">
         <DailyRewardsCard />
         <LiveBetsStrip />
         <RecentActivity />
@@ -2474,6 +2419,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
     </div>
   );
 };
+
 
 const ProfileView = () => {
   const { user, setUser, refreshUser } = useAuth();
