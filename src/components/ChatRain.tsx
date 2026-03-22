@@ -213,7 +213,10 @@ export const ChatRain: React.FC<{
     try {
       const res = await apiFetch('/api/chat/messages', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ text }),
       });
       const data = await res.json().catch(() => ({}));
@@ -235,7 +238,10 @@ export const ChatRain: React.FC<{
     try {
       const res = await apiFetch('/api/chat/tip', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ username: tipDraft.username, amount }),
       });
       const data = await res.json().catch(() => ({}));
@@ -258,7 +264,10 @@ export const ChatRain: React.FC<{
     try {
       const res = await apiFetch('/api/rain/contribute', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ amount }),
       });
       const data = await res.json().catch(() => ({}));
@@ -281,7 +290,10 @@ export const ChatRain: React.FC<{
     try {
       const res = await apiFetch('/api/custom-rain/tip', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ amount }),
       });
       const data = await res.json().catch(() => ({}));
@@ -304,7 +316,10 @@ export const ChatRain: React.FC<{
     try {
       const res = await apiFetch('/api/custom-rain', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ amount }),
       });
       const data = await res.json().catch(() => ({}));
