@@ -883,14 +883,28 @@ async function ensureCurrentRainRound(client: Pool | PoolClient) {
   return insertResult.rows[0];
 }
 
-async function addRainContributionFromWager(client: Pool | PoolClient, wager: number) {
+async function addRainContributionFromWager(client: Pool | PoolClient, wager: number, payout: number, outcome: string) {
   const normalizedWager = normalizeCoins(wager);
+  const normalizedPayout = normalizeCoins(payout);
+
   if (normalizedWager <= 0) {
     return null;
   }
 
+  let contribution = 0;
+
+  if (outcome === 'loss') {
+    contribution = Math.max(1, Math.floor(normalizedWager * 0.005));
+  } else if (outcome === 'win' && normalizedPayout > normalizedWager) {
+    const winnings = normalizedPayout - normalizedWager;
+    contribution = Math.max(1, Math.floor(winnings * 0.005));
+  }
+
+  if (contribution <= 0) {
+    return null;
+  }
+
   const roundRow = await ensureCurrentRainRound(client);
-  const contribution = Math.max(1, Math.floor(normalizedWager * 0.005));
 
   const updated = await client.query(
     `UPDATE rain_rounds
@@ -1988,7 +2002,7 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
       [req.auth!.user.id, gameKey, wager, payout, multiplier || 0, outcome, detail || null]
     );
 
-    const rainUpdate = await addRainContributionFromWager(client, wager);
+    const rainUpdate = await addRainContributionFromWager(client, wager, payout, outcome);
     if (outcome === 'win' && payout > 0) {
       await applyAffiliateCommission(client, req.auth!.user.id, 'win', `bet:${inserted.rows[0]?.id || Date.now()}`, payout);
     }
