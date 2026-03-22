@@ -73,63 +73,7 @@ const subscribers = new Set<(snapshot: CrashSnapshot) => void>();
 let tickInterval: number | null = null;
 let phaseTimeout: number | null = null;
 
-let audioContext: AudioContext | null = null;
 
-function getAudioContext(): AudioContext {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-  }
-  return audioContext;
-}
-
-export function playSound(type: 'bet' | 'cashout' | 'crash' | 'win') {
-  try {
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-    }
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    switch (type) {
-      case 'bet':
-        osc.frequency.setValueAtTime(600, ctx.currentTime);
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
-        break;
-      case 'cashout':
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.2);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.25);
-        break;
-      case 'crash':
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(300, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.4);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
-        break;
-      case 'win':
-        osc.frequency.setValueAtTime(523, ctx.currentTime);
-        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
-        osc.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.4);
-        break;
-    }
-  } catch {}
-}
 
 function randomBetween(min: number, max: number) {
   return Math.random() * (max - min) + min;
@@ -277,7 +221,6 @@ function finalizeCrash() {
   phase = 'crashed';
   multiplier = crashPoint;
   history = [roundNumber(crashPoint), ...history].slice(0, HISTORY_SIZE);
-  playSound('crash');
 
   botParticipants = botParticipants.map((participant) =>
     participant.status === 'active'
@@ -340,7 +283,6 @@ function startRound() {
         return participant;
       }
       if (nextMultiplier >= participant.autoCashoutAt) {
-        playSound('cashout');
         return {
           ...participant,
           status: 'cashed_out' as const,
@@ -363,7 +305,6 @@ function startRound() {
           outcome: 'win',
           detail: `Cashed out at ${playerBet.autoCashoutAt!.toFixed(2)}x`,
         };
-        playSound('cashout');
       }
     }
 
@@ -399,7 +340,6 @@ export function placeCrashBet(username: string, wager: number, autoCashoutAt?: n
     return false;
   }
   playerBet = { username, wager, status: 'pending', autoCashoutAt };
-  playSound('bet');
   emit();
   return true;
 }
@@ -409,7 +349,6 @@ export function placeSecondaryCrashBet(username: string, wager: number, autoCash
     return false;
   }
   playerSecondaryBet = { username, wager, status: 'pending', autoCashoutAt, isSecondary: true };
-  playSound('bet');
   emit();
   return true;
 }
@@ -431,7 +370,6 @@ export function cashOutCrashBet() {
 
   playerBet = { ...playerBet, status: 'cashed_out' };
   playerOutcome = outcome;
-  playSound('cashout');
   emit();
   return outcome;
 }
@@ -442,7 +380,6 @@ export function cashOutSecondaryCrashBet() {
   }
 
   const payout = Math.round(playerSecondaryBet.wager * multiplier);
-  playSound('cashout');
   playerSecondaryBet = { ...playerSecondaryBet, status: 'cashed_out' };
   emit();
   return payout;

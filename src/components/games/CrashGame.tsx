@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
-import { TrendingUp, Play, Square, Timer, Users, Volume2, VolumeX, Settings } from 'lucide-react';
+import { TrendingUp, Play, Square, Timer, Users, Settings } from 'lucide-react';
 import { logBetActivity } from '../../lib/activity';
 import {
   acknowledgeCrashOutcome,
@@ -11,7 +11,6 @@ import {
   cashOutSecondaryCrashBet,
   getCrashSnapshot,
   subscribeToCrashEngine,
-  playSound,
   type CrashParticipant,
   type CrashSnapshot,
   placeCrashBet,
@@ -27,7 +26,6 @@ export const CrashGame: React.FC = () => {
   const [secondaryBet, setSecondaryBet] = useState(0);
   const [autoCashout, setAutoCashout] = useState('');
   const [secondaryAutoCashout, setSecondaryAutoCashout] = useState('');
-  const [soundEnabled, setSoundEnabled] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [snapshot, setSnapshot] = useState<CrashSnapshot>(() => getCrashSnapshot());
   const processedOutcomeRef = useRef<number | null>(null);
@@ -38,14 +36,6 @@ export const CrashGame: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (soundEnabled) {
-      if (snapshot.phase === 'crashed') {
-        playSound('crash');
-      }
-    }
-  }, [snapshot.phase, soundEnabled]);
-
-  useEffect(() => {
     const outcome = snapshot.playerOutcome;
     if (!outcome || processedOutcomeRef.current === outcome.id) {
       return;
@@ -54,7 +44,6 @@ export const CrashGame: React.FC = () => {
     processedOutcomeRef.current = outcome.id;
     if (outcome.outcome === 'win') {
       addBalance(outcome.payout);
-      if (soundEnabled) playSound('win');
     }
     logBetActivity({
       gameKey: 'crash',
@@ -65,7 +54,7 @@ export const CrashGame: React.FC = () => {
       detail: outcome.detail,
     });
     acknowledgeCrashOutcome(outcome.id);
-  }, [addBalance, snapshot.playerOutcome, soundEnabled]);
+  }, [addBalance, snapshot.playerOutcome]);
 
   const joinNextRound = () => {
     if (snapshot.phase !== 'countdown' || snapshot.playerBet || !user?.username) return;
@@ -73,7 +62,6 @@ export const CrashGame: React.FC = () => {
     if (!subtractBalance(bet)) return;
     const placed = placeCrashBet(user.username, bet, auto);
     if (!placed) addBalance(bet);
-    else if (soundEnabled) playSound('bet');
   };
 
   const placeSecondBet = () => {
@@ -84,7 +72,6 @@ export const CrashGame: React.FC = () => {
     if (!subtractBalance(secondaryBet)) return;
     const placed = placeSecondaryCrashBet(user.username, secondaryBet, auto);
     if (!placed) addBalance(secondaryBet);
-    else if (soundEnabled) playSound('bet');
   };
 
   const cashOut = () => {
@@ -111,29 +98,11 @@ export const CrashGame: React.FC = () => {
   const joinedSecond = Boolean(secondaryBetData);
   const history = snapshot.history;
 
-  const graphMax = Math.max(2.0, ...history.slice(0, MAX_HISTORY));
-
-  const graphPoints = history.slice(0, MAX_HISTORY).map((point, index) => {
-    const x = ((index) / (MAX_HISTORY - 1)) * 100;
-    const y = 100 - ((point / graphMax) * 100);
-    return { x, y, point };
-  });
-
-  const pathD = graphPoints.length > 1
-    ? graphPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-    : '';
-
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-[360px_1fr] gap-6 p-4 max-w-7xl mx-auto">
       <div className="bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="text-sm font-black text-white/40 uppercase tracking-widest">Crash</div>
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 rounded-xl hover:bg-white/5 transition-colors text-white/30 hover:text-white"
-          >
-            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-          </button>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
@@ -150,49 +119,6 @@ export const CrashGame: React.FC = () => {
             />
           </div>
         </div>
-
-        {history.length > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black mb-2">History Graph</div>
-            <div className="relative h-14 bg-black/30 rounded-xl overflow-hidden">
-              <svg viewBox={`0 0 100 ${graphMax}`} className="w-full h-full" preserveAspectRatio="none">
-                {pathD && (
-                  <>
-                    <defs>
-                      <linearGradient id="crashGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#00FF88" stopOpacity="0.3" />
-                        <stop offset="100%" stopColor="#00FF88" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    <path d={`${pathD} L 100 100 L 0 100 Z`} fill="url(#crashGrad)" />
-                    <path d={pathD} fill="none" stroke="#00FF88" strokeWidth="1.5" strokeLinejoin="round" />
-                  </>
-                )}
-              </svg>
-              <div className="absolute inset-0 flex items-end px-2 pb-1">
-                {graphPoints.map((p, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 flex items-end justify-center"
-                    style={{ height: `${p.y}%` }}
-                  >
-                    <div
-                      className={cn(
-                        'w-1.5 h-1.5 rounded-full mb-0.5',
-                        p.point >= 2 ? 'bg-[#00FF88]' : 'bg-red-500'
-                      )}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-[9px] text-white/20 mt-1 px-1">
-              <span>Oldest</span>
-              <span className="text-[#00FF88]">2.0x line</span>
-              <span>Latest</span>
-            </div>
-          </div>
-        )}
 
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
