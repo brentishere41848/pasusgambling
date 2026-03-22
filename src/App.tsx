@@ -4156,6 +4156,8 @@ const RightRail = () => {
       return;
     }
 
+    const tipAmount = Math.max(100, Math.round(Number(rainDraft.amount || 0) * 100));
+
     try {
       setIsSubmitting(true);
       const token = localStorage.getItem('pasus_auth_token');
@@ -4165,27 +4167,20 @@ const RightRail = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          amount: Math.max(100, Math.round(Number(rainDraft.amount || 0) * 100)),
-        }),
+        body: JSON.stringify({ amount: tipAmount }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Failed to start rain.');
       }
-      if (data.rain) {
+
+      setRainDraft(null);
+      if (rain) {
         setRain({
-          id: Number(data.rain.id),
-          poolAmount: Number(data.rain.poolAmount ?? data.rain.pool_amount ?? 0),
-          startsAt: String(data.rain.startsAt || data.rain.starts_at || ''),
-          joinOpensAt: String(data.rain.joinOpensAt || data.rain.join_opens_at || ''),
-          endsAt: String(data.rain.endsAt || data.rain.ends_at || ''),
-          participantCount: Number(data.rain.participantCount ?? data.rain.participant_count ?? 0),
-          joined: Boolean(data.rain.joined),
-          hasEnded: Boolean(data.rain.hasEnded),
+          ...rain,
+          poolAmount: rain.poolAmount + tipAmount,
         });
       }
-      setRainDraft(null);
       await refreshWallet();
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : 'Failed to start rain.');
@@ -4258,6 +4253,8 @@ const RightRail = () => {
       return;
     }
 
+    const tipAmount = Math.max(100, Math.round(Number(rainDraft.amount || 0) * 100));
+
     try {
       setIsSubmitting(true);
       const token = localStorage.getItem('pasus_auth_token');
@@ -4267,26 +4264,13 @@ const RightRail = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          amount: Math.max(100, Math.round(Number(rainDraft.amount || 0) * 100)),
-        }),
+        body: JSON.stringify({ amount: tipAmount }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Failed to tip custom rain.');
       }
-      if (data.customRain) {
-        setCustomRain({
-          id: Number(data.customRain.id),
-          creatorUsername: String(data.customRain.creatorUsername || data.customRain.creator_username || ''),
-          creatorAvatarUrl: data.customRain.creatorAvatarUrl || data.customRain.creator_avatar_url || undefined,
-          poolAmount: Number(data.customRain.poolAmount ?? data.customRain.pool_amount ?? 0),
-          endsAt: String(data.customRain.endsAt || data.customRain.ends_at || ''),
-          participantCount: Number(data.customRain.participantCount ?? data.customRain.participant_count ?? 0),
-          joined: Boolean(data.customRain.joined),
-          hasEnded: Boolean(data.customRain.hasEnded),
-        });
-      }
+      setCustomRain((prev) => prev ? { ...prev, poolAmount: prev.poolAmount + tipAmount } : prev);
       setRainDraft(null);
       await refreshWallet();
     } catch (error) {
