@@ -267,19 +267,8 @@ export const PlinkoGame: React.FC = () => {
               const rowStartX = (canvas.width - rowWidth) / 2;
               const pegIndex = Math.max(0, Math.min(pegsInRow - 1, Math.round((ball.x - rowStartX) / pegGap)));
               const pegX = rowStartX + pegIndex * pegGap;
-              const centerX = canvas.width / 2;
-              const distFromCenter = Math.abs(ball.x - centerX) / (canvas.width / 2);
-              const edgeBias = Math.pow(distFromCenter, 0.5) * 0.35;
-              const rand = Math.random();
-              let direction: number;
-              if (rand < 0.35 - edgeBias) {
-                direction = -1;
-              } else if (rand > 0.65 + edgeBias) {
-                direction = 1;
-              } else {
-                direction = ball.x >= pegX ? 1 : -1;
-              }
-              const horizontalKick = (rows >= 14 ? 1.2 : 1.35) + Math.random() * 0.7;
+              const direction = ball.x >= pegX ? 1 : -1;
+              const horizontalKick = (rows >= 14 ? 1.05 : 1.2) + Math.random() * 0.45;
 
               ball.x = pegX + direction * (pegRadius + 6);
               ball.vx = direction * horizontalKick;
@@ -289,9 +278,9 @@ export const PlinkoGame: React.FC = () => {
             }
           }
 
-          if (ball.x < 18 || ball.x > canvas.width - 18) {
+          if (ball.x < 40 || ball.x > canvas.width - 40) {
             ball.vx *= -0.82;
-            ball.x = Math.max(18, Math.min(canvas.width - 18, ball.x));
+            ball.x = Math.max(40, Math.min(canvas.width - 40, ball.x));
           }
 
           if (ball.y >= lastRowY) {
