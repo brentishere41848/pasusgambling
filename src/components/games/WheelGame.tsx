@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Flame, Gauge, Play, RotateCcw, Target, Timer, Trophy, Zap } from 'lucide-react';
+import { Gauge, Play, RotateCcw, Target, Timer, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
@@ -298,7 +298,6 @@ export const WheelGame: React.FC = () => {
   const [totalSpins, setTotalSpins] = useState(0);
   const [winningSpins, setWinningSpins] = useState(0);
   const [topHit, setTopHit] = useState(0);
-  const [currentPayout, setCurrentPayout] = useState(0);
   const [spinTempo, setSpinTempo] = useState(0);
   const [glowLevel, setGlowLevel] = useState(0.15);
 
@@ -407,7 +406,6 @@ export const WheelGame: React.FC = () => {
     const profit = payout - bet;
     const won = payout > 0;
 
-    setCurrentPayout(payout);
     setResultIndex(landedIndex);
     setTotalSpins((current) => current + 1);
     setSessionProfit((current) => current + profit);
@@ -492,7 +490,6 @@ export const WheelGame: React.FC = () => {
     clearAnimation();
     setIsSpinning(true);
     setResultIndex(null);
-    setCurrentPayout(0);
     setStatusText(`Spinning ${activeConfig.title}`);
     setGlowLevel(0.4);
     tickAccumulatorRef.current = 0;
@@ -682,7 +679,7 @@ export const WheelGame: React.FC = () => {
 
       <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
         <div className="rounded-[30px] border border-[#7e5a21]/55 bg-[linear-gradient(180deg,rgba(17,19,27,0.98),rgba(11,13,19,0.96))] p-5 shadow-[0_0_40px_rgba(0,0,0,0.35)]">
-          <div className="grid gap-4 md:grid-cols-[1.1fr_1fr_auto] md:items-end">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end">
             <div className="space-y-3">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.24em] text-[#d9bb63]">Control Deck</div>
@@ -723,7 +720,6 @@ export const WheelGame: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <div className="mt-2 text-[11px] text-white/30">{activeConfig.subtitle}</div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => setIsFast((current) => !current)} className={cn('flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-[10px] font-black uppercase tracking-[0.18em]', isFast ? 'border-[#d9bb63] bg-[#d9bb63]/15 text-[#ffe9a6]' : 'border-transparent bg-[#111826] text-white/35')}>
@@ -776,139 +772,48 @@ export const WheelGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid gap-4">
+        <div className="space-y-3">
           <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-5">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/75">
               <Target size={12} />
               <span>Dealer Feed</span>
             </div>
             <div className="mt-3 text-xl font-black text-[#fff1bf]">{statusText}</div>
-            <div className="mt-2 text-sm text-[#c6d6f2]/55">{activeConfig.subtitle}</div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-5">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/55">Last Payout</div>
-              <div className="mt-3 text-2xl font-black text-white">{currentPayout.toLocaleString()}</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/55">Profit</div>
+              <div className={cn('mt-2 text-xl font-black', sessionProfit >= 0 ? 'text-[#00FF88]' : 'text-red-400')}>
+                {sessionProfit >= 0 ? '+' : ''}{sessionProfit.toLocaleString()}
+              </div>
             </div>
-            <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-5">
+            <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-4">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/65">Top Hit</div>
-              <div className="mt-3 text-2xl font-black text-[#fff1bf]">{topHit ? formatMultiplier(topHit) : 'Waiting'}</div>
+              <div className="mt-2 text-xl font-black text-[#fff1bf]">{topHit ? formatMultiplier(topHit) : '--'}</div>
             </div>
-            <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-5">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/55">Session Profit</div>
-              <div className={cn('mt-3 text-2xl font-black', sessionProfit >= 0 ? 'text-[#00FF88]' : 'text-red-400')}>
-                {sessionProfit >= 0 ? '+' : ''}
-                {sessionProfit.toLocaleString()}
-              </div>
+            <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/55">Win Rate</div>
+              <div className="mt-2 text-xl font-black text-white">{(sessionHitRate * 100).toFixed(0)}%</div>
             </div>
-            <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-5">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/65">Win Rate</div>
-              <div className="mt-3 text-2xl font-black text-[#fff1bf]">{(sessionHitRate * 100).toFixed(0)}%</div>
+            <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/65">Expected</div>
+              <div className="mt-2 text-xl font-black text-[#fff1bf]">{expectedReturn.toFixed(2)}x</div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
-        <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/60">
-              <Flame size={12} />
-              <span>Wheel Strip</span>
-            </div>
-            <div className="text-[11px] text-white/35">{segments.length} wedges</div>
-          </div>
-          <div className="mt-4 grid grid-cols-4 gap-2">
-            {segments.map((segment, index) => (
-              <div
-                key={`${segment.label}-${index}-map`}
-                className="rounded-2xl border px-2 py-3 text-center"
-                style={{
-                  borderColor: resultIndex === index ? '#ffffff' : 'rgba(255,255,255,0.06)',
-                  backgroundColor: getDisplayFill(segment, index),
-                  color: segment.multiplier === 0 ? '#dce6f2' : '#08111e',
-                }}
-              >
-                <div className="text-xs font-black">{segment.label}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-[0.14em] opacity-70">W{segment.weight}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid gap-4">
           <div className="rounded-3xl border border-[#2d3d57] bg-[#0a0f18] p-4">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
               <Gauge size={12} />
-              <span>Math</span>
+              <span>Odds</span>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-[11px]">
-              <div className="rounded-xl bg-[#111826] px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Hit Rate</div>
-                <div className="mt-1 font-black text-white">{(hitRate * 100).toFixed(1)}%</div>
-              </div>
-              <div className="rounded-xl bg-[#111826] px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Expected</div>
-                <div className="mt-1 font-black text-white">{expectedReturn.toFixed(2)}x</div>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {odds.map((entry) => (
-                <div key={entry.label} className="flex items-center justify-between rounded-xl px-3 py-2 text-[11px] font-black" style={{ backgroundColor: entry.fill, color: entry.textColor }}>
+                <div key={entry.label} className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-black" style={{ backgroundColor: entry.fill, color: entry.textColor }}>
                   <span>{entry.label}</span>
-                  <span>{(entry.probability * 100).toFixed(1)}%</span>
+                  <span className="opacity-70">{(entry.probability * 100).toFixed(0)}%</span>
                 </div>
               ))}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-5">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#d9bb63]/75">
-              <Trophy size={12} />
-              <span>Prize Card</span>
-            </div>
-            {lastEntry ? (
-              <div className="mt-4 rounded-2xl border border-[#d9bb63]/25 bg-black/20 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Landing</div>
-                    <div className="mt-1 text-2xl font-black text-[#fff1bf]">{lastEntry.label}</div>
-                  </div>
-                  <div className="rounded-2xl px-3 py-2 text-sm font-black" style={{ backgroundColor: '#101b2d', color: '#c7d6f7', border: '1px solid rgba(126,90,33,0.45)' }}>
-                    {lastEntry.risk}
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Payout</div>
-                    <div className="mt-1 font-black text-white">{lastEntry.payout.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Profit</div>
-                    <div className={cn('mt-1 font-black', lastEntry.profit >= 0 ? 'text-[#00FF88]' : 'text-red-400')}>
-                      {lastEntry.profit >= 0 ? '+' : ''}
-                      {lastEntry.profit.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 text-sm text-white/35">No spin logged yet.</div>
-            )}
-          </div>
-
-          <div className="rounded-3xl border border-[#2d3d57] bg-[#0a0f18] p-4">
-            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
-              <span>Recent Results</span>
-              <span>{history.length}</span>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {history.length ? history.map((entry, index) => (
-                <div key={`${entry.risk}-${entry.label}-${index}`} className="rounded-xl px-3 py-2 text-[11px] font-black" style={{ backgroundColor: entry.fill, color: entry.textColor }}>
-                  {entry.label}
-                </div>
-              )) : <div className="text-xs text-white/35">No spins yet.</div>}
             </div>
           </div>
         </div>
