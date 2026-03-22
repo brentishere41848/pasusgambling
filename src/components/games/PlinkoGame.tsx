@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, Settings2, Zap, RotateCcw, Timer } from 'lucide-react';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
 
@@ -70,6 +71,8 @@ export const PlinkoGame: React.FC = () => {
   const lastManualDropAtRef = useRef(0);
 
   const multipliers = useMemo(() => PAYOUTS[rows][risk], [rows, risk]);
+  const { getStats, recordBet } = useLocalGameStats('plinko');
+  const stats = getStats();
 
   const spawnBall = useCallback(() => {
     if (ballsRef.current.length >= MAX_ACTIVE_BALLS) {
@@ -299,6 +302,7 @@ export const PlinkoGame: React.FC = () => {
               outcome: payout > bet ? 'win' : payout === bet ? 'push' : 'loss',
               detail: `${risk} risk, ${rows} rows, bucket ${safeIndex + 1}`,
             });
+            recordBet(bet, payout, payout > bet);
 
             if (hitMultiplier >= 2) {
               confetti({
@@ -366,31 +370,8 @@ export const PlinkoGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <div className="space-y-2">
-              <input
-                type="number"
-                value={bet}
-                onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
-                disabled={isAuto}
-                className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setBet((current) => Math.max(1, current * 2))}
-                  disabled={isAuto}
-                  className="py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white/60 hover:text-white transition-all disabled:opacity-40"
-                >
-                  x2
-                </button>
-                <button
-                  onClick={() => setBet(Math.max(1, Math.floor(balance)))}
-                  disabled={isAuto || balance < 1}
-                  className="py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white/60 hover:text-white transition-all disabled:opacity-40"
-                >
-                  Max
-                </button>
-              </div>
-            </div>
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} disabled={isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isAuto} />
           </div>
 
           <div>
@@ -506,29 +487,25 @@ export const PlinkoGame: React.FC = () => {
           </button>
         </div>
 
-        <div className="mt-auto p-4 border border-white/5 rounded-xl bg-black/30">
-          <div className="flex items-center gap-2 text-white/40 text-xs mb-3">
-            <Settings2 size={14} />
-            <span>GAME SETTINGS</span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-[10px]">
-              <span className="text-white/20 uppercase">Risk</span>
-              <span className="text-white/60">{risk.toUpperCase()}</span>
+        <div className="mt-auto space-y-3">
+          <div className="p-4 border border-white/5 rounded-xl bg-black/30">
+            <div className="flex items-center gap-2 text-white/40 text-xs mb-3">
+              <Settings2 size={14} />
+              <span>GAME SETTINGS</span>
             </div>
-            <div className="flex justify-between text-[10px]">
-              <span className="text-white/20 uppercase">Rows</span>
-              <span className="text-white/60">{rows}</span>
-            </div>
-            <div className="flex justify-between text-[10px]">
-              <span className="text-white/20 uppercase">Max Win</span>
-              <span className="text-[#00FF88]">{Math.max(...multipliers)}x</span>
-            </div>
-            <div className="flex justify-between text-[10px]">
-              <span className="text-white/20 uppercase">Active Balls</span>
-              <span className="text-white/60">{activeBallCount}/{MAX_ACTIVE_BALLS}</span>
+            <div className="space-y-2">
+              <div className="flex justify-between text-[10px]"><span className="text-white/20 uppercase">Risk</span><span className="text-white/60">{risk.toUpperCase()}</span></div>
+              <div className="flex justify-between text-[10px]"><span className="text-white/20 uppercase">Rows</span><span className="text-white/60">{rows}</span></div>
+              <div className="flex justify-between text-[10px]"><span className="text-white/20 uppercase">Max Win</span><span className="text-[#00FF88]">{Math.max(...multipliers)}x</span></div>
+              <div className="flex justify-between text-[10px]"><span className="text-white/20 uppercase">Active Balls</span><span className="text-white/60">{activeBallCount}/{MAX_ACTIVE_BALLS}</span></div>
             </div>
           </div>
+          <GameStatsBar stats={[
+            { label: 'Bets', value: String(stats.totalBets) },
+            { label: 'Wins', value: String(stats.totalWins) },
+            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
+            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          ]} />
         </div>
       </div>
 

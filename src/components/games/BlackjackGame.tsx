@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { Play, Hand, Square, User, Copy, ArrowDownToLine } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 
 type Card = {
   suit: string;
@@ -94,6 +95,8 @@ export const BlackjackGame: React.FC = () => {
   const [phase, setPhase] = useState<GamePhase>('idle');
   const [dealerReveal, setDealerReveal] = useState(false);
   const [messages, setMessages] = useState<{ hand: number; text: string; won: boolean }[]>([]);
+  const { getStats, recordBet } = useLocalGameStats('blackjack');
+  const stats = getStats();
 
   const deckRef = useRef<Card[]>([]);
 
@@ -301,12 +304,14 @@ export const BlackjackGame: React.FC = () => {
       if (hand.status === 'bust') {
         newMessages.push({ hand: idx, text: 'Bust!', won: false });
         logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout: 0, multiplier: 0, outcome: 'loss', detail: 'Bust' });
+        recordBet(hand.bet, 0, false);
       } else if (hand.status === 'blackjack' && !dealerBlackjack) {
         const payout = hand.bet * 3;
         addBalance(payout);
         totalProfit += payout - hand.bet;
         newMessages.push({ hand: idx, text: 'Blackjack!', won: true });
         logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout, multiplier: 3, outcome: 'win', detail: 'Blackjack' });
+        recordBet(hand.bet, payout, true);
         confetti({ particleCount: 120, spread: 70, origin: { y: 0.55 }, scalar: 0.8 + idx * 0.1 });
       } else if (dealerBusted) {
         const payout = hand.bet * 2;
@@ -314,16 +319,19 @@ export const BlackjackGame: React.FC = () => {
         totalProfit += payout - hand.bet;
         newMessages.push({ hand: idx, text: 'Dealer Busts!', won: true });
         logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout, multiplier: 2, outcome: 'win', detail: 'Dealer bust' });
+        recordBet(hand.bet, payout, true);
       } else if (pScore > dealerScore) {
         const payout = hand.bet * 2;
         addBalance(payout);
         totalProfit += payout - hand.bet;
         newMessages.push({ hand: idx, text: 'You Win!', won: true });
         logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout, multiplier: 2, outcome: 'win', detail: 'Higher score' });
+        recordBet(hand.bet, payout, true);
         confetti({ particleCount: 80, spread: 50, origin: { y: 0.55 }, scalar: 0.8 + idx * 0.1 });
       } else if (pScore < dealerScore) {
         newMessages.push({ hand: idx, text: 'Dealer Wins', won: false });
         logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout: 0, multiplier: 0, outcome: 'loss', detail: 'Dealer higher' });
+        recordBet(hand.bet, 0, false);
       } else {
         addBalance(hand.bet);
         newMessages.push({ hand: idx, text: 'Push', won: false });
@@ -457,17 +465,8 @@ export const BlackjackGame: React.FC = () => {
               <label className="text-[10px] uppercase tracking-widest text-white/40 block">Bet per Hand</label>
               <span className="text-[#00FF88] font-mono font-black text-sm">${(baseBet / 100).toFixed(2)}</span>
             </div>
-            <input
-              type="number"
-              value={baseBet}
-              onChange={(e) => setBaseBet(Math.max(100, Math.round(Number(e.target.value) / 100) * 100))}
-              disabled={phase !== 'idle' && phase !== 'ended'}
-              className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#d9bb63]/50 mb-2"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setBaseBet((prev) => Math.max(100, Math.min(balance, Math.round(prev / 200) * 200)))} disabled={phase !== 'idle' && phase !== 'ended'} className="py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white/60 hover:text-white disabled:opacity-40">Half</button>
-              <button onClick={() => setBaseBet((prev) => Math.max(100, Math.min(balance, Math.round(prev * 2 / 100) * 100)))} disabled={phase !== 'idle' && phase !== 'ended'} className="py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white/60 hover:text-white disabled:opacity-40">Double</button>
-            </div>
+            <input type="number" value={baseBet} onChange={(e) => setBaseBet(Math.max(100, Math.round(Number(e.target.value) / 100) * 100))} disabled={phase !== 'idle' && phase !== 'ended'} className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#d9bb63]/50 mb-2" />
+            <QuickBetButtons balance={balance} bet={baseBet} onSetBet={setBaseBet} disabled={phase !== 'idle' && phase !== 'ended'} pcts={[25, 50, 75, 100]} />
           </div>
 
           <div className="bg-black/40 rounded-xl p-3 border border-white/5">
@@ -505,15 +504,23 @@ export const BlackjackGame: React.FC = () => {
           </button>
         )}
 
-        <div className="mt-auto p-4 bg-black/20 rounded-xl border border-white/5">
-          <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">Rules</div>
-          <ul className="text-[10px] text-white/60 space-y-1">
-            <li>• Dealer hits on 16, stands on 17</li>
-            <li>• Blackjack pays 3x</li>
-            <li>• Win pays 2x</li>
-            <li>• Double: double bet, get 1 card</li>
-            <li>• Split: up to 3 splits (4 hands)</li>
-          </ul>
+        <div className="mt-auto space-y-3">
+          <div className="p-4 bg-black/20 rounded-xl border border-white/5">
+            <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">Rules</div>
+            <ul className="text-[10px] text-white/60 space-y-1">
+              <li>• Dealer hits on 16, stands on 17</li>
+              <li>• Blackjack pays 3x</li>
+              <li>• Win pays 2x</li>
+              <li>• Double: double bet, get 1 card</li>
+              <li>• Split: up to 3 splits (4 hands)</li>
+            </ul>
+          </div>
+          <GameStatsBar stats={[
+            { label: 'Bets', value: String(stats.totalBets) },
+            { label: 'Wins', value: String(stats.totalWins) },
+            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
+            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          ]} />
         </div>
       </div>
 

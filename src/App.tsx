@@ -53,7 +53,6 @@ import {
   Eye,
   UsersRound,
   DollarSign,
-  Award,
   ChevronUp,
   ChevronLeft,
   MapPin,
@@ -86,7 +85,6 @@ import { LimboGame } from './components/games/LimboGame';
 import { KenoGame } from './components/games/KenoGame';
 import { ChatRain } from './components/ChatRain';
 import { SettingsPanel } from './components/SettingsPanel';
-import { AchievementsPanel } from './components/AchievementsPanel';
 import { ProvablyFairPanel } from './components/ProvablyFairPanel';
 import { ProfilePage } from './components/ProfilePage';
 import { JackpotGame } from './components/games/JackpotGame';
@@ -269,7 +267,7 @@ const getPreferredAvatar = (user?: {
   return user.customAvatarUrl || user.avatar || user.discordAvatarUrl || user.robloxAvatarUrl || '';
 };
 
-type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming' | 'achievements';
+type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
 const VIEW_PATHS: Partial<Record<MainView, string>> = {
   dashboard: '/',
@@ -602,7 +600,6 @@ const Sidebar = ({
   onHome,
   onOpenView,
   onOpenPF,
-  onOpenAchievements,
   isOpen,
   onClose,
 }: {
@@ -612,7 +609,6 @@ const Sidebar = ({
   onHome: () => void,
   onOpenView: (view: MainView) => void,
   onOpenPF: () => void,
-  onOpenAchievements: () => void,
   isOpen?: boolean,
   onClose?: () => void,
 }) => {
@@ -652,12 +648,6 @@ const Sidebar = ({
             <span>{item.label}</span>
           </button>
         ))}
-
-        <button onClick={onOpenAchievements}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/40 hover:text-white hover:bg-white/5">
-          <Award size={17} />
-          <span>Achievements</span>
-        </button>
 
         <button onClick={onOpenPF}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/40 hover:text-white hover:bg-white/5">
@@ -5589,7 +5579,6 @@ const AppContent = () => {
   }>({ canClaim: false, streak: 0, level: 1, xp: 0, xpToNextLevel: 0 });
   const { isAuthenticated } = useAuth();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [isPFOpen, setIsPFOpen] = useState(false);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
 
@@ -5680,7 +5669,6 @@ const AppContent = () => {
         onHome={openDashboard}
         onOpenView={openView}
         onOpenPF={() => setIsPFOpen(true)}
-        onOpenAchievements={() => setIsAchievementsOpen(true)}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
@@ -5950,9 +5938,6 @@ const AppContent = () => {
         )}
         {isSettingsOpen && (
           <SettingsPanel onClose={() => setIsSettingsOpen(false)} />
-        )}
-        {isAchievementsOpen && (
-          <AchievementsPanel onClose={() => setIsAchievementsOpen(false)} />
         )}
         {isPFOpen && (
           <ProvablyFairPanel onClose={() => setIsPFOpen(false)} />

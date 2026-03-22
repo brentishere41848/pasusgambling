@@ -6,6 +6,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
 import { logBetActivity } from '../../lib/activity';
+import { GameStatsBar, useLocalGameStats } from './GameHooks';
 
 function formatMoney(coins: number) {
   return `$${(coins / 100).toFixed(2)}`;
@@ -23,6 +24,8 @@ export const JackpotGame: React.FC = () => {
   const pollRef = useRef<number | null>(null);
   const [userTickets, setUserTickets] = useState(0);
   const [totalTickets, setTotalTickets] = useState(0);
+  const { getStats, recordBet } = useLocalGameStats('jackpot');
+  const stats = getStats();
 
   const loadRound = async (silent = false) => {
     if (!silent) setError('');
@@ -56,7 +59,11 @@ export const JackpotGame: React.FC = () => {
         body: JSON.stringify({ amount: amt }),
       }).then(r => r.json());
       if (res.error) { setError(res.error); addBalance(amt); }
-      else { await loadRound(true); await refreshWallet(); }
+      else {
+        recordBet(amt, 0, false);
+        await loadRound(true);
+        await refreshWallet();
+      }
     } catch (e: any) { setError(e.message || 'Failed to join'); addBalance(amt); }
     finally { setJoining(false); }
   };
@@ -129,6 +136,13 @@ export const JackpotGame: React.FC = () => {
         {error && (
           <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">{error}</div>
         )}
+
+        <GameStatsBar stats={[
+          { label: 'Rounds', value: stats.totalBets.toString() },
+          { label: 'Wins', value: stats.totalWins.toString() },
+          { label: 'Biggest', value: formatMoney(stats.biggestWin) },
+          { label: 'Wagered', value: formatMoney(stats.totalWagered) },
+        ]} />
 
         <button
           onClick={join}

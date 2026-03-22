@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { Play } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 
 type BaccaratBet = 'player' | 'banker' | 'tie';
 
@@ -57,6 +58,8 @@ export const BaccaratGame: React.FC = () => {
   const [result, setResult] = useState<BaccaratBet | null>(null);
   const [isDealing, setIsDealing] = useState(false);
   const [status, setStatus] = useState('Bet on Player, Banker, or Tie');
+  const { getStats, recordBet } = useLocalGameStats('baccarat');
+  const stats = getStats();
 
   const payout = useMemo(() => (selectedBet === 'tie' ? 8 : selectedBet === 'banker' ? 1.95 : 2), [selectedBet]);
 
@@ -92,25 +95,13 @@ export const BaccaratGame: React.FC = () => {
         const winAmount = Number((bet * payout).toFixed(2));
         addBalance(winAmount);
         setStatus(`${outcome.toUpperCase()} wins ${playerTotal} to ${bankerTotal}`);
-        logBetActivity({
-          gameKey: 'baccarat',
-          wager: bet,
-          payout: winAmount,
-          multiplier: payout,
-          outcome: 'win',
-          detail: `Player ${playerTotal} Banker ${bankerTotal}`,
-        });
+        logBetActivity({ gameKey: 'baccarat', wager: bet, payout: winAmount, multiplier: payout, outcome: 'win', detail: `Player ${playerTotal} Banker ${bankerTotal}` });
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+        recordBet(bet, winAmount, true);
       } else {
         setStatus(`${outcome.toUpperCase()} wins ${playerTotal} to ${bankerTotal}`);
-        logBetActivity({
-          gameKey: 'baccarat',
-          wager: bet,
-          payout: 0,
-          multiplier: 0,
-          outcome: 'loss',
-          detail: `Player ${playerTotal} Banker ${bankerTotal}`,
-        });
+        logBetActivity({ gameKey: 'baccarat', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Player ${playerTotal} Banker ${bankerTotal}` });
+        recordBet(bet, 0, false);
       }
 
       setIsDealing(false);
@@ -135,17 +126,8 @@ export const BaccaratGame: React.FC = () => {
       <div className="lg:col-span-1 bg-[#11161d] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-          <input
-            type="number"
-            value={bet}
-            onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
-            disabled={isDealing}
-            className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
-          />
-          <div className="mt-2 flex gap-2">
-            <button onClick={() => adjustBet('double')} disabled={isDealing || balance < 1} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">x2</button>
-            <button onClick={() => adjustBet('max')} disabled={isDealing || balance < 1} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">Max</button>
-          </div>
+          <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} disabled={isDealing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+          <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isDealing} />
         </div>
 
         <div className="grid grid-cols-1 gap-2">
@@ -162,6 +144,12 @@ export const BaccaratGame: React.FC = () => {
           <div className="flex justify-between"><span className="text-white/35">Selected</span><span>{selectedBet.toUpperCase()}</span></div>
           <div className="flex justify-between"><span className="text-white/35">Payout</span><span className="font-mono text-[#00FF88]">{payout.toFixed(2)}x</span></div>
           <div className="text-white/60">{status}</div>
+          <GameStatsBar stats={[
+            { label: 'Bets', value: String(stats.totalBets) },
+            { label: 'Wins', value: String(stats.totalWins) },
+            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
+            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          ]} />
         </div>
       </div>
 

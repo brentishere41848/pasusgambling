@@ -85,7 +85,6 @@ export const ProfilePage: React.FC<{ username: string; onClose: () => void }> = 
                     { label: 'Total Wagered', value: formatMoney(data.stats.totalWagered), icon: TrendingUp },
                     { label: 'Biggest Win', value: formatMoney(data.stats.biggestWin), icon: Trophy },
                     { label: 'Net Profit', value: formatMoney(data.stats.totalPayout - data.stats.totalWagered), icon: data.stats.totalPayout - data.stats.totalWagered >= 0 ? TrendingUp : TrendingUp, color: data.stats.totalPayout - data.stats.totalWagered >= 0 ? 'text-[#00FF88]' : 'text-red-400' },
-                    { label: 'Achievements', value: data.achievementCount, icon: Star },
                   ].map((stat) => (
                     <div key={stat.label} className="rounded-xl border border-white/5 bg-white/[0.03] p-3">
                       <div className="flex items-center gap-1 text-[10px] text-white/30 uppercase tracking-wider mb-1">

@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { Play, RotateCcw, Zap, Timer } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 
 const NUMBERS = [
   0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
@@ -90,6 +91,8 @@ export const RouletteGame: React.FC = () => {
   const ballControls = useAnimation();
   const wheelRotationRef = useRef(0);
   const ballRotationRef = useRef(0);
+  const { getStats, recordBet } = useLocalGameStats('roulette');
+  const stats = getStats();
 
   const straightOptions = useMemo(
     () => Array.from({ length: 37 }, (_, index) => index),
@@ -156,12 +159,14 @@ export const RouletteGame: React.FC = () => {
       addBalance(payout);
       setStatusText(`${selectedBet.label} wins on ${result}`);
       logBetActivity({ gameKey: 'roulette', wager: bet, payout, multiplier: selectedBet.payout, outcome: 'win', detail: `Landed on ${result}` });
+      recordBet(bet, payout, true);
       if (!isFast) {
         confetti({ particleCount: 90, spread: 65, origin: { y: 0.6 } });
       }
     } else {
       setStatusText(`Ball landed on ${result}`);
       logBetActivity({ gameKey: 'roulette', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Landed on ${result}` });
+      recordBet(bet, 0, false);
     }
 
     setIsSpinning(false);
@@ -383,13 +388,8 @@ export const RouletteGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input
-              type="number"
-              value={bet}
-              onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
-              disabled={isSpinning || isAuto}
-              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
-            />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} disabled={isSpinning || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isSpinning || isAuto} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -468,6 +468,12 @@ export const RouletteGame: React.FC = () => {
               </div>
             ))}
           </div>
+          <GameStatsBar stats={[
+            { label: 'Bets', value: String(stats.totalBets) },
+            { label: 'Wins', value: String(stats.totalWins) },
+            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
+            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          ]} />
         </div>
       </div>
     </div>

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, Zap, RotateCcw, Timer } from 'lucide-react';
 import { logBetActivity } from '../../lib/activity';
+import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 
 export const DiceGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -18,46 +19,53 @@ export const DiceGame: React.FC = () => {
   const [remainingRounds, setRemainingRounds] = useState(0);
   const [displayRoll, setDisplayRoll] = useState(50);
   const [didWin, setDidWin] = useState<boolean | null>(null);
+  const isAutoRef = useRef(false);
+  const remainingRoundsRef = useRef(0);
+
+  const { getStats, recordBet } = useLocalGameStats('dice');
+  const stats = getStats();
 
   const winChance = isOver ? 100 - target : target;
-  const multiplier = (90 / winChance).toFixed(4); // 10% house edge
+  const multiplier = (90 / winChance).toFixed(4);
+
+  const stopAuto = () => {
+    setIsAuto(false);
+    setRemainingRounds(0);
+    isAutoRef.current = false;
+    remainingRoundsRef.current = 0;
+  };
+
+  useEffect(() => { isAutoRef.current = isAuto; }, [isAuto]);
+  useEffect(() => { remainingRoundsRef.current = remainingRounds; }, [remainingRounds]);
 
   const roll = useCallback(() => {
-    if (subtractBalance(bet)) {
-      setIsRolling(true);
-      setDidWin(null);
-      
-      const rollDuration = isFast ? 350 : 850;
-      
-      setTimeout(() => {
-        const result = Math.floor(Math.random() * 100) + 1;
-        setLastRoll(result);
-        setDisplayRoll(result);
-        
-        const won = isOver ? result > target : result < target;
-        setDidWin(won);
-        if (won) {
-          const payout = bet * Number(multiplier);
-          addBalance(payout);
-          logBetActivity({ gameKey: 'dice', wager: bet, payout, multiplier: Number(multiplier), outcome: 'win', detail: `Rolled ${result}` });
-        } else {
-          logBetActivity({ gameKey: 'dice', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Rolled ${result}` });
-        }
-        
-        setIsRolling(false);
-        
-        if (isAuto && remainingRounds > 1) {
-          setRemainingRounds(prev => prev - 1);
-        } else if (isAuto) {
-          setIsAuto(false);
-          setRemainingRounds(0);
-        }
-      }, rollDuration);
-    } else {
-      setIsAuto(false);
-      setRemainingRounds(0);
-    }
-  }, [bet, target, isOver, multiplier, isFast, isAuto, remainingRounds, subtractBalance, addBalance]);
+    if (!subtractBalance(bet)) { stopAuto(); return; }
+    setIsRolling(true);
+    setDidWin(null);
+    const rollDuration = isFast ? 350 : 850;
+    setTimeout(() => {
+      const result = Math.floor(Math.random() * 100) + 1;
+      setLastRoll(result);
+      setDisplayRoll(result);
+      const won = isOver ? result > target : result < target;
+      setDidWin(won);
+      if (won) {
+        const payout = Math.round(bet * Number(multiplier));
+        addBalance(payout);
+        logBetActivity({ gameKey: 'dice', wager: bet, payout, multiplier: Number(multiplier), outcome: 'win', detail: `Rolled ${result}` });
+        recordBet(bet, payout, true);
+      } else {
+        logBetActivity({ gameKey: 'dice', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Rolled ${result}` });
+        recordBet(bet, 0, false);
+      }
+      setIsRolling(false);
+      if (isAutoRef.current && remainingRoundsRef.current > 1) {
+        setRemainingRounds(prev => prev - 1);
+      } else if (isAutoRef.current) {
+        stopAuto();
+      }
+    }, rollDuration);
+  }, [bet, target, isOver, multiplier, isFast, addBalance, subtractBalance, recordBet]);
 
   useEffect(() => {
     if (isAuto && remainingRounds > 0 && !isRolling) {
@@ -67,14 +75,16 @@ export const DiceGame: React.FC = () => {
   }, [isAuto, remainingRounds, isRolling, roll, isFast]);
 
   const startAuto = () => {
-    if (isAuto) {
-      setIsAuto(false);
-      setRemainingRounds(0);
-    } else {
-      setIsAuto(true);
-      setRemainingRounds(autoRounds);
-    }
+    if (isAuto) { stopAuto(); return; }
+    setIsAuto(true);
+    setRemainingRounds(autoRounds);
+    isAutoRef.current = true;
+    remainingRoundsRef.current = autoRounds;
   };
+
+  const handleMainAction = () => { if (isAuto) startAuto(); else roll(); };
+
+  useGameHotkeys({ onBet: roll, onStop: stopAuto, onAuto: startAuto, isDisabled: isRolling || (!isAuto && balance < bet) });
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
@@ -89,106 +99,48 @@ export const DiceGame: React.FC = () => {
               disabled={isRolling || isAuto}
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
             />
-            <div className="mt-2 flex gap-2">
-              <button onClick={() => setBet((prev) => Math.max(1, Math.min(Math.floor(balance), prev * 2)))} disabled={isRolling || isAuto || balance < 1} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">x2</button>
-              <button onClick={() => setBet(Math.max(1, Math.floor(balance)))} disabled={isRolling || isAuto || balance < 1} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">Max</button>
-            </div>
+            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setIsOver(false)}
-              disabled={isRolling || isAuto}
-              className={cn(
-                "py-2 rounded-lg text-xs font-bold transition-all",
-                !isOver ? "bg-white text-black" : "bg-white/5 text-white/40"
-              )}
-            >
-              ROLL UNDER
-            </button>
-            <button
-              onClick={() => setIsOver(true)}
-              disabled={isRolling || isAuto}
-              className={cn(
-                "py-2 rounded-lg text-xs font-bold transition-all",
-                isOver ? "bg-white text-black" : "bg-white/5 text-white/40"
-              )}
-            >
-              ROLL OVER
-            </button>
+            <button onClick={() => setIsOver(false)} disabled={isRolling || isAuto} className={cn("py-2 rounded-lg text-xs font-bold transition-all", !isOver ? "bg-white text-black" : "bg-white/5 text-white/40")}>ROLL UNDER</button>
+            <button onClick={() => setIsOver(true)} disabled={isRolling || isAuto} className={cn("py-2 rounded-lg text-xs font-bold transition-all", isOver ? "bg-white text-black" : "bg-white/5 text-white/40")}>ROLL OVER</button>
           </div>
 
           <div className="flex gap-2">
-            <button
-              onClick={() => setIsFast(!isFast)}
-              className={cn(
-                "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all",
-                isFast ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/50" : "bg-white/5 text-white/20 border border-transparent"
-              )}
-            >
-              <Zap size={12} fill={isFast ? "currentColor" : "none"} />
-              FAST
+            <button onClick={() => setIsFast(!isFast)} className={cn("flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all", isFast ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/50" : "bg-white/5 text-white/20 border border-transparent")}>
+              <Zap size={12} fill={isFast ? "currentColor" : "none"} />FAST
             </button>
-            <button
-              onClick={startAuto}
-              className={cn(
-                "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all",
-                isAuto ? "bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50" : "bg-white/5 text-white/20 border border-transparent"
-              )}
-            >
-              <RotateCcw size={12} className={isAuto ? "animate-spin" : ""} />
-              AUTO
+            <button onClick={startAuto} className={cn("flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all", isAuto ? "bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50" : "bg-white/5 text-white/20 border border-transparent")}>
+              <RotateCcw size={12} className={isAuto ? "animate-spin" : ""} />AUTO
             </button>
           </div>
 
           {isAuto && (
             <div className="space-y-2">
-              <div className="flex justify-between text-[10px] uppercase tracking-widest text-white/20">
-                <span>Rounds</span>
-                <span>{remainingRounds} left</span>
-              </div>
-              <input
-                type="number"
-                value={autoRounds}
-                onChange={(e) => setAutoRounds(Math.max(1, Number(e.target.value)))}
-                disabled={isRolling || isAuto}
-                className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#00FF88]/50"
-              />
+              <div className="flex justify-between text-[10px] uppercase tracking-widest text-white/20"><span>Rounds</span><span>{remainingRounds} left</span></div>
+              <input type="number" value={autoRounds} onChange={(e) => setAutoRounds(Math.max(1, Number(e.target.value)))} disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#00FF88]/50" />
             </div>
           )}
 
-          <button
-            onClick={isAuto ? startAuto : roll}
-            disabled={(balance < bet && !isAuto) || (isRolling && !isAuto)}
-            className={cn(
-              "w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50",
-              isAuto ? "bg-red-500 text-white" : "bg-[#00FF88] text-black"
-            )}
-          >
-            {isAuto ? (
-              <>
-                <Timer size={18} />
-                STOP AUTO
-              </>
-            ) : (
-              <>
-                <Play size={18} fill="currentColor" />
-                ROLL DICE
-              </>
-            )}
+          <button onClick={handleMainAction} disabled={(balance < bet && !isAuto) || (isRolling && !isAuto)} className={cn("w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50", isAuto ? "bg-red-500 text-white" : "bg-[#00FF88] text-black")}>
+            {isAuto ? <><Timer size={18} />STOP AUTO</> : <><Play size={18} fill="currentColor" />ROLL DICE</>}
           </button>
+
+          <div className="text-[9px] text-center text-white/20 uppercase tracking-widest">Space: Bet &nbsp;|&nbsp; Esc: Stop &nbsp;|&nbsp; A: Auto</div>
         </div>
 
-        <div className="mt-auto space-y-3">
-          <div className="flex justify-between text-xs">
-            <span className="text-white/40">Multiplier</span>
-            <span className="text-white font-mono">{multiplier}x</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-white/40">Win Chance</span>
-            <span className="text-white font-mono">{winChance.toFixed(2)}%</span>
-          </div>
+        <div className="space-y-3">
+          <div className="flex justify-between text-xs"><span className="text-white/40">Multiplier</span><span className="text-white font-mono">{multiplier}x</span></div>
+          <div className="flex justify-between text-xs"><span className="text-white/40">Win Chance</span><span className="text-white font-mono">{winChance.toFixed(2)}%</span></div>
         </div>
+
+        <GameStatsBar stats={[
+          { label: 'Bets', value: String(stats.totalBets) },
+          { label: 'Wins', value: String(stats.totalWins) },
+          { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
+          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+        ]} />
       </div>
 
       <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-12 flex flex-col items-center justify-center gap-12">

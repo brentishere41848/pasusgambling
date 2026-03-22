@@ -16,6 +16,7 @@ import {
   placeCrashBet,
   placeSecondaryCrashBet,
 } from '../../lib/crashEngine';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 
 const MAX_HISTORY = 20;
 
@@ -29,6 +30,8 @@ export const CrashGame: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [snapshot, setSnapshot] = useState<CrashSnapshot>(() => getCrashSnapshot());
   const processedOutcomeRef = useRef<number | null>(null);
+  const { getStats, recordBet } = useLocalGameStats('crash');
+  const stats = getStats();
 
   useEffect(() => {
     const unsub = subscribeToCrashEngine(setSnapshot);
@@ -44,6 +47,9 @@ export const CrashGame: React.FC = () => {
     processedOutcomeRef.current = outcome.id;
     if (outcome.outcome === 'win') {
       addBalance(outcome.payout);
+      recordBet(outcome.wager, outcome.payout, true);
+    } else {
+      recordBet(outcome.wager, 0, false);
     }
     logBetActivity({
       gameKey: 'crash',
@@ -54,7 +60,7 @@ export const CrashGame: React.FC = () => {
       detail: outcome.detail,
     });
     acknowledgeCrashOutcome(outcome.id);
-  }, [addBalance, snapshot.playerOutcome]);
+  }, [addBalance, snapshot.playerOutcome, recordBet]);
 
   const joinNextRound = () => {
     if (snapshot.phase !== 'countdown' || snapshot.playerBet || !user?.username) return;
@@ -136,11 +142,7 @@ export const CrashGame: React.FC = () => {
               <button onClick={() => setPreset(10)} disabled={snapshot.phase === 'running' || joined} className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] text-white/60">10%</button>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-1 mt-1">
-            <button onClick={() => setBet((prev) => Math.max(1, Math.min(Math.floor(balance), prev * 2)))} disabled={snapshot.phase === 'running' || joined} className="py-1 bg-white/5 hover:bg-white/10 rounded text-[9px] text-white/50">x2</button>
-            <button onClick={() => setBet((prev) => Math.max(1, Math.round(prev / 2)))} disabled={snapshot.phase === 'running' || joined} className="py-1 bg-white/5 hover:bg-white/10 rounded text-[9px] text-white/50">1/2</button>
-            <button onClick={() => setBet(Math.max(1, Math.floor(balance)))} disabled={snapshot.phase === 'running' || joined} className="py-1 bg-white/5 hover:bg-white/10 rounded text-[9px] text-white/50">Max</button>
-          </div>
+          <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={snapshot.phase === 'running' || joined} />
         </div>
 
         <div>
@@ -323,18 +325,23 @@ export const CrashGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-auto">
-          <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">History</label>
-          <div className="flex flex-wrap gap-2">
-            {history.slice(0, 12).map((h, i) => (
-              <span
-                key={i}
-                className={cn('px-2 py-1 rounded text-[10px] font-mono', h >= 2 ? 'bg-[#00FF88]/20 text-[#00FF88]' : 'bg-red-500/20 text-red-400')}
-              >
-                {h.toFixed(2)}x
-              </span>
-            ))}
+        <div className="mt-auto space-y-3">
+          <div>
+            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">History</label>
+            <div className="flex flex-wrap gap-2">
+              {history.slice(0, 12).map((h, i) => (
+                <span key={i} className={cn('px-2 py-1 rounded text-[10px] font-mono', h >= 2 ? 'bg-[#00FF88]/20 text-[#00FF88]' : 'bg-red-500/20 text-red-400')}>
+                  {h.toFixed(2)}x
+                </span>
+              ))}
+            </div>
           </div>
+          <GameStatsBar stats={[
+            { label: 'Bets', value: String(stats.totalBets) },
+            { label: 'Wins', value: String(stats.totalWins) },
+            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
+            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          ]} />
         </div>
       </div>
 

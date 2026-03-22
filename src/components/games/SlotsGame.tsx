@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 type VariantId = 'lucky-pasus' | 'starburst-net' | 'book-of-darkness-bs' | 'fruit-shop-net' | 'vegas777-ka' | 'golden-dragon-ka';
 type SlotMode = 'bonusRows' | 'cluster' | 'expanding' | 'stickyWild' | 'classic' | 'reelMultiplier';
 type SymbolId =
@@ -501,6 +502,8 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
   const [pendingBonus, setPendingBonus] = useState<BonusAward | null>(null);
   const timersRef = useRef<number[]>([]);
   const statusTimerRef = useRef<number | null>(null);
+  const { getStats, recordBet } = useLocalGameStats('slots');
+  const stats = getStats();
 
   const buyBonusMin = variant.buyBonusMin ? Math.ceil(variant.buyBonusMin / (variant.buyBonusMultiplier ?? 1)) : 1;
   const buyBonusMax = variant.buyBonusMax ? Math.max(buyBonusMin, Math.floor(variant.buyBonusMax / (variant.buyBonusMultiplier ?? 1))) : Math.max(1, Math.floor(balance));
@@ -626,6 +629,7 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
           outcome: 'win',
           detail: `${variant.name}: ${evalResult.hits.map((hit) => hit.label).join(', ') || 'feature payout'}`,
         });
+        recordBet(options?.buyBonus ? buyBonusCost : wager, evalResult.payout, true);
       } else {
         logBetActivity({
           gameKey: 'slots',
@@ -635,6 +639,7 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
           outcome: 'loss',
           detail: `${variant.name}: ${evalResult.note ?? 'No win'}`,
         });
+        recordBet(options?.buyBonus ? buyBonusCost : wager, 0, false);
       }
 
       if (bonusState) {
@@ -708,10 +713,7 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
           <div>
             <div className="text-xs font-black uppercase tracking-[0.24em] text-white/35">Bet Amount</div>
             <input type="number" min={1} value={bet} disabled={isSpinning || Boolean(bonusState)} onChange={(e) => setBet(Math.max(1, Number(e.target.value) || 1))} className="mt-2 w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-white focus:outline-none" />
-            <div className="mt-2 flex gap-2">
-              <button onClick={() => setBet((prev) => Math.max(1, Math.min(Math.floor(balance), prev * 2)))} disabled={isSpinning || Boolean(bonusState)} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/60">x2</button>
-              <button onClick={() => setBet(Math.max(1, Math.floor(balance)))} disabled={isSpinning || Boolean(bonusState)} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Max</button>
-            </div>
+            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isSpinning || Boolean(bonusState)} />
           </div>
 
           {variant.createBonusAward && variant.bonusMultiplierRange && (
@@ -736,7 +738,16 @@ const SlotMachine: React.FC<{ variant: SlotVariant }> = ({ variant }) => {
           )}
         </div>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-4">
+      <div className="mt-4">
+        <GameStatsBar stats={[
+          { label: 'Bets', value: stats.totalBets.toString() },
+          { label: 'Wins', value: stats.totalWins.toString() },
+          { label: 'Biggest', value: formatCoins(stats.biggestWin) },
+          { label: 'Wagered', value: formatCoins(stats.totalWagered) },
+        ]} />
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-4">
           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
             <span>{variant.bonusLabel}</span>
             <span>{bonusState ? 'Live' : 'Idle'}</span>

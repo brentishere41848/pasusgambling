@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { ArrowDown, ArrowUp, Play, RotateCcw, Wallet } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 
 const SUITS = ['\u2660', '\u2663', '\u2665', '\u2666'] as const;
 const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
@@ -75,6 +76,8 @@ export const HiloGame: React.FC = () => {
   const [isActiveRun, setIsActiveRun] = useState(false);
   const [streak, setStreak] = useState(0);
   const [status, setStatus] = useState('Start a run, pick higher or lower, then cash out when you want.');
+  const { getStats, recordBet } = useLocalGameStats('hilo');
+  const stats = getStats();
 
   const higherMultiplier = useMemo(() => getStepMultiplier(currentCard, 'higher'), [currentCard]);
   const lowerMultiplier = useMemo(() => getStepMultiplier(currentCard, 'lower'), [currentCard]);
@@ -82,9 +85,7 @@ export const HiloGame: React.FC = () => {
 
   const adjustBet = (mode: 'double' | 'max') => {
     setBet((prev) => {
-      if (mode === 'double') {
-        return Math.max(1, Math.min(Math.floor(balance), prev * 2));
-      }
+      if (mode === 'double') { return Math.max(1, Math.min(Math.floor(balance), prev * 2)); }
       return Math.max(1, Math.floor(balance));
     });
   };
@@ -112,22 +113,12 @@ export const HiloGame: React.FC = () => {
   };
 
   const cashOut = () => {
-    if (!isActiveRun || isResolving) {
-      return;
-    }
+    if (!isActiveRun || isResolving) return;
     const payout = Number((bet * runMultiplier).toFixed(2));
     addBalance(payout);
-    logBetActivity({
-      gameKey: 'hilo',
-      wager: bet,
-      payout,
-      multiplier: Number(runMultiplier.toFixed(2)),
-      outcome: runMultiplier > 1 ? 'win' : 'push',
-      detail: `Cashed out after ${streak} call${streak === 1 ? '' : 's'}`,
-    });
-    if (runMultiplier >= targetMultiplier) {
-      confetti({ particleCount: 90, spread: 55, origin: { y: 0.6 } });
-    }
+    logBetActivity({ gameKey: 'hilo', wager: bet, payout, multiplier: Number(runMultiplier.toFixed(2)), outcome: runMultiplier > 1 ? 'win' : 'push', detail: `Cashed out after ${streak} call${streak === 1 ? '' : 's'}` });
+    if (runMultiplier >= targetMultiplier) confetti({ particleCount: 90, spread: 55, origin: { y: 0.6 } });
+    recordBet(bet, payout, runMultiplier > 1);
     setIsActiveRun(false);
     setStatus(`Cashed out for ${runMultiplier.toFixed(2)}x.`);
   };
@@ -168,14 +159,8 @@ export const HiloGame: React.FC = () => {
             ? `Same card on ${nextCard.value}${nextCard.suit}. Run lost.`
             : `${guess === 'higher' ? 'Higher' : 'Lower'} missed. Run lost.`
         );
-        logBetActivity({
-          gameKey: 'hilo',
-          wager: bet,
-          payout: 0,
-          multiplier: 0,
-          outcome: 'loss',
-          detail: `${startingCard.value}${startingCard.suit} to ${nextCard.value}${nextCard.suit}`,
-        });
+        logBetActivity({ gameKey: 'hilo', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `${startingCard.value}${startingCard.suit} to ${nextCard.value}${nextCard.suit}` });
+        recordBet(bet, 0, false);
       }
 
       setIsResolving(false);
@@ -187,17 +172,8 @@ export const HiloGame: React.FC = () => {
       <div className="lg:col-span-1 bg-[#11161d] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-          <input
-            type="number"
-            value={bet}
-            onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
-            disabled={isResolving || isActiveRun}
-            className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
-          />
-          <div className="mt-2 flex gap-2">
-            <button onClick={() => adjustBet('double')} disabled={isResolving || isActiveRun || balance < 1} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">x2</button>
-            <button onClick={() => adjustBet('max')} disabled={isResolving || isActiveRun || balance < 1} className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 disabled:opacity-40">Max</button>
-          </div>
+          <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} disabled={isResolving || isActiveRun} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+          <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isResolving || isActiveRun} />
         </div>
 
         <div>

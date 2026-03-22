@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
 
 const GRID = Array.from({ length: 40 }, (_, index) => index + 1);
 
@@ -22,6 +23,8 @@ export const KenoGame: React.FC = () => {
   const [drawn, setDrawn] = useState<number[]>([]);
   const [matches, setMatches] = useState<number[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
+  const { getStats, recordBet } = useLocalGameStats('keno');
+  const stats = getStats();
 
   const payoutTable = useMemo(() => PAYOUTS[pickCount], [pickCount]);
   const potentialTop = Math.max(...(Object.values(payoutTable) as number[]));
@@ -76,24 +79,12 @@ export const KenoGame: React.FC = () => {
 
       if (payout > 0) {
         addBalance(payout);
-        logBetActivity({
-          gameKey: 'keno',
-          wager: bet,
-          payout,
-          multiplier,
-          outcome: 'win',
-          detail: `${hitNumbers.length}/${pickCount} hits`,
-        });
+        logBetActivity({ gameKey: 'keno', wager: bet, payout, multiplier, outcome: 'win', detail: `${hitNumbers.length}/${pickCount} hits` });
         confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+        recordBet(bet, payout, true);
       } else {
-        logBetActivity({
-          gameKey: 'keno',
-          wager: bet,
-          payout: 0,
-          multiplier: 0,
-          outcome: 'loss',
-          detail: `${hitNumbers.length}/${pickCount} hits`,
-        });
+        logBetActivity({ gameKey: 'keno', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `${hitNumbers.length}/${pickCount} hits` });
+        recordBet(bet, 0, false);
       }
 
       setIsDrawing(false);
@@ -106,13 +97,8 @@ export const KenoGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input
-              type="number"
-              value={bet}
-              onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
-              disabled={isDrawing}
-              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
-            />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} disabled={isDrawing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isDrawing} />
           </div>
 
           <div>
@@ -158,16 +144,12 @@ export const KenoGame: React.FC = () => {
           </button>
         </div>
 
-        <div className="mt-auto space-y-3">
-          <div className="flex justify-between text-xs">
-            <span className="text-white/40">Selected</span>
-            <span className="text-white font-mono">{selected.length}/{pickCount}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-white/40">Top Win</span>
-            <span className="text-[#00FF88] font-mono">{potentialTop.toFixed(1)}x</span>
-          </div>
-        </div>
+        <GameStatsBar stats={[
+          { label: 'Bets', value: String(stats.totalBets) },
+          { label: 'Wins', value: String(stats.totalWins) },
+          { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
+          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+        ]} />
       </div>
 
       <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-8 space-y-6">
