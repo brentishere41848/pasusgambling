@@ -277,8 +277,6 @@ function hashToken(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-const totpSecrets = new Map<number, string>();
-
 function generateTotpSecret(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
   let secret = '';
@@ -1434,6 +1432,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT[]`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_pending_secret TEXT`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS moderation_history (
@@ -3194,10 +3193,10 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const result = await client.query(
-      `SELECT id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
+      `SELECT id, username, email, currency, avatar, custom_avatar_url, avatar_source,
               roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
               discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at,
-              password_hash, totp_enabled, totp_secret
+              password_hash, totp_enabled, totp_secret, totp_pending_secret
        FROM users
        WHERE username = $1
        LIMIT 1`,
@@ -3222,15 +3221,12 @@ app.post('/api/auth/login', async (req, res) => {
       if (!verifyTotpCode(row.totp_secret, totpCode)) {
         return res.status(401).json({ error: 'Invalid 2FA code.' });
       }
-    } else {
-      const pendingSecret = totpSecrets.get(row.id);
-      if (pendingSecret) {
-        if (!totpCode) {
-          return res.status(403).json({ error: '2FA code required.', requiresTotp: true });
-        }
-        if (!verifyTotpCode(pendingSecret, totpCode)) {
-          return res.status(401).json({ error: 'Invalid 2FA code.' });
-        }
+    } else if (row.totp_pending_secret) {
+      if (!totpCode) {
+        return res.status(403).json({ error: '2FA code required.', requiresTotp: true });
+      }
+      if (!verifyTotpCode(row.totp_pending_secret, totpCode)) {
+        return res.status(401).json({ error: 'Invalid 2FA code.' });
       }
     }
 
@@ -3267,7 +3263,7 @@ app.get('/api/2fa/setup', requireAuth, async (req: AuthedRequest, res) => {
     }
 
     const secret = generateTotpSecret();
-    totpSecrets.set(userId, secret);
+    await pool.query(`UPDATE users SET totp_pending_secret = $1 WHERE id = $2`, [secret, userId]);
 
     const qrCodeUrl = `otpauth://totp/Pasus:${encodeURIComponent(req.auth!.user.username)}?secret=${secret}&issuer=Pasus`;
 
@@ -3287,7 +3283,8 @@ app.post('/api/2fa/verify-setup', requireAuth, async (req: AuthedRequest, res) =
       return res.status(400).json({ error: 'Invalid 2FA code.' });
     }
 
-    const secret = totpSecrets.get(userId);
+    const secretResult = await pool.query(`SELECT totp_pending_secret FROM users WHERE id = $1 LIMIT 1`, [userId]);
+    const secret = secretResult.rows[0]?.totp_pending_secret;
     if (!secret) {
       return res.status(400).json({ error: 'No pending 2FA setup. Please request a new setup first.' });
     }
@@ -3303,11 +3300,9 @@ app.post('/api/2fa/verify-setup', requireAuth, async (req: AuthedRequest, res) =
     }
 
     await pool.query(
-      `UPDATE users SET totp_secret = $1, totp_enabled = TRUE, totp_backup_codes = $2 WHERE id = $3`,
+      `UPDATE users SET totp_secret = $1, totp_enabled = TRUE, totp_pending_secret = NULL, totp_backup_codes = $2 WHERE id = $3`,
       [secret, backupCodes, userId]
     );
-
-    totpSecrets.delete(userId);
 
     const result = await pool.query(
       `SELECT id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,

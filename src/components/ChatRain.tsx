@@ -275,6 +275,7 @@ export const ChatRain: React.FC<{
       if (data.rain) setRain(data.rain);
       setRainDraft(null);
       await refreshWallet();
+      await loadRoom(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to tip rain');
     } finally {
