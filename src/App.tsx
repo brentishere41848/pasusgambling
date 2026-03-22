@@ -267,9 +267,8 @@ const DISPLAY_CURRENCY_RATES: Record<string, number> = {
 
 function formatCoins(value: number) {
   return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(value || 0) / 100);
+    maximumFractionDigits: 0,
+  }).format(Math.round(Number(value || 0)));
 }
 
 function coinsToUsd(value: number) {
@@ -4335,9 +4334,11 @@ const RightRail = () => {
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Rain Drop</div>
-              <div className="text-2xl font-black italic tracking-tight">{formatMoneyFromCoins(rain?.poolAmount || 0)}</div>
+              <div className="flex items-center gap-1 text-2xl font-black italic tracking-tight">
+                <CurrencyIcon className="rounded-full object-cover" size={22} />
+                {formatMoneyFromCoins(rain?.poolAmount || 0)}
+              </div>
             </div>
-            <CurrencyIcon className="rounded-full object-cover" size={22} />
           </div>
           <div className="flex items-center justify-between text-xs text-white/50 mb-4">
             <span>{rain?.participantCount || 0} joined</span>
@@ -4369,7 +4370,10 @@ const RightRail = () => {
                 <div className="mt-1 text-sm font-black truncate">{customRain.creatorUsername}</div>
               </div>
               <div className="text-right">
-                <div className="text-lg font-black text-sky-100">{formatMoneyFromCoins(customRain.poolAmount)}</div>
+                <div className="flex items-center gap-1 text-lg font-black text-sky-100">
+                  <CurrencyIcon className="rounded-full object-cover" size={16} />
+                  {formatMoneyFromCoins(customRain.poolAmount)}
+                </div>
                 <div className="text-[10px] text-white/35">{customRain.participantCount} joined</div>
               </div>
             </div>
