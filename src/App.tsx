@@ -81,7 +81,6 @@ import { BaccaratGame } from './components/games/BaccaratGame';
 import { WheelGame } from './components/games/WheelGame';
 import { PlinkoGame } from './components/games/PlinkoGame';
 import { RouletteGame } from './components/games/RouletteGame';
-import { ScratchGame } from './components/games/ScratchGame';
 import { LimboGame } from './components/games/LimboGame';
 import { KenoGame } from './components/games/KenoGame';
 import { ChatRain } from './components/ChatRain';
@@ -225,17 +224,6 @@ const GAMES = [
     component: RouletteGame,
     featured: true,
     image: 'https://picsum.photos/seed/casino-roulette/800/600'
-  },
-  {
-    id: 'scratch',
-    name: 'Scratch Cards',
-    description: 'Buy a card and scratch to reveal instant prizes.',
-    icon: CreditCard,
-    color: 'text-cyan-300',
-    bg: 'bg-cyan-300/10',
-    component: ScratchGame,
-    featured: false,
-    image: 'https://picsum.photos/seed/casino-scratch/800/600'
   },
   {
     id: 'wheel',
