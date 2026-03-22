@@ -2191,7 +2191,7 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
     const totalWagered = Number(row?.total_wagered || 0);
     const totalBets = Number(row?.total_bets || 0);
     const rakebackClaimedTotal = Number(row?.rakeback_claimed_total || 0);
-    const earnedRakeback = Math.floor((totalDeposited + totalWagered) * 0.02);
+    const earnedRakeback = totalDeposited >= 1000 ? Math.floor(totalDeposited * 0.005) : 0;
     const buckets = getRakebackBuckets(earnedRakeback, row);
     const claimableRakeback =
       buckets.instant.claimable +

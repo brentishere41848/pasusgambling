@@ -275,11 +275,12 @@ export const BlackjackGame: React.FC = () => {
         currentDeck.unshift(newCard);
         deckRef.current = currentDeck;
         setDeck([...currentDeck]);
-        setDealerHand((prev) => [...prev, newCard]);
-        dealerScore = calculateScore([...dealerHand, newCard]);
+        currentDealerHand.push(newCard);
+        setDealerHand([...currentDealerHand]);
+        dealerScore = calculateScore(currentDealerHand);
         setTimeout(dealerPlays, 600);
       } else {
-        resolveAllHands(currentHands, currentCards, [...dealerHand], currentDeck);
+        resolveAllHands(currentHands, currentCards, currentDealerHand, currentDeck);
       }
     };
 

@@ -3539,7 +3539,7 @@ const VipView = () => {
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Rakeback</div>
           <div className="rounded-2xl border border-[#00FF88]/15 bg-[#00FF88]/5 px-4 py-4 text-sm text-white/70">
-            Total rakeback is calculated as 2% of your tracked deposits and wagers, then split across Instant, Daily, Weekly, and Monthly buckets.
+            Rakeback is 0.5% of your total deposited amount. Requires at least $10 deposited. Split across Instant, Daily, Weekly, and Monthly buckets.
           </div>
           {status ? <div className="text-sm text-white/60">{status}</div> : null}
           <div className="text-lg font-black uppercase tracking-tight pt-2">Planned Perks</div>
