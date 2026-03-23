@@ -28,16 +28,19 @@ type GamePhase = 'idle' | 'playing' | 'dealer_turn' | 'ended';
 const SUITS = ['♠', '♣', '♥', '♦'];
 const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 const MAX_SPLITS = 3;
+const NUM_DECKS = 8;
 
 const createDeck = () => {
   const deck: Card[] = [];
-  for (const suit of SUITS) {
-    for (let i = 0; i < VALUES.length; i++) {
-      deck.push({
-        suit,
-        value: VALUES[i],
-        rank: i + 2 > 11 ? 10 : i + 2 === 11 ? 11 : i + 2,
-      });
+  for (let d = 0; d < NUM_DECKS; d++) {
+    for (const suit of SUITS) {
+      for (let i = 0; i < VALUES.length; i++) {
+        deck.push({
+          suit,
+          value: VALUES[i],
+          rank: i + 2 > 11 ? 10 : i + 2 === 11 ? 11 : i + 2,
+        });
+      }
     }
   }
   return deck.sort(() => Math.random() - 0.5);
@@ -95,6 +98,7 @@ export const BlackjackGame: React.FC = () => {
   const [phase, setPhase] = useState<GamePhase>('idle');
   const [dealerReveal, setDealerReveal] = useState(false);
   const [messages, setMessages] = useState<{ hand: number; text: string; won: boolean }[]>([]);
+  const [cardsRemaining, setCardsRemaining] = useState(0);
   const { getStats, recordBet } = useLocalGameStats('blackjack');
   const stats = getStats();
 
@@ -106,7 +110,11 @@ export const BlackjackGame: React.FC = () => {
     const totalBets = baseBet;
     if (!subtractBalance(totalBets)) return;
 
-    const newDeck = createDeck();
+    if (deckRef.current.length < 52) {
+      deckRef.current = createDeck();
+    }
+    setCardsRemaining(deckRef.current.length);
+    const newDeck = [...deckRef.current];
     deckRef.current = newDeck;
 
     const pCard1 = newDeck.pop()!;
@@ -270,22 +278,37 @@ export const BlackjackGame: React.FC = () => {
     setPhase('dealer_turn');
 
     let dealerScore = calculateScore(currentDealerHand);
-    const dealerPlays = () => {
-      if (dealerScore < 17) {
-        const newCard = currentDeck.pop()!;
-        if (!newCard) return;
-        currentDeck.pop();
-        currentDeck.unshift(newCard);
-        deckRef.current = currentDeck;
-        setDeck([...currentDeck]);
-        currentDealerHand.push(newCard);
-        setDealerHand([...currentDealerHand]);
-        dealerScore = calculateScore(currentDealerHand);
-        setTimeout(dealerPlays, 600);
-      } else {
-        resolveAllHands(currentHands, currentCards, currentDealerHand, currentDeck);
-      }
+  const dealerPlays = () => {
+    const hasSoft17 = () => {
+      const score = calculateScore(currentDealerHand);
+      if (score !== 17) return false;
+      return currentDealerHand.some(c => c.value === 'A');
     };
+    
+    const dealerScore = calculateScore(currentDealerHand);
+    if (dealerScore < 17 || hasSoft17()) {
+      const newCard = currentDeck.pop()!;
+      if (!newCard) return;
+      currentDeck.pop();
+      currentDeck.unshift(newCard);
+      deckRef.current = currentDeck;
+    setDeck([...currentDeck]);
+    setCardsRemaining(currentDeck.length);
+    
+    if (currentDeck.length < 52) {
+      setTimeout(() => {
+        deckRef.current = createDeck();
+        setCardsRemaining(deckRef.current.length);
+      }, 1000);
+    }
+      currentDealerHand.push(newCard);
+      setDealerHand([...currentDealerHand]);
+      const newScore = calculateScore(currentDealerHand);
+      setTimeout(dealerPlays, 600);
+    } else {
+      resolveAllHands(currentHands, currentCards, currentDealerHand, currentDeck);
+    }
+  };
 
     setTimeout(dealerPlays, 600);
   };
