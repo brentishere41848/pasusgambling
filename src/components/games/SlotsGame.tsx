@@ -42,10 +42,10 @@ const JACKPOT_SYMBOL: Symbol = '7';
 const WILD_SYMBOL: Symbol = '⭐';
 const SCATTER_SYMBOL: Symbol = '💎';
 
-const JACKPOT_CHANCE = 0.0001;
-const SCATTER_CHANCE = 0.02;
-const WILD_CHANCE = 0.04;
-const BAR_CHANCE = 0.08;
+const JACKPOT_CHANCE = 0.00001;
+const SCATTER_CHANCE = 0.015;
+const WILD_CHANCE = 0.03;
+const BAR_CHANCE = 0.06;
 
 const SYMBOL_PAYOUTS: Record<Symbol, number> = {
   '7': 100,
