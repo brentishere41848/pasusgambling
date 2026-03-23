@@ -5905,11 +5905,12 @@ const AppContent = () => {
   const [chatOpen, setChatOpen] = useState(true);
   
   const toggleChat = useCallback(() => {
-    setChatOpen(prev => !prev);
-    if (!chatOpen) {
-      setIsRightRailOpen(true);
-    }
-  }, [chatOpen]);
+    setChatOpen(prev => {
+      const newState = !prev;
+      setIsRightRailOpen(newState);
+      return newState;
+    });
+  }, []);
   const [dailyBonusStatus, setDailyBonusStatus] = useState<{
     canClaim: boolean;
     streak: number;
