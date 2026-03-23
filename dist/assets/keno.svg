@@ -1,0 +1,21 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'>
+  <defs>
+    <linearGradient id='bg' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#0f0f23'/>
+      <stop offset='100%' stop-color='#1a1a2e'/>
+    </linearGradient>
+    <linearGradient id='glow' x1='0%' y1='0%' x2='100%' y2='0%'>
+      <stop offset='0%' stop-color='#22c55e' stop-opacity='0'/>
+      <stop offset='50%' stop-color='#22c55e' stop-opacity='0.3'/>
+      <stop offset='100%' stop-color='#22c55e' stop-opacity='0'/>
+    </linearGradient>
+  </defs>
+  <rect width='400' height='300' fill='url(#bg)'/>
+  <rect x='0' y='0' width='400' height='4' fill='#22c55e'/>
+  <rect x='0' y='296' width='400' height='4' fill='#22c55e'/>
+  <rect x='0' y='0' width='4' height='300' fill='#22c55e'/>
+  <rect x='396' y='0' width='4' height='300' fill='#22c55e'/>
+  <rect y='145' width='400' height='10' fill='url(#glow)'/>
+  <text x='200' y='160' font-family='Arial Black, sans-serif' font-size='42' font-weight='900' fill='white' text-anchor='middle' letter-spacing='4'>KENO</text>
+  <text x='200' y='200' font-family='Arial, sans-serif' font-size='14' fill='#22c55e' text-anchor='middle' letter-spacing='2'>CASINO GAME</text>
+</svg>

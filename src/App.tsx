@@ -113,7 +113,7 @@ const GAMES = [
     bg: 'bg-emerald-400/10',
     component: CrashGame,
     featured: true,
-    image: '/assets/crash.png'
+    image: '/assets/crash.svg'
   },
   {
     id: 'blackjack',
@@ -124,7 +124,7 @@ const GAMES = [
     bg: 'bg-blue-400/10',
     component: BlackjackGame,
     featured: true,
-    image: '/assets/blackjack.png'
+    image: '/assets/blackjack.svg'
   },
   {
     id: 'mines',
@@ -135,7 +135,7 @@ const GAMES = [
     bg: 'bg-blue-400/10',
     component: MinesGame,
     featured: true,
-    image: '/assets/mines.png'
+    image: '/assets/mines.svg'
   },
   {
     id: 'coinflip',
@@ -146,7 +146,7 @@ const GAMES = [
     bg: 'bg-amber-300/10',
     component: CoinflipGame,
     featured: false,
-    image: '/assets/coinflip.png'
+    image: '/assets/coinflip.svg'
   },
   {
     id: 'dice',
@@ -157,7 +157,7 @@ const GAMES = [
     bg: 'bg-orange-400/10',
     component: DiceGame,
     featured: false,
-    image: '/assets/dice.png'
+    image: '/assets/dice.svg'
   },
   {
     id: 'limbo',
@@ -168,7 +168,7 @@ const GAMES = [
     bg: 'bg-orange-300/10',
     component: LimboGame,
     featured: true,
-    image: '/assets/limbo.png'
+    image: '/assets/limbo.svg'
   },
   {
     id: 'keno',
@@ -179,7 +179,7 @@ const GAMES = [
     bg: 'bg-emerald-300/10',
     component: KenoGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-keno/400/300'
+    image: '/assets/keno.svg'
   },
   {
     id: 'hilo',
@@ -190,7 +190,7 @@ const GAMES = [
     bg: 'bg-red-400/10',
     component: HiloGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-hilo/400/300'
+    image: '/assets/hilo.svg'
   },
   {
     id: 'baccarat',
@@ -201,7 +201,7 @@ const GAMES = [
     bg: 'bg-cyan-300/10',
     component: BaccaratGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-baccarat/400/300'
+    image: '/assets/baccarat.svg'
   },
   {
     id: 'plinko',
@@ -212,7 +212,7 @@ const GAMES = [
     bg: 'bg-sky-300/10',
     component: PlinkoGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-plinko/400/300'
+    image: '/assets/plinko.svg'
   },
   {
     id: 'roulette',
@@ -223,7 +223,7 @@ const GAMES = [
     bg: 'bg-rose-300/10',
     component: RouletteGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-roulette/400/300'
+    image: '/assets/roulette.svg'
   },
   {
     id: 'wheel',
@@ -234,7 +234,7 @@ const GAMES = [
     bg: 'bg-purple-400/10',
     component: WheelGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-wheel/400/300'
+    image: '/assets/wheel.svg'
   },
   {
     id: 'jackpot',
@@ -245,7 +245,7 @@ const GAMES = [
     bg: 'bg-amber-300/10',
     component: JackpotGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-jackpot/400/300'
+    image: '/assets/jackpot.svg'
   },
   {
     id: 'slots',
@@ -256,7 +256,7 @@ const GAMES = [
     bg: 'bg-yellow-400/10',
     component: SlotsGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-slots/400/300'
+    image: '/assets/slots.svg'
   },
 ];
 
