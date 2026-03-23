@@ -42,10 +42,10 @@ const JACKPOT_SYMBOL: Symbol = '7';
 const WILD_SYMBOL: Symbol = '⭐';
 const SCATTER_SYMBOL: Symbol = '💎';
 
-const JACKPOT_CHANCE = 0.001;
-const SCATTER_CHANCE = 0.03;
-const WILD_CHANCE = 0.05;
-const BAR_CHANCE = 0.10;
+const JACKPOT_CHANCE = 0.0001;
+const SCATTER_CHANCE = 0.02;
+const WILD_CHANCE = 0.04;
+const BAR_CHANCE = 0.08;
 
 const SYMBOL_PAYOUTS: Record<Symbol, number> = {
   '7': 100,
@@ -59,6 +59,7 @@ const SYMBOL_PAYOUTS: Record<Symbol, number> = {
 };
 
 const BONUS_COST_MULTIPLIER = 50;
+const FREE_SPINS_COUNT = 5;
 
 const SYMBOL_COLORS: Record<Symbol, string> = {
   '7': '#ff4444',
@@ -213,6 +214,8 @@ export const SlotsGame: React.FC = () => {
   const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [freeSpins, setFreeSpins] = useState(0);
   const [jackpot, setJackpot] = useState(false);
+  const [bonusMultiplier, setBonusMultiplier] = useState(1);
+  const [isBonusRound, setIsBonusRound] = useState(false);
   
   const timersRef = useRef<number[]>([]);
   const { getStats, recordBet } = useLocalGameStats('slots');
@@ -248,6 +251,8 @@ export const SlotsGame: React.FC = () => {
   const spin = () => {
     if (!canSpin && freeSpins === 0) return;
 
+    const inBonusRound = freeSpins > 0 && isBonusRound;
+    const currentMultiplier = inBonusRound ? bonusMultiplier : 1;
     const wager = freeSpins > 0 ? 0 : bet;
     if (wager > 0 && !subtractBalance(wager)) return;
 
@@ -297,16 +302,18 @@ export const SlotsGame: React.FC = () => {
     }
 
     const finalTimer = window.setTimeout(() => {
-      evaluateWin(wager);
+      evaluateWin(wager, currentMultiplier);
     }, 800 + REEL_COUNT * 400 + 100);
 
     timersRef.current.push(finalTimer);
   };
 
-  const evaluateWin = (wager: number) => {
+  const evaluateWin = (wager: number, multiplier: number = 1) => {
     const finalReels = reels;
     let totalWin = 0;
     const winLines: string[] = [];
+
+    const isBonusFirstSpin = freeSpins === FREE_SPINS_COUNT && isBonusRound;
 
     PAYLINES.forEach((payline) => {
       const [r1, r2, r3] = payline.pattern;
@@ -315,10 +322,14 @@ export const SlotsGame: React.FC = () => {
       const s3 = finalReels[2][r3];
 
       if (s1 === s2 && s2 === s3) {
-        const payout = Math.round(wager * payline.multiplier * (SYMBOL_PAYOUTS[s1] / 10));
-        if (payout > 0) {
-          totalWin += payout;
-          winLines.push(`${payline.name}: ${s1}${s1}${s1} +${formatCoins(payout)}`);
+        let basePayout = Math.round(wager * payline.multiplier * (SYMBOL_PAYOUTS[s1] / 10));
+        const finalPayout = isBonusFirstSpin 
+          ? basePayout * multiplier 
+          : basePayout;
+        if (finalPayout > 0) {
+          totalWin += finalPayout;
+          const multText = isBonusFirstSpin ? ` (x${multiplier})` : '';
+          winLines.push(`${payline.name}: ${s1}${s1}${s1} +${formatCoins(finalPayout)}${multText}`);
         }
         if (s1 === JACKPOT_SYMBOL) {
           setJackpot(true);
@@ -328,10 +339,14 @@ export const SlotsGame: React.FC = () => {
       if (s1 === WILD_SYMBOL || s2 === WILD_SYMBOL || s3 === WILD_SYMBOL) {
         const nonWilds = [s1, s2, s3].filter(s => s !== WILD_SYMBOL);
         if (nonWilds.length === 1 && nonWilds[0] === s1) {
-          const payout = Math.round(wager * payline.multiplier * (SYMBOL_PAYOUTS[s1] / 10));
-          if (payout > 0) {
-            totalWin += payout;
-            winLines.push(`${payline.name}: Wild + ${s1}${s1} +${formatCoins(payout)}`);
+          let basePayout = Math.round(wager * payline.multiplier * (SYMBOL_PAYOUTS[s1] / 10));
+          const finalPayout = isBonusFirstSpin 
+            ? basePayout * multiplier 
+            : basePayout;
+          if (finalPayout > 0) {
+            totalWin += finalPayout;
+            const multText = isBonusFirstSpin ? ` (x${multiplier})` : '';
+            winLines.push(`${payline.name}: Wild + ${s1}${s1} +${formatCoins(finalPayout)}${multText}`);
           }
         }
       }
@@ -390,13 +405,20 @@ export const SlotsGame: React.FC = () => {
     }
 
     if (freeSpins > 0) {
-      setFreeSpins(prev => {
-        const remaining = prev - 1;
-        if (remaining <= 0 && finalWin === 0) {
+      const remaining = freeSpins - 1;
+      if (remaining <= 0) {
+        setIsBonusRound(false);
+        setBonusMultiplier(1);
+        if (totalWin > 0) {
+          setMessage('Bonus ended!');
+        } else {
           setMessage('Free spins ended!');
         }
-        return remaining;
-      });
+      } else if (remaining === FREE_SPINS_COUNT - 1) {
+        setIsBonusRound(false);
+        setBonusMultiplier(1);
+      }
+      setFreeSpins(remaining);
     }
   };
 
@@ -410,12 +432,14 @@ export const SlotsGame: React.FC = () => {
 
   const buyBonus = () => {
     const cost = bet * BONUS_COST_MULTIPLIER;
-    if (balance < cost || spinning.some(Boolean)) return;
+    if (balance < cost || spinning.some(Boolean) || freeSpins > 0) return;
     if (!subtractBalance(cost)) return;
 
-    const freeSpinAward = 10 + Math.floor(Math.random() * 11);
-    setFreeSpins(freeSpinAward);
-    setMessage(`Bonus bought! ${freeSpinAward} free spins!`);
+    const multiplier = 1 + Math.floor(Math.random() * 999);
+    setBonusMultiplier(multiplier);
+    setFreeSpins(FREE_SPINS_COUNT);
+    setIsBonusRound(true);
+    setMessage(`Bonus bought! ${FREE_SPINS_COUNT} free spins at x${multiplier}!`);
     
     logBetActivity({
       gameKey: 'slots',
@@ -423,7 +447,7 @@ export const SlotsGame: React.FC = () => {
       payout: 0,
       multiplier: 0,
       outcome: 'loss',
-      detail: `Buy bonus: ${freeSpinAward} free spins`,
+      detail: `Buy bonus: ${FREE_SPINS_COUNT} free spins at x${multiplier}`,
     });
     recordBet(cost, 0, false);
   };
