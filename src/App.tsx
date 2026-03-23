@@ -256,7 +256,7 @@ const getPreferredAvatar = (user?: {
   return user.customAvatarUrl || user.avatar || user.discordAvatarUrl || user.robloxAvatarUrl || '';
 };
 
-type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'tournaments' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
+type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'tournaments' | 'friends' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
 const VIEW_PATHS: Partial<Record<MainView, string>> = {
   dashboard: '/',
@@ -672,6 +672,21 @@ const Sidebar = ({
             <span>Admin</span>
           </button>
         )}
+
+        <div className="pt-3 pb-1">
+          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
+            <div className="flex items-center gap-2"><UsersRound size={11} /> Social</div>
+          </div>
+          <div className="space-y-0.5 pl-2">
+            <button onClick={() => handleNav(() => onOpenView('friends'))}
+              className={cn('w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all',
+                currentView === 'friends' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+              <UserPlus size={13} />
+              <span>Friends</span>
+              <span className="ml-auto text-[7px] font-black uppercase text-[#00FF88] tracking-wider">Soon</span>
+            </button>
+          </div>
+        </div>
 
         <div className="pt-3 pb-1">
           <button onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
@@ -5022,6 +5037,127 @@ const AffiliateView = () => {
 
 const LEADERBOARD_PRIZES = [10000, 5000, 2500, 500];
 
+type Friend = {
+  id: number;
+  username: string;
+  avatarUrl?: string;
+  status: 'online' | 'offline' | 'ingame';
+  lastSeen?: string;
+};
+
+const FriendsView = () => {
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const loadFriends = async () => {
+      try {
+        setIsLoading(true);
+        setError('');
+        const response = await apiFetch('/api/friends');
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load friends.');
+        }
+        setFriends(Array.isArray(data.friends) ? data.friends : []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load friends.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFriends();
+  }, []);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'ingame': return 'bg-yellow-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'online': return 'Online';
+      case 'ingame': return 'In Game';
+      default: return 'Offline';
+    }
+  };
+
+  const filteredFriends = friends.filter(f => 
+    f.username.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="p-6 lg:p-10 max-w-4xl mr-auto ml-0 space-y-8">
+      <div className="space-y-2">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Social</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Friends</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Connect with other players, send gifts, and see when your friends are online.</p>
+      </div>
+
+      {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div> : null}
+
+      <div className="flex gap-4">
+        <input
+          type="text"
+          placeholder="Search friends..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="flex-1 bg-[#141821] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#00FF88]/50"
+        />
+        <button className="px-6 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all">
+          Add Friend
+        </button>
+      </div>
+
+      <div className="grid gap-3">
+        {isLoading ? (
+          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">Loading friends...</div>
+        ) : filteredFriends.length ? (
+          filteredFriends.map((friend) => (
+            <div key={friend.id} className="rounded-2xl border border-white/10 bg-[#141821] p-4 flex items-center gap-4 hover:border-white/20 transition-colors">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2a3a5a] to-[#1a2540] flex items-center justify-center text-lg font-black text-white/70 overflow-hidden">
+                  {friend.avatarUrl ? (
+                    <img src={friend.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    friend.username.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className={cn('absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#141821]', getStatusColor(friend.status))} />
+              </div>
+              <div className="flex-1">
+                <div className="font-black text-white">{friend.username}</div>
+                <div className="text-xs text-white/40">{getStatusLabel(friend.status)}</div>
+              </div>
+              <div className="flex gap-2">
+                <button className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all">
+                  <Gift size={16} />
+                </button>
+                <button className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all">
+                  <MessageCircle size={16} />
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-center">
+            <div className="text-white/40 mb-4">No friends yet</div>
+            <button className="px-6 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all">
+              Add Your First Friend
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 type Tournament = {
   id: number;
   name: string;
@@ -6002,6 +6138,15 @@ const AppContent = () => {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <TournamentsView />
+              </motion.div>
+            ) : currentView === 'friends' ? (
+              <motion.div
+                key="friends"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <FriendsView />
               </motion.div>
             ) : currentView === 'provably-fair' ? (
               <motion.div
