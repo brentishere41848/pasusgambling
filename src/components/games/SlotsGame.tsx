@@ -42,6 +42,11 @@ const JACKPOT_SYMBOL: Symbol = '7';
 const WILD_SYMBOL: Symbol = '⭐';
 const SCATTER_SYMBOL: Symbol = '💎';
 
+const JACKPOT_CHANCE = 0.001;
+const SCATTER_CHANCE = 0.03;
+const WILD_CHANCE = 0.05;
+const BAR_CHANCE = 0.10;
+
 const SYMBOL_PAYOUTS: Record<Symbol, number> = {
   '7': 100,
   '🍒': 20,
@@ -52,6 +57,8 @@ const SYMBOL_PAYOUTS: Record<Symbol, number> = {
   '⭐': 0,
   'BAR': 3,
 };
+
+const BONUS_COST_MULTIPLIER = 50;
 
 const SYMBOL_COLORS: Record<Symbol, string> = {
   '7': '#ff4444',
@@ -226,12 +233,14 @@ export const SlotsGame: React.FC = () => {
     isDisabled: !canSpin,
   });
 
-  const getRandomSymbol = (): Symbol => {
+  const getRandomSymbol = (forceJackpot = false): Symbol => {
+    if (forceJackpot) return JACKPOT_SYMBOL;
+    
     const rand = Math.random();
-    if (rand < 0.01) return '7';
-    if (rand < 0.05) return '💎';
-    if (rand < 0.10) return '⭐';
-    if (rand < 0.20) return 'BAR';
+    if (rand < JACKPOT_CHANCE) return JACKPOT_SYMBOL;
+    if (rand < JACKPOT_CHANCE + SCATTER_CHANCE) return SCATTER_SYMBOL;
+    if (rand < JACKPOT_CHANCE + SCATTER_CHANCE + WILD_CHANCE) return WILD_SYMBOL;
+    if (rand < JACKPOT_CHANCE + SCATTER_CHANCE + WILD_CHANCE + BAR_CHANCE) return 'BAR';
     const idx = Math.floor(Math.random() * (SYMBOLS.length - 2)) + 2;
     return SYMBOLS[idx];
   };
@@ -399,6 +408,26 @@ export const SlotsGame: React.FC = () => {
     setJackpot(false);
   };
 
+  const buyBonus = () => {
+    const cost = bet * BONUS_COST_MULTIPLIER;
+    if (balance < cost || spinning.some(Boolean)) return;
+    if (!subtractBalance(cost)) return;
+
+    const freeSpinAward = 10 + Math.floor(Math.random() * 11);
+    setFreeSpins(freeSpinAward);
+    setMessage(`Bonus bought! ${freeSpinAward} free spins!`);
+    
+    logBetActivity({
+      gameKey: 'slots',
+      wager: cost,
+      payout: 0,
+      multiplier: 0,
+      outcome: 'loss',
+      detail: `Buy bonus: ${freeSpinAward} free spins`,
+    });
+    recordBet(cost, 0, false);
+  };
+
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 p-4 max-w-6xl mx-auto">
       <div className="lg:col-span-1 space-y-4">
@@ -444,6 +473,15 @@ export const SlotsGame: React.FC = () => {
                 <Play size={20} fill="currentColor" />
               )}
               {freeSpins > 0 ? `FREE SPIN (${freeSpins})` : 'SPIN'}
+            </button>
+
+            <button
+              onClick={buyBonus}
+              disabled={spinning.some(Boolean) || balance < bet * BONUS_COST_MULTIPLIER}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-black text-sm uppercase tracking-wider transition-all shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Sparkles size={16} />
+              Buy Bonus ({formatCoins(bet * BONUS_COST_MULTIPLIER)})
             </button>
 
             <button
