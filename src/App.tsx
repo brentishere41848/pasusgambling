@@ -66,8 +66,9 @@ import {
   Download,
   History,
   KeyRound,
-   QrCode,
-   MessageCircle
+  QrCode,
+  MessageCircle,
+  Target
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BalanceProvider, useBalance } from './context/BalanceContext';
@@ -255,7 +256,7 @@ const getPreferredAvatar = (user?: {
   return user.customAvatarUrl || user.avatar || user.discordAvatarUrl || user.robloxAvatarUrl || '';
 };
 
-type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
+type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'tournaments' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
 const VIEW_PATHS: Partial<Record<MainView, string>> = {
   dashboard: '/',
@@ -616,6 +617,7 @@ const Sidebar = ({
   const navItems = [
     { view: 'dashboard' as MainView, icon: Home, label: 'Home', active: !activeGame && currentView === 'dashboard' },
     { view: 'leaderboard' as MainView, icon: Trophy, label: 'Leaderboard', active: currentView === 'leaderboard' },
+    { view: 'tournaments' as MainView, icon: Target, label: 'Tournaments', active: currentView === 'tournaments' },
     { view: 'vip' as MainView, icon: Star, label: 'VIP Club', active: currentView === 'vip' },
     { view: 'affiliate' as MainView, icon: Users, label: 'Affiliate', active: currentView === 'affiliate' },
   ];
@@ -5020,7 +5022,140 @@ const AffiliateView = () => {
 
 const LEADERBOARD_PRIZES = [10000, 5000, 2500, 500];
 
+type Tournament = {
+  id: number;
+  name: string;
+  type: 'wagered' | 'deposited';
+  startsAt: string;
+  endsAt: string;
+  prize: number;
+  status: 'upcoming' | 'active' | 'ended';
+  userRank?: number;
+  userWagered?: number;
+};
+
 type LeaderboardCategory = 'wagered' | 'deposited' | 'wins';
+
+const TournamentsView = () => {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'active' | 'upcoming' | 'ended'>('active');
+
+  useEffect(() => {
+    const loadTournaments = async () => {
+      try {
+        setIsLoading(true);
+        setError('');
+        const response = await apiFetch('/api/tournaments');
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load tournaments.');
+        }
+        setTournaments(Array.isArray(data.tournaments) ? data.tournaments : []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load tournaments.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTournaments();
+  }, []);
+
+  const filteredTournaments = tournaments.filter(t => t.status === activeTab);
+
+  const formatTimeLeft = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = date.getTime() - now.getTime();
+    if (diff <= 0) return 'Ended';
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+    if (days > 0) return `${days}d ${hours % 24}h`;
+    return `${hours}h`;
+  };
+
+  return (
+    <div className="p-6 lg:p-10 max-w-5xl mr-auto ml-0 space-y-8">
+      <div className="space-y-2">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Competition</div>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Tournaments</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Compete in weekly tournaments for exclusive prizes. Top players by wagered volume win!</p>
+      </div>
+
+      {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div> : null}
+
+      <div className="flex gap-2">
+        {(['active', 'upcoming', 'ended'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              'px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all',
+              activeTab === tab 
+                ? 'bg-[#00FF88] text-black' 
+                : 'bg-white/5 text-white/40 hover:text-white hover:bg-white/10'
+            )}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-4">
+        {isLoading ? (
+          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">Loading tournaments...</div>
+        ) : filteredTournaments.length ? (
+          filteredTournaments.map((tournament) => (
+            <div key={tournament.id} className="rounded-2xl border border-white/10 bg-[#141821] p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={cn(
+                      'px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider',
+                      tournament.type === 'wagered' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'
+                    )}>
+                      {tournament.type}
+                    </span>
+                    <span className={cn(
+                      'px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider',
+                      tournament.status === 'active' ? 'bg-green-500/20 text-green-400' : 
+                      tournament.status === 'upcoming' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-white/10 text-white/40'
+                    )}>
+                      {tournament.status}
+                    </span>
+                  </div>
+                  <div className="text-xl font-black uppercase">{tournament.name}</div>
+                  <div className="text-sm text-white/40 mt-1">
+                    {tournament.status === 'active' ? `Ends in ${formatTimeLeft(tournament.endsAt)}` : 
+                     tournament.status === 'upcoming' ? `Starts in ${formatTimeLeft(tournament.startsAt)}` : 'Tournament ended'}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-white/40 uppercase tracking-wider">Prize Pool</div>
+                  <div className="text-2xl font-black text-[#00FF88]">{formatMoneyFromCoins(tournament.prize)}</div>
+                </div>
+              </div>
+              {tournament.userRank && tournament.status === 'active' && (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-white/60">Your rank: <span className="text-white font-black">#{tournament.userRank}</span></div>
+                    <div className="text-sm text-white/40">Wagered: {formatMoneyFromCoins(tournament.userWagered || 0)}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">
+            No {activeTab} tournaments.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const LeaderboardView = () => {
   const [entries, setEntries] = useState<Array<{ rank: number; userId: number; username: string; value: number }>>([]);
@@ -5850,7 +5985,7 @@ const AppContent = () => {
               >
                 <AffiliateView />
               </motion.div>
-            ) : currentView === 'leaderboard' ? (
+              ) : currentView === 'leaderboard' ? (
               <motion.div
                 key="leaderboard"
                 initial={{ opacity: 0, x: 20 }}
@@ -5858,6 +5993,15 @@ const AppContent = () => {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <LeaderboardView />
+              </motion.div>
+            ) : currentView === 'tournaments' ? (
+              <motion.div
+                key="tournaments"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <TournamentsView />
               </motion.div>
             ) : currentView === 'provably-fair' ? (
               <motion.div
