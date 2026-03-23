@@ -649,20 +649,6 @@ const Sidebar = ({
           <span>Provably Fair</span>
         </button>
 
-        <button onClick={() => {
-            if (window.Featurebase) {
-              window.Featurebase('boot', {
-                appId: "69c1b44485cadc7c01d5c697",
-                theme: "dark",
-                language: "en"
-              });
-            }
-          }}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/40 hover:text-white hover:bg-white/5">
-          <MessageSquare size={17} />
-          <span>Support</span>
-        </button>
-
         {onToggleChat && (
           <button onClick={onToggleChat}
             className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
@@ -751,22 +737,6 @@ const Sidebar = ({
           </AnimatePresence>
         </div>
       </nav>
-
-      <div className="p-3 border-t border-white/5">
-        <button onClick={() => {
-            if (window.Featurebase) {
-              window.Featurebase('boot', {
-                appId: "69c1b44485cadc7c01d5c697",
-                theme: "dark",
-                language: "en"
-              });
-            }
-          }}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/30 hover:text-white hover:bg-white/5">
-          <MessageCircle size={16} />
-          <span>Help & Support</span>
-        </button>
-      </div>
     </div>
   );
 
