@@ -83,7 +83,6 @@ import { PlinkoGame } from './components/games/PlinkoGame';
 import { RouletteGame } from './components/games/RouletteGame';
 import { LimboGame } from './components/games/LimboGame';
 import { KenoGame } from './components/games/KenoGame';
-import { SlotsGame } from './components/games/SlotsGame';
 import { ChatRain } from './components/ChatRain';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ProvablyFairPanel } from './components/ProvablyFairPanel';
@@ -246,17 +245,6 @@ const GAMES = [
     component: JackpotGame,
     featured: true,
     image: '/assets/jackpot.svg'
-  },
-  {
-    id: 'slots',
-    name: 'Slots',
-    description: 'Spin the reels on our premium slot machines.',
-    icon: Coins,
-    color: 'text-yellow-400',
-    bg: 'bg-yellow-400/10',
-    component: SlotsGame,
-    featured: true,
-    image: '/assets/slots.svg'
   },
 ];
 
