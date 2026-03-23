@@ -75,9 +75,11 @@ function formatTimeLeft(ms: number): string {
 }
 
 export const ChatRain: React.FC<{
+  isOpen?: boolean;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
-}> = ({ isMobileOpen, onCloseMobile }) => {
+  onClose?: () => void;
+}> = ({ isOpen, isMobileOpen, onCloseMobile, onClose }) => {
   const { refreshWallet } = useBalance();
   const { user, isAuthenticated } = useAuth();
 
@@ -413,14 +415,21 @@ export const ChatRain: React.FC<{
       </AnimatePresence>
 
       <aside className={cn(
-        'w-[340px] shrink-0 border-l border-white/5 bg-[#0a0f1a]/95 backdrop-blur-xl flex-col h-screen sticky top-0 relative overflow-hidden xl:flex',
-        isMobileOpen ? 'fixed right-0 top-0 bottom-0 z-50 xl:hidden flex' : 'hidden xl:flex'
+        'w-[340px] shrink-0 border-l border-white/5 bg-[#0a0f1a]/95 backdrop-blur-xl flex-col h-screen sticky top-0 relative overflow-hidden',
+        isMobileOpen ? 'fixed right-0 top-0 bottom-0 z-50 xl:hidden flex' : isOpen ? 'flex' : 'hidden'
       )}>
-        <div className="flex items-center justify-between xl:hidden px-4 py-3 border-b border-white/5 bg-[#0a0f1a]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#0a0f1a]">
           <span className="text-sm font-black uppercase tracking-widest text-white/60">Chat & Rain</span>
-          <button onClick={onCloseMobile} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
-            <ChevronDown size={18} className="text-white/40" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onClose && (
+              <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl transition-colors xl:flex hidden">
+                <X size={18} className="text-white/40" />
+              </button>
+            )}
+            <button onClick={onCloseMobile} className="p-2 hover:bg-white/5 rounded-xl transition-colors xl:hidden">
+              <ChevronDown size={18} className="text-white/40" />
+            </button>
+          </div>
         </div>
 
         {/* Tip Notifications */}

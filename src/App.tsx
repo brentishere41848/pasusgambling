@@ -588,6 +588,8 @@ const Sidebar = ({
   onHome,
   onOpenView,
   onOpenPF,
+  onToggleChat,
+  chatOpen,
   isOpen,
   onClose,
 }: {
@@ -597,6 +599,8 @@ const Sidebar = ({
   onHome: () => void,
   onOpenView: (view: MainView) => void,
   onOpenPF: () => void,
+  onToggleChat?: () => void,
+  chatOpen?: boolean,
   isOpen?: boolean,
   onClose?: () => void,
 }) => {
@@ -648,6 +652,15 @@ const Sidebar = ({
           <MessageSquare size={17} />
           <span>Support</span>
         </button>
+
+        {onToggleChat && (
+          <button onClick={onToggleChat}
+            className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+              chatOpen ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+            <MessageCircle size={17} />
+            <span>{chatOpen ? 'Hide Chat' : 'Show Chat'}</span>
+          </button>
+        )}
 
         {user?.role === 'owner' && (
           <button onClick={() => handleNav(() => onOpenView('admin'))}
@@ -5007,17 +5020,20 @@ const AffiliateView = () => {
 
 const LEADERBOARD_PRIZES = [10000, 5000, 2500, 500];
 
+type LeaderboardCategory = 'wagered' | 'deposited' | 'wins';
+
 const LeaderboardView = () => {
-  const [entries, setEntries] = useState<Array<{ rank: number; userId: number; username: string; totalWagered: number }>>([]);
+  const [entries, setEntries] = useState<Array<{ rank: number; userId: number; username: string; value: number }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [category, setCategory] = useState<LeaderboardCategory>('wagered');
 
   useEffect(() => {
     const loadLeaderboard = async () => {
       try {
         setIsLoading(true);
         setError('');
-        const response = await apiFetch('/api/leaderboard');
+        const response = await apiFetch(`/api/leaderboard?category=${category}`);
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(data.error || 'Failed to load leaderboard.');
@@ -5030,22 +5046,47 @@ const LeaderboardView = () => {
       }
     };
 
-    loadLeaderboard().catch(() => undefined);
-  }, []);
+    loadLeaderboard();
+  }, [category]);
+
+  const getCategoryLabel = (cat: LeaderboardCategory) => {
+    switch (cat) {
+      case 'wagered': return 'Total Wagered';
+      case 'deposited': return 'Total Deposited';
+      case 'wins': return 'Total Wins';
+    }
+  };
 
   return (
     <div className="p-6 lg:p-10 max-w-5xl mr-auto ml-0 space-y-8">
       <div className="space-y-2">
         <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Competition</div>
         <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Leaderboard</h1>
-        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Ranks are based on total wagered volume. Prize amounts are attached to the top four places directly in the list.</p>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Compete for prizes by wagering and depositing. Top players win weekly rewards!</p>
       </div>
 
       {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div> : null}
 
+      <div className="flex gap-2">
+        {(['wagered', 'deposited', 'wins'] as LeaderboardCategory[]).map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setCategory(cat)}
+            className={cn(
+              'px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all',
+              category === cat 
+                ? 'bg-[#00FF88] text-black' 
+                : 'bg-white/5 text-white/40 hover:text-white hover:bg-white/10'
+            )}
+          >
+            {getCategoryLabel(cat)}
+          </button>
+        ))}
+      </div>
+
       <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <div className="text-lg font-black uppercase tracking-tight">Top Wagered</div>
+          <div className="text-lg font-black uppercase tracking-tight">{getCategoryLabel(category)}</div>
           <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Top 10</div>
         </div>
 
@@ -5071,13 +5112,13 @@ const LeaderboardView = () => {
                 </div>
                 <div className="flex items-center gap-2 text-right font-mono font-bold text-[#00FF88]">
                   <CurrencyIcon className="rounded-full object-cover" size={16} />
-                  <span>{formatMoneyFromCoins(entry.totalWagered)}</span>
+                  <span>{formatMoneyFromCoins(entry.value)}</span>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">No wagered activity yet.</div>
+          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">No activity yet.</div>
         )}
       </div>
     </div>
@@ -5558,6 +5599,14 @@ const AppContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRightRailOpen, setIsRightRailOpen] = useState(false);
   const [currentView, setCurrentView] = useState<MainView>(initialRoute.view);
+  const [chatOpen, setChatOpen] = useState(true);
+  
+  const toggleChat = useCallback(() => {
+    setChatOpen(prev => !prev);
+    if (!chatOpen) {
+      setIsRightRailOpen(true);
+    }
+  }, [chatOpen]);
   const [dailyBonusStatus, setDailyBonusStatus] = useState<{
     canClaim: boolean;
     streak: number;
@@ -5657,6 +5706,8 @@ const AppContent = () => {
         onHome={openDashboard}
         onOpenView={openView}
         onOpenPF={() => setIsPFOpen(true)}
+        onToggleChat={toggleChat}
+        chatOpen={chatOpen}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
@@ -5932,7 +5983,12 @@ const AppContent = () => {
         </main>
       </div>
 
-      <ChatRain isMobileOpen={isRightRailOpen} onCloseMobile={() => setIsRightRailOpen(false)} />
+      <ChatRain 
+        isOpen={chatOpen} 
+        isMobileOpen={isRightRailOpen} 
+        onCloseMobile={() => setIsRightRailOpen(false)} 
+        onClose={() => setChatOpen(false)}
+      />
 
       <button
         onClick={() => setIsRightRailOpen(true)}
