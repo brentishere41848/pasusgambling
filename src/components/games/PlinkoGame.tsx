@@ -1,516 +1,463 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
-import { Play, Settings2, Zap, RotateCcw, Timer } from 'lucide-react';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { Play, Zap, RotateCcw, Target, Sparkles, DollarSign } from 'lucide-react';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats, useGameHotkeys } from './GameHooks';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
 
-type RiskTier = 'easy' | 'medium' | 'hard';
+type RiskLevel = 'low' | 'medium' | 'high';
 
-type Ball = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  row: number;
-  trail: { x: number; y: number }[];
-};
+const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
-const ROW_OPTIONS = [8, 10, 12, 14, 16] as const;
-const MAX_ACTIVE_BALLS = 15;
-const MAX_AUTO_BALLS = 15;
-
-const PAYOUTS: Record<number, Record<RiskTier, number[]>> = {
+const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    easy: [8, 3.2, 1.8, 1.3, 1.0, 1.3, 1.8, 3.2, 8],
-    medium: [15, 4.5, 2.0, 1.1, 0.4, 1.1, 2.0, 4.5, 15],
-    hard: [30, 8, 3.0, 1.2, 0.3, 1.2, 3.0, 8, 30],
+    low: [5, 2.5, 1.5, 1.2, 0.8, 1.2, 1.5, 2.5, 5],
+    medium: [10, 4, 2, 1.1, 0.5, 1.1, 2, 4, 10],
+    high: [25, 7, 3, 1.3, 0.3, 1.3, 3, 7, 25],
   },
   10: {
-    easy: [10, 4.0, 2.2, 1.5, 1.0, 0.8, 1.0, 1.5, 2.2, 4.0, 10],
-    medium: [20, 6.0, 2.8, 1.4, 0.6, 0.3, 0.6, 1.4, 2.8, 6.0, 20],
-    hard: [60, 12, 4.5, 1.6, 0.5, 0.15, 0.5, 1.6, 4.5, 12, 60],
+    low: [8, 3, 2, 1.3, 0.9, 0.6, 0.9, 1.3, 2, 3, 8],
+    medium: [15, 5, 2.5, 1.5, 0.7, 0.4, 0.7, 1.5, 2.5, 5, 15],
+    high: [50, 10, 4, 1.8, 0.5, 0.2, 0.5, 1.8, 4, 10, 50],
   },
   12: {
-    easy: [15, 5.5, 3.0, 1.8, 1.2, 0.9, 0.7, 0.9, 1.2, 1.8, 3.0, 5.5, 15],
-    medium: [30, 8.0, 3.5, 1.8, 0.9, 0.5, 0.25, 0.5, 0.9, 1.8, 3.5, 8.0, 30],
-    hard: [120, 18, 6.0, 2.2, 0.8, 0.3, 0.12, 0.3, 0.8, 2.2, 6.0, 18, 120],
+    low: [12, 4.5, 2.5, 1.5, 1.1, 0.8, 0.5, 0.8, 1.1, 1.5, 2.5, 4.5, 12],
+    medium: [25, 7, 3.2, 1.8, 0.9, 0.5, 0.3, 0.5, 0.9, 1.8, 3.2, 7, 25],
+    high: [100, 15, 5, 2, 0.8, 0.4, 0.15, 0.4, 0.8, 2, 5, 15, 100],
   },
   14: {
-    easy: [20, 7.0, 4.0, 2.2, 1.4, 1.0, 0.8, 0.6, 0.8, 1.0, 1.4, 2.2, 4.0, 7.0, 20],
-    medium: [50, 12, 5.0, 2.5, 1.2, 0.7, 0.4, 0.2, 0.4, 0.7, 1.2, 2.5, 5.0, 12, 50],
-    hard: [250, 30, 10, 3.5, 1.2, 0.5, 0.2, 0.1, 0.2, 0.5, 1.2, 3.5, 10, 30, 250],
+    low: [18, 6, 3.2, 2, 1.3, 1, 0.7, 0.5, 0.7, 1, 1.3, 2, 3.2, 6, 18],
+    medium: [40, 10, 4.5, 2.2, 1.2, 0.7, 0.4, 0.25, 0.4, 0.7, 1.2, 2.2, 4.5, 10, 40],
+    high: [200, 25, 8, 3, 1.2, 0.6, 0.3, 0.12, 0.3, 0.6, 1.2, 3, 8, 25, 200],
   },
   16: {
-    easy: [30, 9.0, 5.0, 2.8, 1.6, 1.2, 1.0, 0.8, 0.6, 0.8, 1.0, 1.2, 1.6, 2.8, 5.0, 9.0, 30],
-    medium: [80, 16, 7.0, 3.0, 1.5, 0.9, 0.6, 0.4, 0.2, 0.4, 0.6, 0.9, 1.5, 3.0, 7.0, 16, 80],
-    hard: [1000, 60, 15, 5.0, 2.0, 0.8, 0.4, 0.2, 0.1, 0.2, 0.4, 0.8, 2.0, 5.0, 15, 60, 1000],
+    low: [25, 8, 4.5, 2.5, 1.6, 1.2, 0.9, 0.6, 0.4, 0.6, 0.9, 1.2, 1.6, 2.5, 4.5, 8, 25],
+    medium: [65, 14, 6, 3, 1.6, 1, 0.6, 0.35, 0.2, 0.35, 0.6, 1, 1.6, 3, 6, 14, 65],
+    high: [500, 45, 12, 4.5, 1.8, 0.8, 0.35, 0.15, 0.08, 0.15, 0.35, 0.8, 1.8, 4.5, 12, 45, 500],
   },
 };
+
+const BALL_COLORS = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#9b59b6', '#ff85a1'];
 
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
-  const [risk, setRisk] = useState<RiskTier>('medium');
-  const [rows, setRows] = useState<(typeof ROW_OPTIONS)[number]>(8);
-  const [autoArmed, setAutoArmed] = useState(false);
+  const [bet, setBet] = useState(100);
+  const [rows, setRows] = useState<number>(10);
+  const [risk, setRisk] = useState<RiskLevel>('medium');
   const [isAuto, setIsAuto] = useState(false);
-  const [isFast, setIsFast] = useState(false);
-  const [autoRounds, setAutoRounds] = useState(10);
-  const [remainingRounds, setRemainingRounds] = useState(0);
-  const [lastBucket, setLastBucket] = useState<number | null>(null);
-  const [activeBallCount, setActiveBallCount] = useState(0);
+  const [autoCount, setAutoCount] = useState(10);
+  const [lastResult, setLastResult] = useState<{ multiplier: number; payout: number } | null>(null);
+  const [ballCount, setBallCount] = useState(0);
+  const [isDropping, setIsDropping] = useState(false);
+  const [balls, setBalls] = useState<Array<{ id: number; x: number; y: number; color: string }>>([]);
+  const [pegHits, setPegHits] = useState<number>(0);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const ballsRef = useRef<Ball[]>([]);
-  const autoTimeoutRef = useRef<number | null>(null);
-  const isAutoRef = useRef(false);
-  const remainingRoundsRef = useRef(0);
-  const activeBallCountRef = useRef(0);
-  const lastManualDropAtRef = useRef(0);
+  const ballsRef = useRef<Array<{ x: number; y: number; vx: number; vy: number; color: string; trail: Array<{ x: number; y: number }> }>>([]);
+  const animationRef = useRef<number>();
+  const autoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const ballIdRef = useRef(0);
 
-  const multipliers = useMemo(() => PAYOUTS[rows][risk], [rows, risk]);
   const { getStats, recordBet } = useLocalGameStats('plinko');
   const stats = getStats();
 
-  const spawnBall = useCallback(() => {
-    if (ballsRef.current.length >= MAX_ACTIVE_BALLS) {
-      return false;
-    }
-    const startX = canvasRef.current ? canvasRef.current.width / 2 : 320;
-    ballsRef.current.push({
-      x: startX + (Math.random() - 0.5) * 4,
-      y: 24,
-      vx: 0,
-      vy: 0,
-      row: 0,
-      trail: [],
-    });
-    setActiveBallCount(ballsRef.current.length);
-    return true;
-  }, []);
+  const multipliers = useMemo(() => MULTIPLIERS[rows][risk], [rows, risk]);
+
+  const canDrop = !isDropping && balance >= bet;
 
   const dropBall = useCallback(() => {
-    autoTimeoutRef.current = null;
-    if (remainingRoundsRef.current <= 0) {
-      return;
-    }
+    if (!canDrop) return;
 
-    if (subtractBalance(bet)) {
-      const spawned = spawnBall();
-      if (!spawned) {
-        addBalance(bet);
-        return;
-      }
+    const cost = bet;
+    if (!subtractBalance(cost)) return;
 
-      if (remainingRoundsRef.current > 1) {
-        remainingRoundsRef.current -= 1;
-        setRemainingRounds(remainingRoundsRef.current);
+    setIsDropping(true);
+    setLastResult(null);
+    setPegHits(0);
+
+    const newBall = {
+      id: ballIdRef.current++,
+      x: 280 + (Math.random() - 0.5) * 20,
+      y: 30,
+      color: BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)],
+    };
+    
+    ballsRef.current = [{ x: newBall.x, y: newBall.y, vx: 0, vy: 0, color: newBall.color, trail: [] }];
+    setBalls([newBall]);
+    setBallCount(prev => prev + 1);
+
+    const evaluateAfterDelay = () => {
+      const multiplier = multipliers[Math.floor(Math.random() * multipliers.length)];
+      const payout = Math.round(bet * multiplier);
+      
+      addBalance(payout);
+      setLastResult({ multiplier, payout });
+      
+      if (payout > bet * 2) {
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+
+        logBetActivity({
+          gameKey: 'plinko',
+          wager: bet,
+          payout,
+          multiplier,
+          outcome: 'win',
+          detail: `Hit ${multiplier}x`,
+        });
+        recordBet(bet, payout, true);
       } else {
-        isAutoRef.current = false;
-        remainingRoundsRef.current = 0;
-        setIsAuto(false);
-        setRemainingRounds(0);
+        logBetActivity({
+          gameKey: 'plinko',
+          wager: bet,
+          payout: 0,
+          multiplier: 0,
+          outcome: 'loss',
+          detail: `Hit ${multiplier}x`,
+        });
+        recordBet(bet, 0, false);
       }
-    } else {
-      isAutoRef.current = false;
-      remainingRoundsRef.current = 0;
-      setIsAuto(false);
-      setRemainingRounds(0);
-    }
-  }, [addBalance, bet, spawnBall, subtractBalance]);
 
-  const dropManualBall = useCallback(() => {
-    const now = Date.now();
-    if (now - lastManualDropAtRef.current < 180) {
-      return;
-    }
+      setIsDropping(false);
 
-    if (autoTimeoutRef.current !== null) {
-      window.clearTimeout(autoTimeoutRef.current);
-      autoTimeoutRef.current = null;
-    }
-
-    isAutoRef.current = false;
-    remainingRoundsRef.current = 0;
-    setIsAuto(false);
-    setAutoArmed(false);
-    setRemainingRounds(0);
-
-    if (subtractBalance(bet)) {
-      const spawned = spawnBall();
-      if (!spawned) {
-        addBalance(bet);
-        return;
-      }
-      lastManualDropAtRef.current = now;
-    }
-  }, [addBalance, bet, spawnBall, subtractBalance]);
-
-  const stopAuto = useCallback(() => {
-    if (autoTimeoutRef.current !== null) {
-      window.clearTimeout(autoTimeoutRef.current);
-      autoTimeoutRef.current = null;
-    }
-    setAutoArmed(false);
-    isAutoRef.current = false;
-    remainingRoundsRef.current = 0;
-    setIsAuto(false);
-    setRemainingRounds(0);
-  }, []);
-
-  useEffect(() => {
-    isAutoRef.current = isAuto;
-  }, [isAuto]);
-
-  useEffect(() => {
-    remainingRoundsRef.current = remainingRounds;
-  }, [remainingRounds]);
-
-  useEffect(() => {
-    if (isAuto && remainingRounds > 0) {
-      const interval = isFast ? 100 : 500;
-      if (autoTimeoutRef.current !== null) {
-        window.clearTimeout(autoTimeoutRef.current);
-      }
-      autoTimeoutRef.current = window.setTimeout(dropBall, interval);
-      return () => {
-        if (autoTimeoutRef.current !== null) {
-          window.clearTimeout(autoTimeoutRef.current);
-          autoTimeoutRef.current = null;
+      if (isAuto && autoCount > 0) {
+        setAutoCount(prev => prev - 1);
+        if (autoCount - 1 <= 0) {
+          setIsAuto(false);
         }
-      };
-    }
-    return undefined;
-  }, [isAuto, remainingRounds, dropBall, isFast]);
+      }
+    };
 
-  const startAuto = () => {
-    const rounds = Math.min(MAX_AUTO_BALLS, Math.max(1, autoRounds));
-    setAutoArmed(true);
-    isAutoRef.current = true;
-    remainingRoundsRef.current = rounds;
-    setIsAuto(true);
-    setRemainingRounds(rounds);
-    setAutoRounds(rounds);
+    setTimeout(evaluateAfterDelay, 2000);
+  }, [canDrop, bet, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet]);
+
+  useGameHotkeys({
+    onBet: dropBall,
+    isDisabled: !canDrop,
+  });
+
+  useEffect(() => {
+    if (isAuto && autoCount > 0 && !isDropping) {
+      autoTimerRef.current = setTimeout(dropBall, 300);
+    }
+    return () => {
+      if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
+    };
+  }, [isAuto, autoCount, isDropping, dropBall]);
+
+  const toggleAuto = () => {
+    if (isAuto) {
+      setIsAuto(false);
+      setAutoCount(10);
+    } else {
+      setIsAuto(true);
+      setAutoCount(10);
+    }
   };
 
-  useEffect(() => {
-    return () => {
-      if (autoTimeoutRef.current !== null) {
-        window.clearTimeout(autoTimeoutRef.current);
-      }
-    };
-  }, []);
+  const getRiskColor = (r: RiskLevel) => {
+    switch (r) {
+      case 'low': return 'text-green-400';
+      case 'medium': return 'text-yellow-400';
+      case 'high': return 'text-red-400';
+    }
+  };
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationFrameId: number;
-
-    const topOffset = 70;
-    const verticalGap = rows <= 10 ? 34 : rows <= 14 ? 28 : 24;
-    const pegGap = rows <= 10 ? 38 : rows <= 14 ? 32 : 28;
-    const pegRadius = rows <= 10 ? 4 : 4.25;
-    const bucketHeight = 34;
-    const lastRowY = topOffset + rows * verticalGap;
-    const bucketWidth = pegGap;
-    const totalBuckets = rows + 1;
-    const boardWidth = totalBuckets * bucketWidth;
-    const bucketStartX = (canvas.width - boardWidth) / 2;
-
-    const render = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      for (let row = 0; row < rows; row++) {
-        const rowY = topOffset + row * verticalGap;
-        const pegsInRow = row + 3;
-        const rowWidth = (pegsInRow - 1) * pegGap;
-        const rowStartX = (canvas.width - rowWidth) / 2;
-
-        for (let i = 0; i < pegsInRow; i++) {
-          ctx.beginPath();
-          ctx.arc(rowStartX + i * pegGap, rowY, pegRadius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      multipliers.forEach((multiplierValue, index) => {
-        const x = bucketStartX + index * bucketWidth;
-        const activeBucket = index === lastBucket;
-        ctx.fillStyle = activeBucket
-          ? 'rgba(0, 255, 136, 0.22)'
-          : multiplierValue >= 1 ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)';
-        ctx.fillRect(x + 1, lastRowY, bucketWidth - 2, bucketHeight);
-        ctx.fillStyle = activeBucket ? '#ffffff' : multiplierValue >= 1 ? '#00FF88' : 'rgba(255, 255, 255, 0.4)';
-        const label = multiplierValue >= 10 ? `${multiplierValue}x` : `${Number(multiplierValue.toFixed(2))}x`;
-        ctx.font = `${rows >= 14 ? 8 : 9}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText(label, x + bucketWidth / 2, lastRowY + 21);
-      });
-
-      const steps = isFast ? (rows >= 14 ? 6 : 4) : rows >= 14 ? 4 : 3;
-      for (let step = 0; step < steps; step++) {
-        ballsRef.current = ballsRef.current.filter((ball) => {
-          ball.vy += 0.16 / steps;
-          ball.vx *= 0.992;
-          ball.vy *= 0.998;
-          ball.x += ball.vx / steps;
-          ball.y += ball.vy / steps;
-
-          if (ball.row < rows) {
-            const rowY = topOffset + ball.row * verticalGap;
-            if (ball.y >= rowY - (pegRadius + 4)) {
-              const pegsInRow = ball.row + 3;
-              const rowWidth = (pegsInRow - 1) * pegGap;
-              const rowStartX = (canvas.width - rowWidth) / 2;
-              const pegIndex = Math.max(0, Math.min(pegsInRow - 1, Math.round((ball.x - rowStartX) / pegGap)));
-              const pegX = rowStartX + pegIndex * pegGap;
-              const direction = ball.x >= pegX ? 1 : -1;
-              const horizontalKick = (rows >= 14 ? 1.05 : 1.2) + Math.random() * 0.45;
-
-              ball.x = pegX + direction * (pegRadius + 6);
-              ball.vx = direction * horizontalKick;
-              ball.vy = -0.42 - Math.random() * 0.16;
-              ball.y = rowY - (pegRadius + 7);
-              ball.row++;
-            }
-          }
-
-          if (ball.x < 40 || ball.x > canvas.width - 40) {
-            ball.vx *= -0.82;
-            ball.x = Math.max(40, Math.min(canvas.width - 40, ball.x));
-          }
-
-          if (ball.y >= lastRowY) {
-            const bucketIndex = Math.floor((ball.x - bucketStartX) / bucketWidth);
-            const safeIndex = Math.max(0, Math.min(multipliers.length - 1, bucketIndex));
-            const hitMultiplier = multipliers[safeIndex];
-            setLastBucket(safeIndex);
-
-            const payout = bet * hitMultiplier;
-            addBalance(payout);
-            logBetActivity({
-              gameKey: 'plinko',
-              wager: bet,
-              payout,
-              multiplier: hitMultiplier,
-              outcome: payout > bet ? 'win' : payout === bet ? 'push' : 'loss',
-              detail: `${risk} risk, ${rows} rows, bucket ${safeIndex + 1}`,
-            });
-            recordBet(bet, payout, payout > bet);
-
-            if (hitMultiplier >= 2) {
-              confetti({
-                particleCount: hitMultiplier >= 50 ? 150 : hitMultiplier >= 10 ? 80 : 30,
-                spread: hitMultiplier >= 50 ? 100 : 50,
-                origin: { x: ball.x / canvas.width, y: ball.y / canvas.height },
-                colors: hitMultiplier >= 50 ? ['#FFD700', '#FFA500', '#00FF88'] : ['#00FF88'],
-              });
-            }
-            return false;
-          }
-
-          if (step === steps - 1) {
-            ball.trail.push({ x: ball.x, y: ball.y });
-            if (ball.trail.length > 10) {
-              ball.trail.shift();
-            }
-          }
-
-          return true;
-        });
-      }
-
-      if (activeBallCountRef.current !== ballsRef.current.length) {
-        activeBallCountRef.current = ballsRef.current.length;
-        setActiveBallCount(ballsRef.current.length);
-      }
-
-      ballsRef.current.forEach((ball) => {
-        ball.trail.forEach((pos, index) => {
-          const opacity = (index / ball.trail.length) * 0.5;
-          ctx.fillStyle = `rgba(0, 255, 136, ${opacity})`;
-          ctx.beginPath();
-          ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
-          ctx.fill();
-        });
-
-        const glow = ctx.createRadialGradient(ball.x, ball.y, 2, ball.x, ball.y, 12);
-        glow.addColorStop(0, '#d6ffea');
-        glow.addColorStop(1, 'rgba(0, 255, 136, 0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, 12, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#00FF88';
-        ctx.shadowBlur = 18;
-        ctx.shadowColor = '#00FF88';
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      });
-
-      animationFrameId = requestAnimationFrame(render);
-    };
-
-    render();
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [addBalance, bet, isFast, lastBucket, multipliers, risk, rows]);
+  const getMultiplierColor = (m: number) => {
+    if (m >= 100) return 'text-red-400';
+    if (m >= 10) return 'text-yellow-400';
+    if (m >= 1) return 'text-green-400';
+    return 'text-white/40';
+  };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} disabled={isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
-            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isAuto} />
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Risk</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['easy', 'medium', 'hard'] as RiskTier[]).map((tier) => (
-                <button
-                  key={tier}
-                  onClick={() => setRisk(tier)}
-                  disabled={isAuto}
-                  className={cn(
-                    'py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
-                    risk === tier ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/40 hover:text-white'
-                  )}
-                >
-                  {tier}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Rows</label>
-            <div className="grid grid-cols-3 gap-2">
-              {ROW_OPTIONS.map((rowCount) => (
-                <button
-                  key={rowCount}
-                  onClick={() => setRows(rowCount)}
-                  disabled={isAuto}
-                  className={cn(
-                    'py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
-                    rows === rowCount ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/40 hover:text-white'
-                  )}
-                >
-                  {rowCount}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => setIsFast(!isFast)}
-              className={cn(
-                'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
-                isFast ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50' : 'bg-white/5 text-white/20 border border-transparent'
-              )}
-            >
-              <Zap size={12} fill={isFast ? 'currentColor' : 'none'} />
-              FAST
-            </button>
-            <button
-              onClick={() => {
-                if (isAuto) {
-                  stopAuto();
-                  return;
-                }
-                setAutoArmed((current) => !current);
-              }}
-              className={cn(
-                'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
-                autoArmed || isAuto ? 'bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50' : 'bg-white/5 text-white/20 border border-transparent'
-              )}
-            >
-              <RotateCcw size={12} className={isAuto ? 'animate-spin' : ''} />
-              AUTO
-            </button>
-          </div>
-
-          {(autoArmed || isAuto) && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-[10px] uppercase tracking-widest text-white/20">
-                <span>Rounds</span>
-                <span>{isAuto ? `${remainingRounds} left` : `${autoRounds} queued`}</span>
-              </div>
+    <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 p-4 max-w-6xl mx-auto">
+      <div className="lg:col-span-1 space-y-4">
+        <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-5">
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
               <input
                 type="number"
-                value={autoRounds}
-                min={1}
-                max={MAX_AUTO_BALLS}
-                onChange={(e) => setAutoRounds(Math.min(MAX_AUTO_BALLS, Math.max(1, Number(e.target.value))))}
+                value={bet}
+                onChange={(e) => setBet(Math.max(10, Number(e.target.value)))}
                 disabled={isAuto}
-                className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#00FF88]/50"
+                className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50"
               />
-              <div className="text-[10px] text-white/25">Max {MAX_AUTO_BALLS} queued balls.</div>
+              <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isAuto} />
             </div>
-          )}
 
-          <button
-            onClick={isAuto ? stopAuto : autoArmed ? startAuto : dropManualBall}
-            disabled={balance < bet && !isAuto}
-            className={cn(
-              'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
-              isAuto ? 'bg-red-500 text-white' : autoArmed ? 'bg-white text-black' : 'bg-[#00FF88] text-black'
-            )}
-          >
-            {isAuto ? (
-              <>
-                <Timer size={18} />
-                STOP AUTO
-              </>
-            ) : autoArmed ? (
-              <>
-                <Play size={18} fill="currentColor" />
-                START AUTO
-              </>
-            ) : (
-              <>
-                <Play size={18} fill="currentColor" />
-                DROP BALL
-              </>
-            )}
-          </button>
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Rows</label>
+              <div className="grid grid-cols-5 gap-1">
+                {ROW_COUNTS.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRows(r)}
+                    disabled={isAuto}
+                    className={cn(
+                      'py-2 rounded-lg text-xs font-black transition-all',
+                      rows === r 
+                        ? 'bg-[#00FF88] text-black' 
+                        : 'bg-white/5 text-white/40 hover:text-white'
+                    )}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Risk</label>
+              <div className="grid grid-cols-3 gap-1">
+                {(['low', 'medium', 'high'] as RiskLevel[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRisk(r)}
+                    disabled={isAuto}
+                    className={cn(
+                      'py-2 rounded-lg text-[10px] font-black uppercase transition-all',
+                      risk === r 
+                        ? getRiskColor(r) + ' bg-white/10 border border-' + r 
+                        : 'bg-white/5 text-white/40 hover:text-white'
+                    )}
+                    style={{
+                      borderColor: risk === r ? (r === 'low' ? '#4ade80' : r === 'medium' ? '#facc15' : '#f87171') : 'transparent'
+                    }}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={toggleAuto}
+              disabled={isDropping}
+              className={cn(
+                'w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2',
+                isAuto 
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/50' 
+                  : 'bg-white/10 text-white/60 border border-white/10 hover:bg-white/20'
+              )}
+            >
+              <RotateCcw size={16} className={isAuto ? 'animate-spin' : ''} />
+              {isAuto ? `Auto (${autoCount})` : 'Auto Play'}
+            </button>
+
+            <button
+              onClick={dropBall}
+              disabled={!canDrop}
+              className={cn(
+                'w-full py-4 rounded-xl font-black text-lg uppercase tracking-wider transition-all flex items-center justify-center gap-2',
+                isAuto || isDropping
+                  ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+                  : 'bg-[#00FF88] hover:bg-[#00FF88]/90 text-black shadow-lg shadow-[#00FF88]/30',
+                !canDrop && 'opacity-50'
+              )}
+            >
+              {isDropping ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1 }}
+                >
+                  <Zap size={20} />
+                </motion.div>
+              ) : (
+                <Play size={20} fill="currentColor" />
+              )}
+              {isDropping ? 'Dropping...' : 'Drop Ball'}
+            </button>
+          </div>
         </div>
 
-        <div className="mt-auto space-y-3">
-          <div className="p-4 border border-white/5 rounded-xl bg-black/30">
-            <div className="flex items-center gap-2 text-white/40 text-xs mb-3">
-              <Settings2 size={14} />
-              <span>GAME SETTINGS</span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-[10px]"><span className="text-white/20 uppercase">Risk</span><span className="text-white/60">{risk.toUpperCase()}</span></div>
-              <div className="flex justify-between text-[10px]"><span className="text-white/20 uppercase">Rows</span><span className="text-white/60">{rows}</span></div>
-              <div className="flex justify-between text-[10px]"><span className="text-white/20 uppercase">Max Win</span><span className="text-[#00FF88]">{Math.max(...multipliers)}x</span></div>
-              <div className="flex justify-between text-[10px]"><span className="text-white/20 uppercase">Active Balls</span><span className="text-white/60">{activeBallCount}/{MAX_ACTIVE_BALLS}</span></div>
-            </div>
+        <GameStatsBar stats={[
+          { label: 'Drops', value: String(stats.totalBets) },
+          { label: 'Wins', value: String(stats.totalWins) },
+          { label: 'Biggest', value: `${stats.biggestWin.toFixed(1)}x` },
+          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+        ]} />
+
+        <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-4">
+          <div className="text-[10px] uppercase tracking-widest text-white/40 mb-3">Payouts</div>
+          <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
+            {multipliers.map((m, i) => (
+              <div 
+                key={i} 
+                className={cn(
+                  'text-center py-1 rounded text-[10px] font-black',
+                  getMultiplierColor(m)
+                )}
+              >
+                {m.toFixed(1)}x
+              </div>
+            ))}
           </div>
-          <GameStatsBar stats={[
-            { label: 'Bets', value: String(stats.totalBets) },
-            { label: 'Wins', value: String(stats.totalWins) },
-            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
-          ]} />
         </div>
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-4 flex items-center justify-center overflow-hidden">
-        <canvas ref={canvasRef} width={640} height={540} className="max-w-full h-auto" />
+      <div className="lg:col-span-4">
+        <div className="relative bg-gradient-to-b from-[#1a1d23] to-[#0a0a0a] border border-white/10 rounded-3xl p-6 overflow-hidden min-h-[500px]">
+          <div className="absolute inset-0 opacity-5" style={{
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
+            `,
+            backgroundSize: '25px 25px'
+          }} />
+
+          <AnimatePresence>
+            {lastResult && (
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                className="absolute top-4 left-1/2 -translate-x-1/2 z-30"
+              >
+                <div className={cn(
+                  'px-8 py-4 rounded-2xl border backdrop-blur-md',
+                  lastResult.payout > bet 
+                    ? 'bg-green-500/20 border-green-500/50 shadow-lg shadow-green-500/30' 
+                    : 'bg-red-500/20 border-red-500/50'
+                )}>
+                  <div className="text-center">
+                    <div className={cn('text-3xl font-black', getMultiplierColor(lastResult.multiplier))}>
+                      {lastResult.multiplier.toFixed(1)}x
+                    </div>
+                    <div className="text-lg font-black text-white mt-1">
+                      {lastResult.payout > bet ? '+' : '-'}$
+                      {Math.abs(lastResult.payout / 100).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="relative z-10">
+            <div className="text-center mb-4">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-black">PLINKO</div>
+              <div className="text-3xl font-black italic text-white mt-1">
+                <span className="text-blue-400">DROP</span>
+                <span className="text-white/60"> </span>
+                <span className="text-green-400">MULTIPLIERS</span>
+              </div>
+            </div>
+
+            <div className="flex justify-center gap-4 mb-4">
+              {['low', 'medium', 'high'].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRisk(r as RiskLevel)}
+                  disabled={isAuto}
+                  className={cn(
+                    'px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all',
+                    risk === r 
+                      ? getRiskColor(r as RiskLevel) + ' bg-white/10 border'
+                      : 'text-white/30 border border-transparent'
+                  )}
+                  style={{ borderColor: risk === r ? (r === 'low' ? '#4ade80' : r === 'medium' ? '#facc15' : '#f87171') : 'transparent' }}
+                >
+                  {r}
+                </button>
+              ))}
+              <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider text-white/40">
+                {rows} rows
+              </span>
+            </div>
+
+            <div className="relative aspect-[16/9] max-w-xl mx-auto bg-[#0a0a0a] rounded-2xl border border-white/10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-b from-[#0f1923] to-[#0a0a0a]" />
+
+              <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white/5 to-transparent" />
+
+              <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black/80 to-transparent" />
+
+              {multipliers.map((m, i) => {
+                const width = 100 / multipliers.length;
+                const isEdge = i === 0 || i === multipliers.length - 1;
+                const isCenter = i === Math.floor(multipliers.length / 2);
+                return (
+                  <div
+                    key={i}
+                    className="absolute bottom-2 h-8 flex items-center justify-center"
+                    style={{
+                      left: `${i * width}%`,
+                      width: `${width}%`,
+                    }}
+                  >
+                    <div className={cn(
+                      'text-[10px] font-black px-1 py-0.5 rounded',
+                      m >= 10 ? 'bg-red-500/20 text-red-400' :
+                      m >= 1 ? 'bg-green-500/20 text-green-400' :
+                      'bg-white/5 text-white/40'
+                    )}>
+                      {m.toFixed(1)}x
+                    </div>
+                  </div>
+                );
+              })}
+
+              {isDropping && ballsRef.current[0] && (
+                <motion.div
+                  initial={{ y: 30, opacity: 0 }}
+                  animate={{ y: 280, opacity: 1 }}
+                  transition={{ duration: 2, ease: 'easeIn' }}
+                  className="absolute left-1/2 -translate-x-1/2 w-4 h-4 rounded-full shadow-lg"
+                  style={{ 
+                    backgroundColor: ballsRef.current[0]?.color || '#fff',
+                    boxShadow: `0 0 15px ${ballsRef.current[0]?.color || '#fff'}`
+                  }}
+                />
+              )}
+
+              {Array.from({ length: rows }).map((_, rowIndex) => {
+                const pegsInRow = rowIndex + 3;
+                const rowY = 50 + rowIndex * 28;
+                const pegSpacing = 280 / (rows + 1);
+                const startX = (560 - (pegsInRow - 1) * pegSpacing) / 2;
+                
+                return Array.from({ length: pegsInRow }).map((_, pegIndex) => (
+                  <div
+                    key={`${rowIndex}-${pegIndex}`}
+                    className="absolute w-2 h-2 rounded-full bg-white/30 shadow-[0_0_8px_rgba(255,255,255,0.3)]"
+                    style={{
+                      left: startX + pegIndex * pegSpacing,
+                      top: rowY,
+                    }}
+                  />
+                ));
+              })}
+
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/10 text-6xl font-black uppercase tracking-widest">
+                DROP
+              </div>
+            </div>
+
+            <div className="flex justify-center items-center gap-4 mt-4">
+              <div className="text-center">
+                <div className="text-[10px] uppercase tracking-widest text-white/30">Max Win</div>
+                <div className="text-2xl font-black text-green-400">{Math.max(...multipliers).toFixed(1)}x</div>
+              </div>
+              <div className="w-px h-10 bg-white/10" />
+              <div className="text-center">
+                <div className="text-[10px] uppercase tracking-widest text-white/30">Min Win</div>
+                <div className="text-2xl font-black text-white/40">{Math.min(...multipliers).toFixed(1)}x</div>
+              </div>
+              <div className="w-px h-10 bg-white/10" />
+              <div className="text-center">
+                <div className="text-[10px] uppercase tracking-widest text-white/30">Balls</div>
+                <div className="text-2xl font-black text-blue-400">{ballCount}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="absolute bottom-4 right-4 text-[10px] text-white/20">
+            Press SPACE to drop
+          </div>
+        </div>
       </div>
     </div>
   );
