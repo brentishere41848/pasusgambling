@@ -7,10 +7,38 @@
     <link rel="shortcut icon" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Pasus</title>
-    <script type="module" crossorigin src="/assets/index-B69KsQwN.js"></script>
+    
+    <!-- Featurebase Feedback/Support Widget -->
+    <script>
+      !(function(e,t){var a="featurebase-sdk";function n(){if(!t.getElementById(a)){var e=t.createElement("script");(e.id=a),(e.src="https://do.featurebase.app/js/sdk.js"),t.getElementsByTagName("script")[0].parentNode.insertBefore(e,t.getElementsByTagName("script")[0])}};"function"!=typeof e.Featurebase&&(e.Featurebase=function(){(e.Featurebase.q=e.Featurebase.q||[]).push(arguments)}),"complete"===t.readyState||"interactive"===t.readyState?n():t.addEventListener("DOMContentLoaded",n)})(window,document);
+    </script>
+    <script type="module" crossorigin src="/assets/index-C5ESRlxP.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-SHJgS-4c.css">
   </head>
   <body>
     <div id="root"></div>
+    
+    <!-- Initialize Featurebase with user data if logged in -->
+    <script>
+      // This will be called when the user logs in or on page load
+      window.initFeaturebase = function(userData) {
+        if (userData && userData.email) {
+          Featurebase("boot", {
+            appId: "69c1b44485cadc7c01d5c697",
+            email: userData.email,
+            userId: userData.id,
+            createdAt: userData.createdAt,
+            theme: "dark",
+            language: "en"
+          });
+        } else {
+          Featurebase("boot", {
+            appId: "69c1b44485cadc7c01d5c697",
+            theme: "dark",
+            language: "en"
+          });
+        }
+      };
+    </script>
   </body>
 </html>

@@ -5885,10 +5885,25 @@ const AppContent = () => {
     xp: number;
     xpToNextLevel: number;
   }>({ canClaim: false, streak: 0, level: 1, xp: 0, xpToNextLevel: 0 });
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPFOpen, setIsPFOpen] = useState(false);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (window.initFeaturebase) {
+      if (isAuthenticated && user) {
+        window.initFeaturebase({
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          createdAt: new Date().toISOString()
+        });
+      } else {
+        window.initFeaturebase(null);
+      }
+    }
+  }, [isAuthenticated, user]);
 
   const navigateTo = useCallback((path: string, gameId: string | null, view: MainView) => {
     if (window.location.pathname !== path) {
