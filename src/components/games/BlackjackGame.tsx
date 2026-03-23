@@ -325,12 +325,14 @@ export const BlackjackGame: React.FC = () => {
 
     resolvedHands.forEach((hand, idx) => {
       const pScore = calculateScore(hand.cards);
+      const playerBusted = pScore > 21;
+      const playerBlackjack = pScore === 21 && hand.cards.length === 2;
 
-      if (hand.status === 'bust') {
+      if (playerBusted) {
         newMessages.push({ hand: idx, text: 'Bust!', won: false });
-        logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout: 0, multiplier: 0, outcome: 'loss', detail: 'Bust' });
+        logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout: 0, multiplier: 0, outcome: 'loss', detail: 'Player bust' });
         recordBet(hand.bet, 0, false);
-      } else if (hand.status === 'blackjack' && !dealerBlackjack) {
+      } else if (playerBlackjack && !dealerBlackjack) {
         const payout = hand.bet * 3;
         addBalance(payout);
         totalProfit += payout - hand.bet;
@@ -360,7 +362,8 @@ export const BlackjackGame: React.FC = () => {
       } else {
         addBalance(hand.bet);
         newMessages.push({ hand: idx, text: 'Push', won: false });
-        logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout: hand.bet, multiplier: 1, outcome: 'push', detail: 'Push' });
+        logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout: hand.bet, multiplier: 1, outcome: 'push', detail: 'Tie score' });
+        recordBet(hand.bet, hand.bet, true);
       }
     });
 
