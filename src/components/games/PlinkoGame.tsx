@@ -368,8 +368,8 @@ export const PlinkoGame: React.FC = () => {
               </span>
             </div>
 
-            <div className="relative aspect-[16/9] max-w-xl mx-auto bg-[#0a0a0a] rounded-2xl border border-white/10 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-b from-[#0f1923] to-[#0a0a0a]" />
+            <div className="relative aspect-[4/3] max-w-lg mx-auto bg-gradient-to-b from-[#0f1923] to-[#080b12] rounded-2xl border border-white/10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent" />
 
               <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white/5 to-transparent" />
 
@@ -377,20 +377,18 @@ export const PlinkoGame: React.FC = () => {
 
               {multipliers.map((m, i) => {
                 const width = 100 / multipliers.length;
-                const isEdge = i === 0 || i === multipliers.length - 1;
-                const isCenter = i === Math.floor(multipliers.length / 2);
                 return (
                   <div
                     key={i}
-                    className="absolute bottom-2 h-8 flex items-center justify-center"
+                    className="absolute bottom-1 h-10 flex items-center justify-center"
                     style={{
                       left: `${i * width}%`,
                       width: `${width}%`,
                     }}
                   >
                     <div className={cn(
-                      'text-[10px] font-black px-1 py-0.5 rounded',
-                      m >= 10 ? 'bg-red-500/20 text-red-400' :
+                      'text-xs font-black px-1 py-0.5 rounded',
+                      m >= 10 ? 'bg-red-500/30 text-red-400' :
                       m >= 1 ? 'bg-green-500/20 text-green-400' :
                       'bg-white/5 text-white/40'
                     )}>
@@ -402,38 +400,40 @@ export const PlinkoGame: React.FC = () => {
 
               {isDropping && ballsRef.current[0] && (
                 <motion.div
-                  initial={{ y: 30, opacity: 0 }}
-                  animate={{ y: 280, opacity: 1 }}
-                  transition={{ duration: 2, ease: 'easeIn' }}
-                  className="absolute left-1/2 -translate-x-1/2 w-4 h-4 rounded-full shadow-lg"
+                  initial={{ y: 30, x: 0 }}
+                  animate={{ y: 320, x: Math.random() * 40 - 20 }}
+                  transition={{ duration: 1.5, ease: 'easeIn' }}
+                  className="absolute left-1/2 -translate-x-1/2 w-5 h-5 rounded-full shadow-lg"
                   style={{ 
                     backgroundColor: ballsRef.current[0]?.color || '#fff',
-                    boxShadow: `0 0 15px ${ballsRef.current[0]?.color || '#fff'}`
+                    boxShadow: `0 0 20px ${ballsRef.current[0]?.color || '#fff'}`
                   }}
                 />
               )}
 
-              {Array.from({ length: rows }).map((_, rowIndex) => {
-                const pegsInRow = rowIndex + 3;
-                const rowY = 50 + rowIndex * 28;
-                const pegSpacing = 280 / (rows + 1);
-                const startX = (560 - (pegsInRow - 1) * pegSpacing) / 2;
+              {!isDropping && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-5xl font-black uppercase tracking-widest">
+                  DROP
+                </div>
+              )}
+
+              {Array.from({ length: Math.min(rows, 12) }).map((_, rowIndex) => {
+                const pegsInRow = rowIndex + 4;
+                const rowY = 40 + rowIndex * 26;
+                const pegSpacing = 300 / (pegsInRow + 1);
+                const startX = (300 - (pegsInRow - 1) * pegSpacing) / 2;
                 
                 return Array.from({ length: pegsInRow }).map((_, pegIndex) => (
                   <div
                     key={`${rowIndex}-${pegIndex}`}
-                    className="absolute w-2 h-2 rounded-full bg-white/30 shadow-[0_0_8px_rgba(255,255,255,0.3)]"
+                    className="absolute w-2.5 h-2.5 rounded-full bg-gradient-to-br from-white/40 to-white/10 shadow-[0_0_6px_rgba(255,255,255,0.2)]"
                     style={{
-                      left: startX + pegIndex * pegSpacing,
+                      left: `calc(50% - 150px + ${startX + pegIndex * pegSpacing}px)`,
                       top: rowY,
                     }}
                   />
                 ));
               })}
-
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/10 text-6xl font-black uppercase tracking-widest">
-                DROP
-              </div>
             </div>
 
             <div className="flex justify-center items-center gap-4 mt-4">
