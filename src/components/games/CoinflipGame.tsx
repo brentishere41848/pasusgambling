@@ -1,41 +1,47 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
-import { Play, RotateCcw, Timer, Zap } from 'lucide-react';
+import { Play, RotateCcw, X, Zap, Award } from 'lucide-react';
 import { logBetActivity } from '../../lib/activity';
 import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import confetti from 'canvas-confetti';
 
 type CoinSide = 'heads' | 'tails';
 
-const HOUSE_EDGE_MULTIPLIER = 1.96;
-const PLAYER_WIN_CHANCE = 0.46;
+const MULTIPLIERS = [2, 2.2, 2.5, 3, 5, 10, 20, 50, 100];
+const MAX_STREAK = MULTIPLIERS.length;
 
 export const CoinflipGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(100);
   const [selectedSide, setSelectedSide] = useState<CoinSide>('heads');
   const [result, setResult] = useState<CoinSide | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
-  const [isAuto, setIsAuto] = useState(false);
-  const [isFast, setIsFast] = useState(false);
-  const [autoRounds, setAutoRounds] = useState(10);
-  const [remainingRounds, setRemainingRounds] = useState(0);
+  const [currentMultiplier, setCurrentMultiplier] = useState(2);
+  const [streak, setStreak] = useState(0);
+  const [pendingWin, setPendingWin] = useState(0);
+  const [showGamble, setShowGamble] = useState(false);
+  const [lastWonAmount, setLastWonAmount] = useState(0);
   const [coinRotation, setCoinRotation] = useState(0);
-  const isAutoRef = useRef(false);
-  const remainingRoundsRef = useRef(0);
+  const [isFast, setIsFast] = useState(false);
+  
   const { getStats, recordBet } = useLocalGameStats('coinflip');
   const stats = getStats();
 
-  const stopAuto = () => { setIsAuto(false); setRemainingRounds(0); isAutoRef.current = false; remainingRoundsRef.current = 0; };
-  useEffect(() => { isAutoRef.current = isAuto; }, [isAuto]);
-  useEffect(() => { remainingRoundsRef.current = remainingRounds; }, [remainingRounds]);
-
   const runFlip = useCallback(() => {
-    if (!subtractBalance(bet)) { stopAuto(); return; }
+    if (!subtractBalance(bet)) return;
+    
     setIsFlipping(true);
-    const didWinRoll = Math.random() < PLAYER_WIN_CHANCE;
-    const landed: CoinSide = didWinRoll ? selectedSide : selectedSide === 'heads' ? 'tails' : 'heads';
+    setResult(null);
+    setShowGamble(false);
+    setPendingWin(0);
+    setStreak(0);
+    setCurrentMultiplier(2);
+
+    const didWin = Math.random() < 0.5;
+    const landed: CoinSide = didWin ? selectedSide : selectedSide === 'heads' ? 'tails' : 'heads';
+    
     const extraSpins = isFast ? 6 : 9;
     const targetFaceRotation = landed === 'heads' ? 0 : 180;
     setCoinRotation((current) => {
@@ -43,43 +49,108 @@ export const CoinflipGame: React.FC = () => {
       const deltaToTarget = ((targetFaceRotation - normalizedCurrent) + 360) % 360;
       return current + extraSpins * 360 + deltaToTarget;
     });
-    setResult(null);
+
     const duration = isFast ? 450 : 1100;
 
     window.setTimeout(() => {
-      const didWin = landed === selectedSide;
       setResult(landed);
+      setIsFlipping(false);
+
       if (didWin) {
-        const payout = Math.round(bet * HOUSE_EDGE_MULTIPLIER);
-        addBalance(payout);
-        logBetActivity({ gameKey: 'coinflip', wager: bet, payout, multiplier: HOUSE_EDGE_MULTIPLIER, outcome: 'win', detail: `Called ${selectedSide}, landed ${landed}` });
-        recordBet(bet, payout, true);
+        const winAmount = Math.round(bet * 2);
+        addBalance(winAmount);
+        setPendingWin(winAmount);
+        setLastWonAmount(winAmount);
+        setShowGamble(true);
+        
+        logBetActivity({ gameKey: 'coinflip', wager: bet, payout: winAmount, multiplier: 2, outcome: 'win', detail: `Called ${selectedSide}, landed ${landed}` });
+        recordBet(bet, winAmount, true);
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
       } else {
         logBetActivity({ gameKey: 'coinflip', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Called ${selectedSide}, landed ${landed}` });
         recordBet(bet, 0, false);
       }
-      setIsFlipping(false);
-      if (isAutoRef.current && remainingRoundsRef.current > 1) setRemainingRounds(prev => prev - 1);
-      else if (isAutoRef.current) stopAuto();
     }, duration);
   }, [addBalance, bet, isFast, selectedSide, subtractBalance, recordBet]);
 
-  useEffect(() => {
-    if (isAuto && remainingRounds > 0 && !isFlipping) {
-      const timer = window.setTimeout(runFlip, isFast ? 60 : 280);
-      return () => window.clearTimeout(timer);
+  const gambleWin = useCallback(() => {
+    if (pendingWin <= 0 || streak >= MAX_STREAK - 1) return;
+
+    const newStreak = streak + 1;
+    const newMultiplier = MULTIPLIERS[newStreak];
+    const gambleAmount = Math.round(pendingWin * (newMultiplier / MULTIPLIERS[streak]));
+
+    const didWin = Math.random() < 0.5;
+    const landed: CoinSide = didWin ? selectedSide : selectedSide === 'heads' ? 'tails' : 'heads';
+    
+    setIsFlipping(true);
+    const extraSpins = isFast ? 6 : 9;
+    const targetFaceRotation = landed === 'heads' ? 0 : 180;
+    setCoinRotation((current) => {
+      const normalizedCurrent = ((current % 360) + 360) % 360;
+      const deltaToTarget = ((targetFaceRotation - normalizedCurrent) + 360) % 360;
+      return current + extraSpins * 360 + deltaToTarget;
+    });
+
+    const duration = isFast ? 450 : 1100;
+
+    window.setTimeout(() => {
+      setResult(landed);
+      setIsFlipping(false);
+
+      if (didWin) {
+        const winAmount = gambleAmount;
+        setPendingWin(winAmount);
+        setStreak(newStreak);
+        setCurrentMultiplier(newMultiplier);
+        
+        confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
+        
+        if (newStreak === MAX_STREAK - 1) {
+          addBalance(winAmount);
+          setPendingWin(0);
+          setShowGamble(false);
+          setLastWonAmount(0);
+        }
+        
+        logBetActivity({ gameKey: 'coinflip', wager: pendingWin, payout: winAmount, multiplier: newMultiplier, outcome: 'win', detail: `Gambled ${streak + 1}x, won ${newStreak + 1}x` });
+        recordBet(pendingWin, winAmount, true);
+      } else {
+        setPendingWin(0);
+        setShowGamble(false);
+        setStreak(0);
+        setCurrentMultiplier(2);
+        
+        logBetActivity({ gameKey: 'coinflip', wager: pendingWin, payout: 0, multiplier: 0, outcome: 'loss', detail: `Gamble lost at ${newStreak + 1}x` });
+        recordBet(pendingWin, 0, false);
+      }
+    }, duration);
+  }, [isFast, pendingWin, selectedSide, streak, addBalance, recordBet]);
+
+  const collectWinnings = useCallback(() => {
+    if (pendingWin > 0) {
+      addBalance(pendingWin);
+      logBetActivity({ gameKey: 'coinflip', wager: bet, payout: pendingWin, multiplier: currentMultiplier, outcome: 'win', detail: `Collected at ${currentMultiplier}x` });
+      recordBet(bet, pendingWin, true);
     }
-  }, [isAuto, remainingRounds, isFlipping, runFlip, isFast]);
+    setPendingWin(0);
+    setShowGamble(false);
+    setStreak(0);
+    setCurrentMultiplier(2);
+    setResult(null);
+  }, [addBalance, bet, currentMultiplier, pendingWin, recordBet]);
 
-  const toggleAuto = () => {
-    if (isAuto) { stopAuto(); return; }
-    setIsAuto(true);
-    setRemainingRounds(autoRounds);
-    isAutoRef.current = true;
-    remainingRoundsRef.current = autoRounds;
-  };
-
-  useGameHotkeys({ onBet: runFlip, onStop: stopAuto, onAuto: toggleAuto, isDisabled: (balance < bet && !isAuto) || (isFlipping && !isAuto) });
+  useGameHotkeys({
+    onBet: () => {
+      if (showGamble && pendingWin > 0) {
+        gambleWin();
+      } else if (!isFlipping) {
+        runFlip();
+      }
+    },
+    onStop: collectWinnings,
+    isDisabled: isFlipping,
+  });
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
@@ -87,44 +158,100 @@ export const CoinflipGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} disabled={isFlipping || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
-            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isFlipping || isAuto} />
+            <input 
+              type="number" 
+              value={bet} 
+              onChange={(e) => setBet(Math.max(10, Number(e.target.value)))} 
+              disabled={isFlipping || showGamble} 
+              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50" 
+            />
+            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isFlipping || showGamble} />
           </div>
 
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Choose Side</label>
             <div className="grid grid-cols-2 gap-2">
               {(['heads', 'tails'] as CoinSide[]).map((side) => (
-                <button key={side} onClick={() => setSelectedSide(side)} disabled={isFlipping || isAuto} className={cn('py-3 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-all', selectedSide === side ? 'bg-white text-black' : 'bg-white/5 text-white/40 hover:text-white')}>{side}</button>
+                <button 
+                  key={side} 
+                  onClick={() => setSelectedSide(side)} 
+                  disabled={isFlipping || showGamble} 
+                  className={cn(
+                    'py-3 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-all',
+                    selectedSide === side ? 'bg-white text-black' : 'bg-white/5 text-white/40 hover:text-white'
+                  )}
+                >
+                  {side}
+                </button>
               ))}
             </div>
           </div>
 
           <div className="flex gap-2">
-            <button onClick={() => setIsFast((current) => !current)} className={cn('flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all', isFast ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50' : 'bg-white/5 text-white/20 border border-transparent')}>
+            <button 
+              onClick={() => setIsFast((current) => !current)} 
+              disabled={isFlipping}
+              className={cn(
+                'flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
+                isFast ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50' : 'bg-white/5 text-white/20 border border-transparent'
+              )}
+            >
               <Zap size={12} fill={isFast ? 'currentColor' : 'none'} />FAST
-            </button>
-            <button onClick={toggleAuto} className={cn('flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all', isAuto ? 'bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/50' : 'bg-white/5 text-white/20 border border-transparent')}>
-              <RotateCcw size={12} className={isAuto ? 'animate-spin' : ''} />AUTO
             </button>
           </div>
 
-          {isAuto && (
+          {!showGamble ? (
+            <button 
+              onClick={runFlip} 
+              disabled={(balance < bet) || isFlipping} 
+              className={cn(
+                'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
+                'bg-[#00FF88] hover:bg-[#00FF88]/90 text-black'
+              )}
+            >
+              <Play size={18} fill="currentColor" />
+              FLIP COIN
+            </button>
+          ) : (
             <div className="space-y-2">
-              <div className="flex justify-between text-[10px] uppercase tracking-widest text-white/20"><span>Rounds</span><span>{remainingRounds} left</span></div>
-              <input type="number" value={autoRounds} onChange={(e) => setAutoRounds(Math.max(1, Number(e.target.value)))} disabled={isFlipping || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#00FF88]/50" />
+              <button 
+                onClick={collectWinnings} 
+                disabled={isFlipping}
+                className="w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-black"
+              >
+                <Award size={18} />
+                COLLECT ${(pendingWin / 100).toFixed(2)}
+              </button>
+              <button 
+                onClick={gambleWin} 
+                disabled={isFlipping || streak >= MAX_STREAK - 1}
+                className={cn(
+                  'w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2',
+                  streak >= MAX_STREAK - 1 
+                    ? 'bg-yellow-500/50 text-white/50 cursor-not-allowed' 
+                    : 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                )}
+              >
+                <Zap size={18} />
+                GAMBLE ({(MULTIPLIERS[streak + 1] || 100)}x)
+              </button>
             </div>
           )}
-
-          <button onClick={isAuto ? toggleAuto : runFlip} disabled={(balance < bet && !isAuto) || (isFlipping && !isAuto)} className={cn('w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50', isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black')}>
-            {isAuto ? <><Timer size={18} />STOP AUTO</> : <><Play size={18} fill="currentColor" />FLIP COIN</>}
-          </button>
-          <div className="text-[9px] text-center text-white/20 uppercase tracking-widest">Space: Flip &nbsp;|&nbsp; Esc: Stop &nbsp;|&nbsp; A: Auto</div>
+          
+          <div className="text-[9px] text-center text-white/20 uppercase tracking-widest">
+            Space: Flip/Gamble &nbsp;|&nbsp; Esc: Collect
+          </div>
         </div>
 
         <div className="space-y-3">
-          <div className="flex justify-between text-xs"><span className="text-white/40">Payout</span><span className="text-white font-mono">{HOUSE_EDGE_MULTIPLIER.toFixed(2)}x</span></div>
-          <div className="flex justify-between text-xs"><span className="text-white/40">Win Chance</span><span className="text-white font-mono">{(PLAYER_WIN_CHANCE * 100).toFixed(2)}%</span></div>
+          <div className="flex justify-between text-xs">
+            <span className="text-white/40">Base Payout</span>
+            <span className="text-white font-mono">2.00x</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-white/40">Win Chance</span>
+            <span className="text-white font-mono">50%</span>
+          </div>
         </div>
 
         <GameStatsBar stats={[
@@ -136,8 +263,22 @@ export const CoinflipGame: React.FC = () => {
       </div>
 
       <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center gap-8 min-h-[620px]">
+        {showGamble && pendingWin > 0 && (
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="absolute z-20 top-20"
+          >
+            <div className="bg-yellow-500/20 border border-yellow-500/50 backdrop-blur-md px-8 py-4 rounded-2xl text-center">
+              <div className="text-yellow-400 text-sm font-black uppercase tracking-wider mb-1">Current Win</div>
+              <div className="text-3xl font-black text-white">${(pendingWin / 100).toFixed(2)}</div>
+              <div className="text-yellow-400 text-xs mt-1">Streak: {streak + 1}x → {currentMultiplier}x</div>
+            </div>
+          </motion.div>
+        )}
+
         <div className="text-[10px] uppercase tracking-[0.28em] text-white/25 font-black">
-          Call {selectedSide.toUpperCase()} and beat the flip
+          {showGamble ? `Gamble your winnings!` : `Call ${selectedSide.toUpperCase()} and beat the flip`}
         </div>
 
         <motion.div
@@ -198,9 +339,27 @@ export const CoinflipGame: React.FC = () => {
                 />
               </div>
             </div>
-
           </motion.div>
         </motion.div>
+
+        {showGamble && (
+          <div className="flex gap-2 flex-wrap justify-center">
+            {MULTIPLIERS.map((mult, idx) => (
+              <div
+                key={mult}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase',
+                  idx < streak ? 'bg-green-500/30 text-green-400' :
+                  idx === streak ? 'bg-yellow-500/30 text-yellow-400 border border-yellow-500' :
+                  idx === streak + 1 ? 'bg-white/10 text-white animate-pulse' :
+                  'bg-white/5 text-white/30'
+                )}
+              >
+                {mult}x
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl">
           <div className="rounded-3xl border border-white/10 bg-[#11161d] p-5">
@@ -217,7 +376,7 @@ export const CoinflipGame: React.FC = () => {
               'mt-3 text-2xl font-black italic uppercase',
               result === null ? 'text-white/40' : result === selectedSide ? 'text-[#00FF88]' : 'text-red-400'
             )}>
-              {result === null ? (isFlipping ? 'Flipping' : 'Ready') : result === selectedSide ? 'Win' : 'Loss'}
+              {result === null ? (isFlipping ? 'Flipping' : 'Ready') : result === selectedSide ? 'Win!' : 'Loss'}
             </div>
           </div>
         </div>
