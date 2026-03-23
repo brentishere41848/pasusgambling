@@ -1724,6 +1724,8 @@ const Header = ({
   onOpenAdmin,
   onOpenLeaderboard,
   onOpenSidebar,
+  onToggleChat,
+  chatOpen,
   userLevel,
   userStreak,
   userXp,
@@ -1737,6 +1739,8 @@ const Header = ({
   onOpenAdmin: () => void,
   onOpenLeaderboard: () => void,
   onOpenSidebar: () => void,
+  onToggleChat?: () => void,
+  chatOpen?: boolean,
   userLevel?: number;
   userStreak?: number;
   userXp?: number;
@@ -1753,12 +1757,6 @@ const Header = ({
         <div className="flex items-center gap-2 md:gap-3">
           <button onClick={onOpenSidebar} className="lg:hidden p-2 hover:bg-white/5 rounded-xl transition-colors">
             <Menu size={22} className="text-white/60" />
-          </button>
-          <button
-            onClick={() => {}}
-            className="lg:hidden p-2 hover:bg-white/5 rounded-xl transition-colors"
-          >
-            <MessageSquare size={20} className="text-white/40" />
           </button>
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg overflow-hidden">
@@ -1808,6 +1806,24 @@ const Header = ({
 
           {isAuthenticated ? (
             <>
+              {onToggleChat && (
+                <button
+                  onClick={onToggleChat}
+                  className={cn(
+                    'w-9 h-9 md:w-10 md:h-10 rounded-full border flex items-center justify-center transition-all',
+                    chatOpen 
+                      ? 'bg-[#00FF88]/20 border-[#00FF88]/50 text-[#00FF88]' 
+                      : 'bg-[#1a1d23] border-white/10 text-white/60 hover:border-white/30'
+                  )}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    <path d="M8 10h8" opacity="0.5"/>
+                    <path d="M8 14h4" opacity="0.5"/>
+                  </svg>
+                </button>
+              )}
+
               <button 
                 onClick={onOpenWallet}
                 className="bg-[#00FF88] text-black text-sm font-black px-3 md:px-4 py-1.5 md:py-2 rounded-full hover:bg-[#00FF88]/90 transition-colors text-xs md:text-sm"
@@ -6024,6 +6040,8 @@ const AppContent = () => {
           onOpenAdmin={() => openView('admin')}
           onOpenLeaderboard={() => openView('leaderboard')}
           onOpenSidebar={() => setIsSidebarOpen(true)}
+          onToggleChat={toggleChat}
+          chatOpen={chatOpen}
           userLevel={dailyBonusStatus.level}
           userStreak={dailyBonusStatus.streak}
           userXp={dailyBonusStatus.xp}
