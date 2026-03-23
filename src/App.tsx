@@ -87,7 +87,6 @@ import { ChatRain } from './components/ChatRain';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ProvablyFairPanel } from './components/ProvablyFairPanel';
 import { ProfilePage } from './components/ProfilePage';
-import { JackpotGame } from './components/games/JackpotGame';
 import { apiFetch } from './lib/api';
 import { cn } from './lib/utils';
 
@@ -234,17 +233,6 @@ const GAMES = [
     component: WheelGame,
     featured: false,
     image: '/assets/wheel.svg'
-  },
-  {
-    id: 'jackpot',
-    name: 'Jackpot',
-    description: 'Everyone deposits. One winner takes the entire pot.',
-    icon: Gift,
-    color: 'text-amber-300',
-    bg: 'bg-amber-300/10',
-    component: JackpotGame,
-    featured: true,
-    image: '/assets/jackpot.svg'
   },
 ];
 
