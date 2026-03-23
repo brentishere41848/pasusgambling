@@ -83,6 +83,7 @@ import { PlinkoGame } from './components/games/PlinkoGame';
 import { RouletteGame } from './components/games/RouletteGame';
 import { LimboGame } from './components/games/LimboGame';
 import { KenoGame } from './components/games/KenoGame';
+import { SlotsGame } from './components/games/SlotsGame';
 import { ChatRain } from './components/ChatRain';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ProvablyFairPanel } from './components/ProvablyFairPanel';
@@ -145,7 +146,7 @@ const GAMES = [
     bg: 'bg-amber-300/10',
     component: CoinflipGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-coinflip/800/600'
+    image: '/assets/coinflip.png'
   },
   {
     id: 'dice',
@@ -156,7 +157,7 @@ const GAMES = [
     bg: 'bg-orange-400/10',
     component: DiceGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-dice/800/600'
+    image: '/assets/dice.png'
   },
   {
     id: 'limbo',
@@ -167,7 +168,7 @@ const GAMES = [
     bg: 'bg-orange-300/10',
     component: LimboGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-limbo/800/600'
+    image: '/assets/limbo.png'
   },
   {
     id: 'keno',
@@ -178,7 +179,7 @@ const GAMES = [
     bg: 'bg-emerald-300/10',
     component: KenoGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-keno/800/600'
+    image: 'https://picsum.photos/seed/casino-keno/400/300'
   },
   {
     id: 'hilo',
@@ -189,7 +190,7 @@ const GAMES = [
     bg: 'bg-red-400/10',
     component: HiloGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-hilo/800/600'
+    image: 'https://picsum.photos/seed/casino-hilo/400/300'
   },
   {
     id: 'baccarat',
@@ -200,7 +201,7 @@ const GAMES = [
     bg: 'bg-cyan-300/10',
     component: BaccaratGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-baccarat/800/600'
+    image: 'https://picsum.photos/seed/casino-baccarat/400/300'
   },
   {
     id: 'plinko',
@@ -211,7 +212,7 @@ const GAMES = [
     bg: 'bg-sky-300/10',
     component: PlinkoGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-plinko/800/600'
+    image: 'https://picsum.photos/seed/casino-plinko/400/300'
   },
   {
     id: 'roulette',
@@ -222,7 +223,7 @@ const GAMES = [
     bg: 'bg-rose-300/10',
     component: RouletteGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-roulette/800/600'
+    image: 'https://picsum.photos/seed/casino-roulette/400/300'
   },
   {
     id: 'wheel',
@@ -233,7 +234,7 @@ const GAMES = [
     bg: 'bg-purple-400/10',
     component: WheelGame,
     featured: false,
-    image: 'https://picsum.photos/seed/casino-wheel/800/600'
+    image: 'https://picsum.photos/seed/casino-wheel/400/300'
   },
   {
     id: 'jackpot',
@@ -244,7 +245,18 @@ const GAMES = [
     bg: 'bg-amber-300/10',
     component: JackpotGame,
     featured: true,
-    image: 'https://picsum.photos/seed/casino-jackpot/800/600'
+    image: 'https://picsum.photos/seed/casino-jackpot/400/300'
+  },
+  {
+    id: 'slots',
+    name: 'Slots',
+    description: 'Spin the reels on our premium slot machines.',
+    icon: Coins,
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-400/10',
+    component: SlotsGame,
+    featured: true,
+    image: 'https://picsum.photos/seed/casino-slots/400/300'
   },
 ];
 
