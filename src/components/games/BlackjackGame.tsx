@@ -173,7 +173,11 @@ export const BlackjackGame: React.FC = () => {
     } else if (newScore === 21) {
       setHands((prev) => {
         const updated = [...prev];
-        updated[idx] = { ...updated[idx], status: 'stand' };
+        updated[idx] = { 
+          ...updated[idx], 
+          cards: [...updated[idx].cards, newCard],
+          status: updated[idx].cards.length === 1 ? 'blackjack' : 'stand' 
+        };
         return updated;
       });
       advanceToNextHandOrDealer([...hands], [...hands[idx].cards, newCard], dealerHand, currentDeck);
@@ -277,38 +281,36 @@ export const BlackjackGame: React.FC = () => {
     setDealerReveal(true);
     setPhase('dealer_turn');
 
-    let dealerScore = calculateScore(currentDealerHand);
-  const dealerPlays = () => {
-    const hasSoft17 = () => {
-      const score = calculateScore(currentDealerHand);
-      if (score !== 17) return false;
-      return currentDealerHand.some(c => c.value === 'A');
+    const dealerPlays = () => {
+      const hasSoft17 = () => {
+        const score = calculateScore(currentDealerHand);
+        if (score !== 17) return false;
+        return currentDealerHand.some(c => c.value === 'A');
+      };
+      
+      const dealerScore = calculateScore(currentDealerHand);
+      if (dealerScore < 17 || hasSoft17()) {
+        const newCard = currentDeck.pop()!;
+        if (!newCard) return;
+        currentDeck.pop();
+        currentDeck.unshift(newCard);
+        deckRef.current = currentDeck;
+        setDeck([...currentDeck]);
+        setCardsRemaining(currentDeck.length);
+        
+        if (currentDeck.length < 52) {
+          setTimeout(() => {
+            deckRef.current = createDeck();
+            setCardsRemaining(deckRef.current.length);
+          }, 1000);
+        }
+        currentDealerHand.push(newCard);
+        setDealerHand([...currentDealerHand]);
+        setTimeout(dealerPlays, 600);
+      } else {
+        resolveAllHands(currentHands, currentCards, currentDealerHand, currentDeck);
+      }
     };
-    
-    const dealerScore = calculateScore(currentDealerHand);
-    if (dealerScore < 17 || hasSoft17()) {
-      const newCard = currentDeck.pop()!;
-      if (!newCard) return;
-      currentDeck.pop();
-      currentDeck.unshift(newCard);
-      deckRef.current = currentDeck;
-    setDeck([...currentDeck]);
-    setCardsRemaining(currentDeck.length);
-    
-    if (currentDeck.length < 52) {
-      setTimeout(() => {
-        deckRef.current = createDeck();
-        setCardsRemaining(deckRef.current.length);
-      }, 1000);
-    }
-      currentDealerHand.push(newCard);
-      setDealerHand([...currentDealerHand]);
-      const newScore = calculateScore(currentDealerHand);
-      setTimeout(dealerPlays, 600);
-    } else {
-      resolveAllHands(currentHands, currentCards, currentDealerHand, currentDeck);
-    }
-  };
 
     setTimeout(dealerPlays, 600);
   };
