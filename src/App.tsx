@@ -5206,6 +5206,16 @@ const FriendsView = () => {
     setChatTarget(friend);
     setChatMessages([]);
     setChatInput('');
+    try {
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await apiFetch(`/api/friends/chat/${friend.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.messages)) {
+        setChatMessages(data.messages);
+      }
+    } catch {}
   };
 
   const sendChatMessage = async () => {
