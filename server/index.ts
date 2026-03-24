@@ -1972,6 +1972,30 @@ app.post('/api/chat/messages', requireAuth, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Message must be 280 characters or fewer.' });
     }
 
+    // Check if user is muted
+    const muteCheck = await pool.query(`
+      SELECT 1 FROM moderation_history 
+      WHERE user_id = $1 AND action = 'mute' 
+        AND (expires_at IS NULL OR expires_at > NOW())
+      LIMIT 1
+    `, [req.auth!.user.id]);
+
+    if (muteCheck.rowCount) {
+      return res.status(403).json({ error: 'You are muted.' });
+    }
+
+    // Check if user is banned
+    const banCheck = await pool.query(`
+      SELECT 1 FROM moderation_history 
+      WHERE user_id = $1 AND action = 'ban' 
+        AND (expires_at IS NULL OR expires_at > NOW())
+      LIMIT 1
+    `, [req.auth!.user.id]);
+
+    if (banCheck.rowCount) {
+      return res.status(403).json({ error: 'You are banned.' });
+    }
+
     const avatarUrl = resolvePreferredAvatar(req.auth!.user);
     const insertResult = await pool.query(
       `INSERT INTO chat_messages (user_id, username, text, tone, role, avatar_url)
