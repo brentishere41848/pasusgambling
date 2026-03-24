@@ -5058,7 +5058,12 @@ const FriendsView = () => {
       try {
         setIsLoading(true);
         setError('');
-        const response = await apiFetch('/api/friends');
+        const token = localStorage.getItem('pasus_auth_token');
+        const response = await apiFetch('/api/friends', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(data.error || 'Failed to load friends.');

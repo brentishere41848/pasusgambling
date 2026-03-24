@@ -17,7 +17,10 @@ export const ProvablyFairPanel: React.FC<{ onClose: () => void }> = ({ onClose }
   const [verifyInput, setVerifyInput] = useState({ clientSeed: '', serverSeed: '', nonce: '0' });
 
   useEffect(() => {
-    apiFetch('/api/pf/current-seed').then(r => r.json()).then(d => {
+    const token = localStorage.getItem('pasus_auth_token');
+    apiFetch('/api/pf/current-seed', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.json()).then(d => {
       setSeedData(d);
       setClientSeed(d.clientSeed || '');
       setLoading(false);
@@ -28,9 +31,13 @@ export const ProvablyFairPanel: React.FC<{ onClose: () => void }> = ({ onClose }
     if (!clientSeed || clientSeed.length < 8) return;
     setRotating(true);
     try {
+      const token = localStorage.getItem('pasus_auth_token');
       const res = await apiFetch('/api/pf/rotate-seed', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ clientSeed }),
       }).then(r => r.json());
       setSeedData(res);
