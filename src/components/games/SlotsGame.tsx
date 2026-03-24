@@ -203,7 +203,7 @@ const SlotReel: React.FC<{
 
 export const SlotsGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(100);
+  const [bet, setBet] = useState(10);
   const [reels, setReels] = useState<Symbol[][]>([
     SYMBOLS, SYMBOLS, SYMBOLS
   ]);
@@ -461,13 +461,14 @@ export const SlotsGame: React.FC = () => {
               <div className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Bet Amount</div>
               <input
                 type="number"
-                min={100}
-                step={100}
+                min={1}
+                step={1}
                 value={bet}
-                onChange={(e) => setBet(Math.max(100, Math.round(Number(e.target.value) / 100) * 100))}
+                onChange={(e) => setBet(Math.max(1, Math.round(Number(e.target.value))))}
                 disabled={spinning.some(Boolean)}
                 className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50"
               />
+              <div className="text-[9px] text-white/25 mt-1">Min: $0.01 (1 coin)</div>
               <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={spinning.some(Boolean)} />
             </div>
 

@@ -106,12 +106,12 @@ export const JackpotGame: React.FC = () => {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              min="1"
+              min="0.01"
               step="0.01"
               className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-xl font-mono text-white focus:outline-none focus:border-amber-500/30"
             />
           </div>
-          <div className="text-[10px] text-white/25 mt-1">Min bet: $1.00 (100 coins). Tickets = bet / $1.00</div>
+          <div className="text-[10px] text-white/25 mt-1">Min bet: $0.01 (1 coin)</div>
         </div>
 
         <div className="grid grid-cols-4 gap-1">

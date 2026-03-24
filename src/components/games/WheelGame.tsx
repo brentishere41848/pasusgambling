@@ -695,6 +695,7 @@ export const WheelGame: React.FC = () => {
                   disabled={isSpinning || isAuto}
                   className="mt-2 w-full rounded-2xl border border-[#3a4760] bg-[#05070c] px-4 py-3 text-white focus:border-[#d9bb63]/60 focus:outline-none"
                 />
+                <div className="mt-2 text-[9px] text-white/25">Min: $0.01 (1 coin)</div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button onClick={() => setBet((current) => Math.max(1, Math.min(Math.floor(balance), current * 2)))} disabled={isSpinning || isAuto || balance < 1} className="rounded-xl bg-[#111826] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#c7d6f7] disabled:opacity-40">x2</button>
                   <button onClick={() => setBet(Math.max(1, Math.floor(balance)))} disabled={isSpinning || isAuto || balance < 1} className="rounded-xl bg-[#111826] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#c7d6f7] disabled:opacity-40">Max</button>

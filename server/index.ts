@@ -432,7 +432,7 @@ function getDailyRewardStatus(row: any, now = new Date()): DailyRewardStatus {
   const canClaim = lastStart === null || lastStart < todayStart;
   const continuesStreak = lastStart !== null && todayStart - lastStart === 24 * 60 * 60 * 1000;
   const nextStreak = canClaim ? (continuesStreak ? currentStreak + 1 : 1) : currentStreak || 1;
-  const rewardAmount = dollarsToCoins(Math.min(10, 2 + Math.max(0, nextStreak - 1)));
+  const rewardAmount = dollarsToCoins(Math.min(1, 0.5 + Math.max(0, nextStreak - 1) * 0.05));
   const nextClaimAt = canClaim ? null : new Date(todayStart + 24 * 60 * 60 * 1000).toISOString();
 
   return {
