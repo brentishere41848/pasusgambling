@@ -5042,186 +5042,299 @@ const LEADERBOARD_PRIZES = [10000, 5000, 2500, 500];
 type Friend = {
   id: number;
   username: string;
-  avatarUrl?: string;
-  status: 'online' | 'offline' | 'ingame';
-  lastSeen?: string;
+  avatar?: string;
+  friendSince?: string;
+};
+
+type FriendRequest = {
+  id: number;
+  username: string;
+  avatar?: string;
+  requestedAt?: string;
+  sentAt?: string;
 };
 
 const FriendsView = () => {
+  const { user } = useAuth();
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [incoming, setIncoming] = useState<FriendRequest[]>([]);
+  const [outgoing, setOutgoing] = useState<FriendRequest[]>([]);
+  const [searchResults, setSearchResults] = useState<FriendRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'friends' | 'requests' | 'search'>('friends');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [friendUsername, setFriendUsername] = useState('');
-  const [addError, setAddError] = useState('');
-  const [addSuccess, setAddSuccess] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
 
-  const sendFriendRequest = async () => {
-    if (!friendUsername.trim()) return;
-    setIsAdding(true);
-    setAddError('');
-    setAddSuccess('');
+  const loadFriends = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await apiFetch('/api/friends', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to load friends.');
+      setFriends(Array.isArray(data.friends) ? data.friends : []);
+      setIncoming(Array.isArray(data.incoming) ? data.incoming : []);
+      setOutgoing(Array.isArray(data.outgoing) ? data.outgoing : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load friends.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { loadFriends(); }, []);
+
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const token = localStorage.getItem('pasus_auth_token');
+    apiFetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.json()).then(data => {
+      setSearchResults(Array.isArray(data.users) ? data.users : []);
+    });
+  }, [searchQuery]);
+
+  const sendRequest = async (username: string) => {
+    setActionLoading(-1);
     try {
       const token = localStorage.getItem('pasus_auth_token');
       const response = await apiFetch('/api/friends/request', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ username: friendUsername.trim() }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setAddError(data.error || 'Failed to send friend request.');
-      } else {
-        setAddSuccess('Friend request sent!');
-        setFriendUsername('');
-        setTimeout(() => setShowAddModal(false), 1500);
-      }
+      if (!response.ok) throw new Error(data.error);
+      await loadFriends();
+      setSearchQuery('');
+      setSearchResults([]);
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Failed to send friend request.');
+      setError(err instanceof Error ? err.message : 'Failed to send request.');
     } finally {
-      setIsAdding(false);
+      setActionLoading(null);
     }
   };
 
-  useEffect(() => {
-    const loadFriends = async () => {
-      try {
-        setIsLoading(true);
-        setError('');
-        const token = localStorage.getItem('pasus_auth_token');
-        const response = await apiFetch('/api/friends', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to load friends.');
-        }
-        setFriends(Array.isArray(data.friends) ? data.friends : []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load friends.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadFriends();
-  }, []);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-500';
-      case 'ingame': return 'bg-yellow-500';
-      default: return 'bg-gray-500';
+  const acceptRequest = async (friendId: number) => {
+    setActionLoading(friendId);
+    try {
+      const token = localStorage.getItem('pasus_auth_token');
+      await apiFetch('/api/friends/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ friendId }),
+      });
+      await loadFriends();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to accept request.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'online': return 'Online';
-      case 'ingame': return 'In Game';
-      default: return 'Offline';
+  const rejectRequest = async (friendId: number) => {
+    setActionLoading(friendId);
+    try {
+      const token = localStorage.getItem('pasus_auth_token');
+      await apiFetch('/api/friends/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ friendId }),
+      });
+      await loadFriends();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reject request.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const filteredFriends = friends.filter(f => 
-    f.username.toLowerCase().includes(searchQuery.toLowerCase())
+  const removeFriend = async (friendId: number) => {
+    setActionLoading(friendId);
+    try {
+      const token = localStorage.getItem('pasus_auth_token');
+      await apiFetch(`/api/friends/${friendId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await loadFriends();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove friend.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const UserCard = ({ u, showActions, onAction }: { u: any; showActions?: boolean; onAction?: () => void }) => (
+    <div key={u.id} className="rounded-2xl border border-white/10 bg-[#141821] p-4 flex items-center gap-4">
+      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2a3a5a] to-[#1a2540] flex items-center justify-center text-lg font-black text-white/70 overflow-hidden">
+        {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : u.username?.charAt(0).toUpperCase()}
+      </div>
+      <div className="flex-1">
+        <div className="font-black text-white">{u.username}</div>
+        {u.friendStatus === 'friends' && <div className="text-xs text-[#00FF88]">Friend</div>}
+        {u.friendStatus === 'sent' && <div className="text-xs text-yellow-400">Request Sent</div>}
+        {u.friendStatus === 'received' && <div className="text-xs text-blue-400">Accept Request</div>}
+      </div>
+      {showActions && (
+        <div className="flex gap-2">
+          {u.friendStatus === 'none' && (
+            <button onClick={onAction} disabled={actionLoading === -1} className="px-4 py-2 bg-[#00FF88] text-black font-black text-xs rounded-xl hover:bg-[#00FF88]/90 disabled:opacity-50">
+              {actionLoading === -1 ? 'Add' : '...'}
+            </button>
+          )}
+          {u.friendStatus === 'received' && (
+            <button onClick={onAction} disabled={actionLoading === u.id} className="px-4 py-2 bg-[#00FF88] text-black font-black text-xs rounded-xl hover:bg-[#00FF88]/90 disabled:opacity-50">
+              Accept
+            </button>
+          )}
+          {(u.friendStatus === 'sent' || u.friendStatus === 'friends') && (
+            <span className="text-xs text-white/40 py-2">Sent</span>
+          )}
+        </div>
+      )}
+    </div>
   );
 
   return (
-    <div className="p-6 lg:p-10 max-w-4xl mr-auto ml-0 space-y-8">
+    <div className="p-6 lg:p-10 max-w-4xl mr-auto ml-0 space-y-6">
       <div className="space-y-2">
         <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Social</div>
         <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Friends</h1>
-        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Connect with other players, send gifts, and see when your friends are online.</p>
       </div>
 
-      {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div> : null}
+      {error && <div className="px-4 py-3 rounded-xl bg-red-500/20 border border-red-500/50 text-red-300 text-sm">{error}</div>}
 
-      <div className="flex gap-4">
-        <input
-          type="text"
-          placeholder="Search friends..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 bg-[#141821] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#00FF88]/50"
-        />
-        <button onClick={() => setShowAddModal(true)} className="px-6 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all">
-          Add Friend
-        </button>
+      <div className="flex gap-2">
+        {[['friends', 'Friends', friends.length], ['requests', 'Requests', incoming.length], ['search', 'Search', null]].map(([tab, label, count]) => (
+          <button key={tab} onClick={() => setActiveTab(tab as any)}
+            className={cn('px-4 py-2 rounded-xl text-sm font-black transition-all', activeTab === tab ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/60 hover:bg-white/10')}>
+            {label} {count !== null && count > 0 ? `(${count})` : ''}
+          </button>
+        ))}
       </div>
 
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#141821] border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-black text-white mb-4">Add Friend</h2>
-            {addError && <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/20 border border-red-500/50 text-red-300 text-sm">{addError}</div>}
-            {addSuccess && <div className="mb-4 px-4 py-3 rounded-xl bg-green-500/20 border border-green-500/50 text-green-300 text-sm">{addSuccess}</div>}
-            <input
-              type="text"
-              placeholder="Enter username..."
-              value={friendUsername}
-              onChange={(e) => setFriendUsername(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendFriendRequest()}
-              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#00FF88]/50 mb-4"
-            />
-            <div className="flex gap-3">
-              <button onClick={() => { setShowAddModal(false); setFriendUsername(''); setAddError(''); setAddSuccess(''); }} className="flex-1 py-3 bg-white/10 text-white font-black rounded-xl hover:bg-white/20 transition-all">
-                Cancel
-              </button>
-              <button onClick={sendFriendRequest} disabled={isAdding || !friendUsername.trim()} className="flex-1 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all disabled:opacity-50">
-                {isAdding ? 'Sending...' : 'Send Request'}
-              </button>
+      {activeTab === 'search' && (
+        <div className="space-y-4">
+          <input type="text" placeholder="Search users by username..." value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-[#141821] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#00FF88]/50" />
+          {searchResults.length > 0 ? (
+            <div className="space-y-2">
+              {searchResults.map(u => (
+                <div key={u.id}>
+                  <UserCard u={u} showActions
+                    onAction={() => u.friendStatus === 'received' ? acceptRequest(u.id) : sendRequest(u.username)} />
+                </div>
+              ))}
             </div>
-          </div>
+          ) : searchQuery.length >= 2 ? (
+            <div className="text-center text-white/40 py-8">No users found</div>
+          ) : (
+            <div className="text-center text-white/40 py-8">Enter at least 2 characters to search</div>
+          )}
         </div>
       )}
 
-      <div className="grid gap-3">
-        {isLoading ? (
-          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">Loading friends...</div>
-        ) : filteredFriends.length ? (
-          filteredFriends.map((friend) => (
-            <div key={friend.id} className="rounded-2xl border border-white/10 bg-[#141821] p-4 flex items-center gap-4 hover:border-white/20 transition-colors">
-              <div className="relative">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2a3a5a] to-[#1a2540] flex items-center justify-center text-lg font-black text-white/70 overflow-hidden">
-                  {friend.avatarUrl ? (
-                    <img src={friend.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    friend.username.charAt(0).toUpperCase()
-                  )}
-                </div>
-                <div className={cn('absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#141821]', getStatusColor(friend.status))} />
-              </div>
-              <div className="flex-1">
-                <div className="font-black text-white">{friend.username}</div>
-                <div className="text-xs text-white/40">{getStatusLabel(friend.status)}</div>
-              </div>
-              <div className="flex gap-2">
-                <button className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all">
-                  <Gift size={16} />
-                </button>
-                <button className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all">
-                  <MessageCircle size={16} />
-                </button>
+      {activeTab === 'requests' && (
+        <div className="space-y-6">
+          {incoming.length > 0 && (
+            <div>
+              <div className="text-sm font-black text-white/60 mb-3">Incoming Requests</div>
+              <div className="space-y-2">
+                {incoming.map(u => (
+                  <div key={u.id} className="rounded-2xl border border-white/10 bg-[#141821] p-4 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2a3a5a] to-[#1a2540] flex items-center justify-center text-lg font-black text-white/70 overflow-hidden">
+                      {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : u.username?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-black text-white">{u.username}</div>
+                      <div className="text-xs text-white/40">Wants to be your friend</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => acceptRequest(u.id)} disabled={actionLoading === u.id}
+                        className="px-4 py-2 bg-[#00FF88] text-black font-black text-xs rounded-xl hover:bg-[#00FF88]/90 disabled:opacity-50">
+                        {actionLoading === u.id ? '...' : 'Accept'}
+                      </button>
+                      <button onClick={() => rejectRequest(u.id)} disabled={actionLoading === u.id}
+                        className="px-4 py-2 bg-white/10 text-white/60 font-black text-xs rounded-xl hover:bg-white/20 disabled:opacity-50">
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))
-        ) : (
-          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-center">
-            <div className="text-white/40 mb-4">No friends yet</div>
-            <button className="px-6 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all">
-              Add Your First Friend
-            </button>
-          </div>
-        )}
-      </div>
+          )}
+          {outgoing.length > 0 && (
+            <div>
+              <div className="text-sm font-black text-white/60 mb-3">Sent Requests</div>
+              <div className="space-y-2">
+                {outgoing.map(u => (
+                  <div key={u.id} className="rounded-2xl border border-white/10 bg-[#141821] p-4 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2a3a5a] to-[#1a2540] flex items-center justify-center text-lg font-black text-white/70 overflow-hidden">
+                      {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : u.username?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-black text-white">{u.username}</div>
+                      <div className="text-xs text-yellow-400">Pending</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {incoming.length === 0 && outgoing.length === 0 && (
+            <div className="text-center text-white/40 py-8">No friend requests</div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'friends' && (
+        <div className="space-y-2">
+          {isLoading ? (
+            <div className="text-center text-white/40 py-8">Loading...</div>
+          ) : friends.length > 0 ? (
+            friends.map(friend => (
+              <div key={friend.id} className="rounded-2xl border border-white/10 bg-[#141821] p-4 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2a3a5a] to-[#1a2540] flex items-center justify-center text-lg font-black text-white/70 overflow-hidden">
+                  {friend.avatar ? <img src={friend.avatar} alt="" className="w-full h-full object-cover" /> : friend.username?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <div className="font-black text-white">{friend.username}</div>
+                  <div className="text-xs text-white/40">Friend since {friend.friendSince ? new Date(friend.friendSince).toLocaleDateString() : 'N/A'}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Tip">
+                    <DollarSign size={16} />
+                  </button>
+                  <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Chat">
+                    <MessageCircle size={16} />
+                  </button>
+                  <button onClick={() => removeFriend(friend.id)} disabled={actionLoading === friend.id}
+                    className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-red-400 hover:bg-white/10 transition-all disabled:opacity-50" title="Remove">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-white/40 mb-4">No friends yet</div>
+              <button onClick={() => setActiveTab('search')} className="px-6 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90">
+                Find Friends
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

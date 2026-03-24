@@ -5590,6 +5590,43 @@ app.get('/api/friends', requireAuth, async (req: AuthedRequest, res) => {
   }
 });
 
+// Search users
+app.get('/api/users/search', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const query = String(req.query.q || '').trim();
+    if (!query || query.length < 2) {
+      return res.json({ users: [] });
+    }
+    
+    const userId = req.auth!.user.id;
+    const result = await pool.query(`
+      SELECT u.id, u.username, u.avatar,
+        CASE 
+          WHEN f.status = 'accepted' THEN 'friends'
+          WHEN f.user_id = $1 AND f.status = 'pending' THEN 'sent'
+          WHEN f.friend_id = $1 AND f.status = 'pending' THEN 'received'
+          ELSE 'none'
+        END as friend_status
+      FROM users u
+      LEFT JOIN friendships f ON (f.user_id = u.id AND f.friend_id = $1) OR (f.user_id = $1 AND f.friend_id = u.id)
+      WHERE u.id != $1 AND u.username ILIKE '%' || $2 || '%'
+      LIMIT 20
+    `, [userId, query]);
+    
+    res.json({
+      users: result.rows.map(r => ({
+        id: r.id,
+        username: r.username,
+        avatar: r.avatar,
+        friendStatus: r.friend_status
+      }))
+    });
+  } catch (error) {
+    console.error('Search users error:', error);
+    res.status(500).json({ error: 'Failed to search users' });
+  }
+});
+
 app.post('/api/friends/request', requireAuth, async (req: AuthedRequest, res) => {
   try {
     const userId = req.auth!.user.id;
@@ -5612,19 +5649,24 @@ app.post('/api/friends/request', requireAuth, async (req: AuthedRequest, res) =>
     
     // Check if friendship exists
     const existing = await pool.query(`
-      SELECT id, status FROM friendships 
+      SELECT id, status, user_id FROM friendships 
       WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)
     `, [userId, targetId]);
     
     if (existing.rowCount) {
-      const status = existing.rows[0].status;
-      if (status === 'accepted') {
+      const record = existing.rows[0];
+      if (record.status === 'accepted') {
         return res.status(400).json({ error: 'Already friends' });
       }
-      if (status === 'pending') {
-        const existingReq = await pool.query(`SELECT user_id FROM friendships WHERE id = $1`, [existing.rows[0].id]);
-        if (existingReq.rows[0].user_id === userId) {
+      if (record.status === 'pending') {
+        if (record.user_id === userId) {
           return res.status(400).json({ error: 'Request already sent' });
+        } else {
+          // Auto-accept if they sent us a request
+          await pool.query(`
+            UPDATE friendships SET status = 'accepted', updated_at = NOW() WHERE id = $1
+          `, [record.id]);
+          return res.json({ success: true, message: 'Friend request accepted' });
         }
       }
     }
