@@ -1452,6 +1452,7 @@ async function initDb() {
       balance BIGINT NOT NULL DEFAULT 0,
       total_deposited BIGINT NOT NULL DEFAULT 0,
       total_withdrawn BIGINT NOT NULL DEFAULT 0,
+      total_wagered BIGINT NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -2443,6 +2444,11 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
       [req.auth!.user.id, gameKey, wager, payout, multiplier || 0, outcome, detail || null]
     );
 
+    await client.query(
+      `UPDATE wallets SET total_wagered = total_wagered + $1, updated_at = NOW() WHERE user_id = $2`,
+      [wager, req.auth!.user.id]
+    );
+
     const rainUpdate = await addRainContributionFromWager(client, wager, payout, outcome);
     if (outcome === 'win' && payout > 0) {
       await applyAffiliateCommission(client, req.auth!.user.id, 'win', `bet:${inserted.rows[0]?.id || Date.now()}`, payout);
@@ -2554,12 +2560,11 @@ app.get('/api/leaderboard', async (_req, res) => {
       `SELECT
          u.id,
          u.username,
-         COALESCE(SUM(b.wager), 0)::bigint AS total_wagered
+         w.total_wagered
        FROM users u
-       JOIN bet_activities b ON b.user_id = u.id
-       GROUP BY u.id, u.username
-       HAVING COALESCE(SUM(b.wager), 0) > 0
-       ORDER BY total_wagered DESC, u.username ASC
+       JOIN wallets w ON w.user_id = u.id
+       WHERE w.total_wagered > 0
+       ORDER BY w.total_wagered DESC, u.username ASC
        LIMIT 10`
     );
 
@@ -2796,11 +2801,7 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
     const result = await pool.query(
       `SELECT
          COALESCE(w.total_deposited, 0)::bigint AS total_deposited,
-         COALESCE((
-           SELECT SUM(b.wager)
-           FROM bet_activities b
-           WHERE b.user_id = $1
-         ), 0)::bigint AS total_wagered,
+         COALESCE(w.total_wagered, 0)::bigint AS total_wagered,
          COALESCE((
            SELECT COUNT(*)
            FROM bet_activities b
@@ -2938,11 +2939,7 @@ app.post('/api/vip/rakeback/claim', requireAuth, async (req: AuthedRequest, res)
     const result = await client.query(
       `SELECT
          COALESCE(w.total_deposited, 0)::bigint AS total_deposited,
-         COALESCE((
-           SELECT SUM(b.wager)
-           FROM bet_activities b
-           WHERE b.user_id = $1
-         ), 0)::bigint AS total_wagered,
+         COALESCE(w.total_wagered, 0)::bigint AS total_wagered,
          COALESCE(u.rakeback_claimed_total, 0)::bigint AS rakeback_claimed_total,
          COALESCE(u.rakeback_claimed_instant, 0)::bigint AS rakeback_claimed_instant,
          COALESCE(u.rakeback_claimed_daily, 0)::bigint AS rakeback_claimed_daily,
@@ -4805,7 +4802,7 @@ app.get('/api/admin/overview', requireAuth, requireOwner, async (_req: AuthedReq
         `SELECT
            (SELECT COUNT(*) FROM users)::int AS total_users,
            (SELECT COALESCE(SUM(balance), 0) FROM wallets) AS total_balance,
-           (SELECT COALESCE(SUM(wager), 0) FROM bet_activities) AS total_wagered,
+           (SELECT COALESCE(SUM(total_wagered), 0) FROM wallets) AS total_wagered,
            (SELECT COUNT(*) FROM withdrawal_requests WHERE status = 'pending')::int AS pending_withdrawals`
       ),
       pool.query(

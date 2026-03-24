@@ -875,8 +875,8 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
         return;
       }
 
-      if (val < 5) {
-        setError('Minimum withdrawal is $5.00.');
+      if (val < 10) {
+        setError('Minimum withdrawal is $10.00.');
         return;
       }
     }
