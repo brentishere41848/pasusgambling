@@ -5755,6 +5755,16 @@ const SupportView = () => {
         <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Help</div>
         <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Live Support</h1>
         <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Use this page to contact support and track ticket activity. Everyone can now view the live support threads, while replies stay limited to the ticket owner and the owner account.</p>
+        <button 
+          onClick={() => {
+            if (typeof window !== 'undefined' && (window as any).Featurebase) {
+              (window as any).Featurebase('open_chat');
+            }
+          }}
+          className="mt-4 rounded-2xl bg-[#00FF88] text-black px-6 py-3 text-xs font-black uppercase tracking-[0.16em]"
+        >
+          Open Live Chat
+        </button>
       </div>
       {status ? <div className="rounded-2xl border border-white/10 bg-[#141821] px-4 py-3 text-sm text-white/70">{status}</div> : null}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6">
