@@ -5120,6 +5120,9 @@ const FriendsView = () => {
     const token = localStorage.getItem('pasus_auth_token');
     if (!token) return;
     const unread: Record<number, number> = {};
+    const lastSeenKey = 'pasus_chat_last_seen';
+    const lastSeen: Record<number, string> = JSON.parse(localStorage.getItem(lastSeenKey) || '{}');
+    
     for (const friend of friends) {
       try {
         const response = await apiFetch(`/api/friends/chat/${friend.id}`, {
@@ -5127,8 +5130,13 @@ const FriendsView = () => {
         });
         const data = await response.json().catch(() => ({}));
         if (response.ok && Array.isArray(data.messages)) {
+          const friendLastSeen = lastSeen[String(friend.id)];
           const unreadCount = data.messages.filter(
-            (m: { senderId: number }) => m.senderId !== user?.id
+            (m: { senderId: number; createdAt: string }) => {
+              if (m.senderId === user?.id) return false;
+              if (!friendLastSeen) return true;
+              return new Date(m.createdAt) > new Date(friendLastSeen);
+            }
           ).length;
           if (unreadCount > 0) {
             unread[friend.id] = unreadCount;
@@ -5154,6 +5162,15 @@ const FriendsView = () => {
         );
         if (newMessages.length > 0) {
           setChatMessages(data.messages);
+          
+          const lastSeenKey = 'pasus_chat_last_seen';
+          const lastSeen: Record<string, string> = JSON.parse(localStorage.getItem(lastSeenKey) || '{}');
+          const latestMsg = data.messages[data.messages.length - 1];
+          if (latestMsg) {
+            lastSeen[String(chatTarget.id)] = latestMsg.createdAt;
+            localStorage.setItem(lastSeenKey, JSON.stringify(lastSeen));
+          }
+          
           if (chatTarget) {
             const msgFromOther = newMessages.find((m: { senderId: number }) => m.senderId !== user?.id);
             if (msgFromOther) {
@@ -5302,6 +5319,12 @@ const FriendsView = () => {
       delete next[friend.id];
       return next;
     });
+    
+    const lastSeenKey = 'pasus_chat_last_seen';
+    const lastSeen: Record<string, string> = JSON.parse(localStorage.getItem(lastSeenKey) || '{}');
+    lastSeen[String(friend.id)] = new Date().toISOString();
+    localStorage.setItem(lastSeenKey, JSON.stringify(lastSeen));
+    
     try {
       const token = localStorage.getItem('pasus_auth_token');
       const response = await apiFetch(`/api/friends/chat/${friend.id}`, {
