@@ -690,7 +690,8 @@ export const WheelGame: React.FC = () => {
                 <input
                   type="number"
                   value={bet}
-                  min={1}
+                  min="0.01"
+                  step="0.01"
                   onChange={(e) => setBet(Math.max(1, Number(e.target.value) || 1))}
                   disabled={isSpinning || isAuto}
                   className="mt-2 w-full rounded-2xl border border-[#3a4760] bg-[#05070c] px-4 py-3 text-white focus:border-[#d9bb63]/60 focus:outline-none"

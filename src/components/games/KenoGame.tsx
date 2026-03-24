@@ -97,7 +97,7 @@ export const KenoGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} disabled={isDrawing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDrawing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
             <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isDrawing} />
           </div>
 

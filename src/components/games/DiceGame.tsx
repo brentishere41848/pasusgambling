@@ -96,6 +96,8 @@ export const DiceGame: React.FC = () => {
               type="number"
               value={bet}
               onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
+              min="0.01"
+              step="0.01"
               disabled={isRolling || isAuto}
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
             />
