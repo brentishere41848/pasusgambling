@@ -1,6 +1,6 @@
 [package]
 name = "brentishere41848/pasusgamblingnew"
-version = "0.1.7"
+version = "0.1.8"
 description = "Pasus frontend static site for Wasmer Edge"
 
 [dependencies]

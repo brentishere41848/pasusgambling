@@ -5052,6 +5052,41 @@ const FriendsView = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [friendUsername, setFriendUsername] = useState('');
+  const [addError, setAddError] = useState('');
+  const [addSuccess, setAddSuccess] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+
+  const sendFriendRequest = async () => {
+    if (!friendUsername.trim()) return;
+    setIsAdding(true);
+    setAddError('');
+    setAddSuccess('');
+    try {
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await apiFetch('/api/friends/request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ username: friendUsername.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setAddError(data.error || 'Failed to send friend request.');
+      } else {
+        setAddSuccess('Friend request sent!');
+        setFriendUsername('');
+        setTimeout(() => setShowAddModal(false), 1500);
+      }
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to send friend request.');
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   useEffect(() => {
     const loadFriends = async () => {
@@ -5117,10 +5152,36 @@ const FriendsView = () => {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="flex-1 bg-[#141821] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#00FF88]/50"
         />
-        <button className="px-6 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all">
+        <button onClick={() => setShowAddModal(true)} className="px-6 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all">
           Add Friend
         </button>
       </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#141821] border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-black text-white mb-4">Add Friend</h2>
+            {addError && <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/20 border border-red-500/50 text-red-300 text-sm">{addError}</div>}
+            {addSuccess && <div className="mb-4 px-4 py-3 rounded-xl bg-green-500/20 border border-green-500/50 text-green-300 text-sm">{addSuccess}</div>}
+            <input
+              type="text"
+              placeholder="Enter username..."
+              value={friendUsername}
+              onChange={(e) => setFriendUsername(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendFriendRequest()}
+              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#00FF88]/50 mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setShowAddModal(false); setFriendUsername(''); setAddError(''); setAddSuccess(''); }} className="flex-1 py-3 bg-white/10 text-white font-black rounded-xl hover:bg-white/20 transition-all">
+                Cancel
+              </button>
+              <button onClick={sendFriendRequest} disabled={isAdding || !friendUsername.trim()} className="flex-1 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all disabled:opacity-50">
+                {isAdding ? 'Sending...' : 'Send Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-3">
         {isLoading ? (
