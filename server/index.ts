@@ -5254,8 +5254,8 @@ app.get('/api/jackpot/current', async (req, res) => {
 app.post('/api/jackpot/join', requireAuth, async (req: AuthedRequest, res) => {
   const client = await pool.connect();
   try {
-    const amount = Math.max(100, Number(req.body.amount) || 0);
-    if (amount < 100) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Minimum bet is 100 coins' }); }
+const amount = Math.max(1, Number(req.body.amount) || 0);
+    if (amount < 1) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Minimum bet is $0.01' }); }
     await client.query('BEGIN');
     const balanceResult = await client.query(`SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE`, [req.auth!.user.id]);
     if (Number(balanceResult.rows[0]?.balance || 0) < amount) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Insufficient balance' }); }
@@ -5314,6 +5314,325 @@ async function processJackpotRounds() {
   } catch (e) { console.error('Jackpot cron error:', e); }
 }
 
+// ==================== FRIENDS API ====================
+app.get('/api/friends', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    
+    // Get accepted friends
+    const accepted = await pool.query(`
+      SELECT u.id, u.username, u.avatar, u.created_at,
+        CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END as friend_user_id,
+        f.created_at as friend_since
+      FROM friendships f
+      JOIN users u ON u.id = CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END
+      WHERE (f.user_id = $1 OR f.friend_id = $1) AND f.status = 'accepted'
+      ORDER BY f.updated_at DESC
+    `, [userId]);
+    
+    // Get pending incoming requests
+    const incoming = await pool.query(`
+      SELECT u.id, u.username, u.avatar, u.created_at, f.created_at as requested_at
+      FROM friendships f
+      JOIN users u ON u.id = f.user_id
+      WHERE f.friend_id = $1 AND f.status = 'pending'
+      ORDER BY f.created_at DESC
+    `, [userId]);
+    
+    // Get pending outgoing requests
+    const outgoing = await pool.query(`
+      SELECT u.id, u.username, u.avatar, u.created_at, f.created_at as sent_at
+      FROM friendships f
+      JOIN users u ON u.id = f.friend_id
+      WHERE f.user_id = $1 AND f.status = 'pending'
+      ORDER BY f.created_at DESC
+    `, [userId]);
+    
+    res.json({
+      friends: accepted.rows.map(f => ({
+        id: f.friend_user_id,
+        username: f.username,
+        avatar: f.avatar,
+        friendSince: f.friend_since
+      })),
+      incoming: incoming.rows.map(r => ({
+        id: r.id,
+        username: r.username,
+        avatar: r.avatar,
+        requestedAt: r.requested_at
+      })),
+      outgoing: outgoing.rows.map(r => ({
+        id: r.id,
+        username: r.username,
+        avatar: r.avatar,
+        sentAt: r.sent_at
+      }))
+    });
+  } catch (error) {
+    console.error('Friends error:', error);
+    res.status(500).json({ error: 'Failed to load friends' });
+  }
+});
+
+app.post('/api/friends/request', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const { username } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({ error: 'Username required' });
+    }
+    
+    // Find target user
+    const targetResult = await pool.query(`SELECT id FROM users WHERE username = $1`, [username]);
+    if (!targetResult.rowCount) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const targetId = targetResult.rows[0].id;
+    
+    if (targetId === userId) {
+      return res.status(400).json({ error: 'Cannot add yourself' });
+    }
+    
+    // Check if friendship exists
+    const existing = await pool.query(`
+      SELECT id, status FROM friendships 
+      WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)
+    `, [userId, targetId]);
+    
+    if (existing.rowCount) {
+      const status = existing.rows[0].status;
+      if (status === 'accepted') {
+        return res.status(400).json({ error: 'Already friends' });
+      }
+      if (status === 'pending') {
+        const existingReq = await pool.query(`SELECT user_id FROM friendships WHERE id = $1`, [existing.rows[0].id]);
+        if (existingReq.rows[0].user_id === userId) {
+          return res.status(400).json({ error: 'Request already sent' });
+        }
+      }
+    }
+    
+    await pool.query(`
+      INSERT INTO friendships (user_id, friend_id, status) VALUES ($1, $2, 'pending')
+      ON CONFLICT (user_id, friend_id) DO UPDATE SET status = 'pending', updated_at = NOW()
+    `, [userId, targetId]);
+    
+    res.json({ success: true, message: 'Friend request sent' });
+  } catch (error) {
+    console.error('Friend request error:', error);
+    res.status(500).json({ error: 'Failed to send friend request' });
+  }
+});
+
+app.post('/api/friends/accept', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const { friendId } = req.body;
+    
+    if (!friendId) {
+      return res.status(400).json({ error: 'Friend ID required' });
+    }
+    
+    const result = await pool.query(`
+      UPDATE friendships SET status = 'accepted', updated_at = NOW()
+      WHERE user_id = $1 AND friend_id = $2 AND status = 'pending'
+      RETURNING id
+    `, [friendId, userId]);
+    
+    if (!result.rowCount) {
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+    
+    res.json({ success: true, message: 'Friend request accepted' });
+  } catch (error) {
+    console.error('Accept friend error:', error);
+    res.status(500).json({ error: 'Failed to accept friend request' });
+  }
+});
+
+app.post('/api/friends/reject', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const { friendId } = req.body;
+    
+    if (!friendId) {
+      return res.status(400).json({ error: 'Friend ID required' });
+    }
+    
+    await pool.query(`
+      DELETE FROM friendships 
+      WHERE user_id = $1 AND friend_id = $2 AND status = 'pending'
+    `, [friendId, userId]);
+    
+    res.json({ success: true, message: 'Friend request rejected' });
+  } catch (error) {
+    console.error('Reject friend error:', error);
+    res.status(500).json({ error: 'Failed to reject friend request' });
+  }
+});
+
+app.delete('/api/friends/:id', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const friendId = parseInt(req.params.id);
+    
+    await pool.query(`
+      DELETE FROM friendships 
+      WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)
+    `, [userId, friendId]);
+    
+    res.json({ success: true, message: 'Friend removed' });
+  } catch (error) {
+    console.error('Remove friend error:', error);
+    res.status(500).json({ error: 'Failed to remove friend' });
+  }
+});
+
+// ==================== TOURNAMENTS API ====================
+app.get('/api/tournaments', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT t.*,
+        (SELECT COUNT(*) FROM tournament_participants WHERE tournament_id = t.id) as participant_count,
+        (SELECT total_wagered FROM tournament_participants tp 
+         JOIN users u ON u.id = tp.user_id 
+         WHERE tp.tournament_id = t.id 
+         ORDER BY tp.total_wagered DESC LIMIT 1) as top_wager
+      FROM tournaments t
+      ORDER BY 
+        CASE WHEN t.status = 'active' THEN 0 WHEN t.status = 'upcoming' THEN 1 ELSE 2 END,
+        t.start_time ASC
+    `);
+    
+    // Get user-specific data if authenticated
+    const userId = (req as any).auth?.user?.id;
+    let userParticipation: Record<number, any> = {};
+    
+    if (userId && result.rows.length) {
+      const ids = result.rows.map((r: any) => r.id);
+      const participation = await pool.query(`
+        SELECT tournament_id, total_wagered, 
+          (SELECT COUNT(*) + 1 FROM tournament_participants 
+           WHERE tournament_id = tp.tournament_id AND total_wagered > tp.total_wagered) as rank
+        FROM tournament_participants tp
+        WHERE tournament_id = ANY($1) AND user_id = $2
+      `, [ids, userId]);
+      
+      participation.rows.forEach((p: any) => {
+        userParticipation[p.tournament_id] = { wagered: p.total_wagered, rank: p.rank };
+      });
+    }
+    
+    res.json({
+      tournaments: result.rows.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        gameKey: t.game_key,
+        startTime: t.start_time,
+        endTime: t.end_time,
+        minWager: Number(t.min_wager),
+        prizePool: Number(t.prize_pool),
+        maxParticipants: t.max_participants,
+        status: t.status,
+        participantCount: parseInt(t.participant_count),
+        topWager: t.top_wager ? Number(t.top_wager) : 0,
+        userWagered: userParticipation[t.id]?.wagered || 0,
+        userRank: userParticipation[t.id]?.rank || null
+      }))
+    });
+  } catch (error) {
+    console.error('Tournaments error:', error);
+    res.status(500).json({ error: 'Failed to load tournaments' });
+  }
+});
+
+app.post('/api/tournaments', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.auth?.user || req.auth.user.role !== 'owner') {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    
+    const { name, description, gameKey, startTime, endTime, minWager, prizePool, maxParticipants } = req.body;
+    
+    if (!name || !startTime || !endTime) {
+      return res.status(400).json({ error: 'Name, start time, and end time required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO tournaments (name, description, game_key, start_time, end_time, min_wager, prize_pool, max_participants, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 
+        CASE WHEN $4 <= NOW() THEN 'active' ELSE 'upcoming' END)
+      RETURNING *
+    `, [name, description || null, gameKey || null, startTime, endTime, minWager || 0, prizePool || 0, maxParticipants || null]);
+    
+    res.json({ success: true, tournament: result.rows[0] });
+  } catch (error) {
+    console.error('Create tournament error:', error);
+    res.status(500).json({ error: 'Failed to create tournament' });
+  }
+});
+
+app.post('/api/tournaments/:id/record-wager', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const tournamentId = parseInt(req.params.id);
+    const userId = req.auth!.user.id;
+    const { amount } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Valid amount required' });
+    }
+    
+    // Check tournament is active
+    const tourney = await pool.query(`
+      SELECT id, status, start_time, end_time FROM tournaments WHERE id = $1
+    `, [tournamentId]);
+    
+    if (!tourney.rowCount) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    
+    const t = tourney.rows[0];
+    const now = new Date();
+    if (t.status !== 'active' || now < new Date(t.start_time) || now > new Date(t.end_time)) {
+      return res.status(400).json({ error: 'Tournament not active' });
+    }
+    
+    // Upsert participant wager
+    await pool.query(`
+      INSERT INTO tournament_participants (tournament_id, user_id, total_wagered)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (tournament_id, user_id) 
+      DO UPDATE SET total_wagered = tournament_participants.total_wagered + $3, updated_at = NOW()
+    `, [tournamentId, userId, amount]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Record tournament wager error:', error);
+    res.status(500).json({ error: 'Failed to record wager' });
+  }
+});
+
+// Process tournament status changes
+async function processTournaments() {
+  try {
+    const now = new Date();
+    
+    // Activate upcoming tournaments
+    await pool.query(`
+      UPDATE tournaments SET status = 'active' 
+      WHERE status = 'upcoming' AND start_time <= $1
+    `, [now]);
+    
+    // End active tournaments
+    await pool.query(`
+      UPDATE tournaments SET status = 'ended' 
+      WHERE status = 'active' AND end_time <= $1
+    `, [now]);
+  } catch (e) { console.error('Tournament cron error:', e); }
+}
+
 app.use(express.static(distPath));
 
 app.get('*', (req, res, next) => {
@@ -5328,6 +5647,7 @@ initDb()
   .then(() => {
     setInterval(processRainBotSchedules, 60 * 1000);
     setInterval(processJackpotRounds, 10 * 1000);
+    setInterval(processTournaments, 60 * 1000);
     app.listen(port, () => {
       console.log(`Pasus auth server running on http://localhost:${port}`);
     });
