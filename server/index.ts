@@ -1960,6 +1960,31 @@ app.get('/api/chat/room', async (req: RawBodyRequest, res) => {
   }
 });
 
+// Site stats endpoint
+app.get('/api/stats/site', async (_req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const [onlineResult, wagerResult, biggestWinResult] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS count FROM user_sessions WHERE expires_at IS NULL OR expires_at > NOW()`),
+      pool.query(`SELECT COALESCE(SUM(wager), 0)::bigint AS total FROM bet_activities WHERE created_at >= $1`, [today]),
+      pool.query(`SELECT MAX(payout) AS biggest FROM bet_activities WHERE created_at >= $1 AND outcome = 'win' LIMIT 1`, [today])
+    ]);
+    
+    return res.json({
+      stats: {
+        playersOnline: Number(onlineResult.rows[0]?.count || 0),
+        totalWageredToday: Number(wagerResult.rows[0]?.total || 0),
+        biggestWin: Number(biggestWinResult.rows[0]?.biggest || 0),
+      }
+    });
+  } catch (error) {
+    console.error('Stats error:', error);
+    return res.status(500).json({ error: 'Failed to load stats' });
+  }
+});
+
 app.post('/api/chat/messages', requireAuth, async (req: AuthedRequest, res) => {
   try {
     const text = String(req.body.text || '').trim();
@@ -5089,9 +5114,8 @@ app.get('/api/admin/analytics', requireAuth, requireOwner, async (_req: AuthedRe
           COALESCE(SUM(CASE WHEN credited_at IS NOT NULL THEN price_amount ELSE 0 END) FILTER (WHERE created_at >= $1), 0) AS deposited_today,
           COALESCE(SUM(CASE WHEN credited_at IS NOT NULL THEN price_amount ELSE 0 END) FILTER (WHERE created_at >= $2), 0) AS deposited_week,
           COALESCE(SUM(CASE WHEN credited_at IS NOT NULL THEN price_amount ELSE 0 END) FILTER (WHERE created_at >= $3), 0) AS deposited_month,
-          COALESCE(SUM(amount), 0)::bigint AS total_withdrawn
+          COALESCE((SELECT SUM(amount) FROM withdrawal_requests WHERE status = 'completed'), 0)::bigint AS total_withdrawn
         FROM payment_transactions
-        LEFT JOIN withdrawal_requests ON withdrawal_requests.created_at >= $3
       `, [dayStart, weekStart, monthStart]),
       pool.query(`
         SELECT
