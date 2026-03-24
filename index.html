@@ -16,7 +16,8 @@
     
     <!-- Featurebase Feedback/Support Widget -->
     <script>
-      !(function(e,t){var a="featurebase-sdk";function n(){if(!t.getElementById(a)){var e=t.createElement("script");(e.id=a),(e.src="https://do.featurebase.app/js/sdk.js"),t.getElementsByTagName("script")[0].parentNode.insertBefore(e,t.getElementsByTagName("script")[0])}};"function"!=typeof e.Featurebase&&(e.Featurebase=function(){(e.Featurebase.q=e.Featurebase.q||[]).push(arguments)}),"complete"===t.readyState||"interactive"===t.readyState?n():t.addEventListener("DOMContentLoaded",n)})(window,document);
+      window.featureBaseReady = false;
+      !(function(e,t){var a="featurebase-sdk";function n(){if(!t.getElementById(a)){var e=t.createElement("script");(e.id=a),(e.src="https://do.featurebase.app/js/sdk.js"),t.getElementsByTagName("script")[0].parentNode.insertBefore(e,t.getElementsByTagName("script")[0])}window.featureBaseReady = true;if(window.pendingFeaturebaseInit){window.pendingFeaturebaseInit();window.pendingFeaturebaseInit=null;}};"function"!=typeof e.Featurebase&&(e.Featurebase=function(){(e.Featurebase.q=e.Featurebase.q||[]).push(arguments)}),"complete"===t.readyState||"interactive"===t.readyState?n():t.addEventListener("DOMContentLoaded",n)})(window,document);
     </script>
   </head>
   <body>
@@ -29,25 +30,47 @@
     
     <!-- Initialize Featurebase with user data if logged in -->
     <script>
-      // This will be called when the user logs in or on page load
       window.initFeaturebase = function(userData) {
-        if (userData && userData.email) {
-          Featurebase("boot", {
-            appId: "69c1b44485cadc7c01d5c697",
-            email: userData.email,
-            userId: userData.id,
-            createdAt: userData.createdAt,
-            theme: "dark",
-            language: "en"
-          });
+        function doBoot() {
+          if (userData && userData.email) {
+            Featurebase("boot", {
+              appId: "69c1b44485cadc7c01d5c697",
+              email: userData.email,
+              userId: String(userData.id),
+              createdAt: userData.createdAt || new Date().toISOString(),
+              theme: "dark",
+              language: "en"
+            });
+          } else {
+            Featurebase("boot", {
+              appId: "69c1b44485cadc7c01d5c697",
+              theme: "dark",
+              language: "en"
+            });
+          }
+        }
+        
+        if (window.featureBaseReady && typeof Featurebase === 'function') {
+          doBoot();
         } else {
-          Featurebase("boot", {
-            appId: "69c1b44485cadc7c01d5c697",
-            theme: "dark",
-            language: "en"
-          });
+          window.pendingFeaturebaseInit = doBoot;
+          var checkCount = 0;
+          var checkInterval = setInterval(function() {
+            checkCount++;
+            if (window.featureBaseReady && typeof Featurebase === 'function') {
+              clearInterval(checkInterval);
+              if (window.pendingFeaturebaseInit) {
+                window.pendingFeaturebaseInit();
+                window.pendingFeaturebaseInit = null;
+              }
+            }
+            if (checkCount > 50) clearInterval(checkInterval);
+          }, 100);
         }
       };
+      
+      // Initialize with anonymous user on page load
+      window.initFeaturebase(null);
     </script>
   </body>
 </html>
