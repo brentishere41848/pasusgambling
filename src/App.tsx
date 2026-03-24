@@ -68,7 +68,8 @@ import {
   KeyRound,
   QrCode,
   MessageCircle,
-  Target
+  Target,
+  Bell
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BalanceProvider, useBalance } from './context/BalanceContext';
@@ -5044,6 +5045,7 @@ type Friend = {
   username: string;
   avatar?: string;
   friendSince?: string;
+  unreadCount?: number;
 };
 
 type FriendRequest = {
@@ -5074,6 +5076,10 @@ const FriendsView = () => {
   const [chatMessages, setChatMessages] = useState<Array<{id: number; senderId: number; text: string; createdAt: string}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState<Record<number, number>>({});
+  const [chatNotification, setChatNotification] = useState<{username: string; text: string} | null>(null);
+  const chatPollRef = useRef<number | null>(null);
+  const notificationTimeoutRef = useRef<number | null>(null);
 
   const loadFriends = async () => {
     try {
@@ -5109,6 +5115,91 @@ const FriendsView = () => {
       setSearchResults(Array.isArray(data.users) ? data.users : []);
     });
   }, [searchQuery]);
+
+  const fetchUnreadCounts = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    const unread: Record<number, number> = {};
+    for (const friend of friends) {
+      try {
+        const response = await apiFetch(`/api/friends/chat/${friend.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && Array.isArray(data.messages)) {
+          const unreadCount = data.messages.filter(
+            (m: { senderId: number }) => m.senderId !== user?.id
+          ).length;
+          if (unreadCount > 0) {
+            unread[friend.id] = unreadCount;
+          }
+        }
+      } catch {}
+    }
+    setUnreadMessages(unread);
+  };
+
+  const pollChatMessages = async () => {
+    if (!chatTarget) return;
+    const token = localStorage.getItem('pasus_auth_token');
+    try {
+      const response = await apiFetch(`/api/friends/chat/${chatTarget.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.messages)) {
+        const lastMsg = chatMessages[chatMessages.length - 1];
+        const newMessages = data.messages.filter(
+          (m: { id: number }) => !lastMsg || m.id > lastMsg.id
+        );
+        if (newMessages.length > 0) {
+          setChatMessages(data.messages);
+          if (chatTarget) {
+            const msgFromOther = newMessages.find((m: { senderId: number }) => m.senderId !== user?.id);
+            if (msgFromOther) {
+              setChatNotification({
+                username: chatTarget.username,
+                text: msgFromOther.text.substring(0, 30) + (msgFromOther.text.length > 30 ? '...' : '')
+              });
+              if (notificationTimeoutRef.current) {
+                window.clearTimeout(notificationTimeoutRef.current);
+              }
+              notificationTimeoutRef.current = window.setTimeout(() => {
+                setChatNotification(null);
+              }, 4000);
+            }
+          }
+        }
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (chatTarget) {
+      pollChatMessages();
+      chatPollRef.current = window.setInterval(pollChatMessages, 3000);
+    } else {
+      if (chatPollRef.current) {
+        window.clearInterval(chatPollRef.current);
+        chatPollRef.current = null;
+      }
+      fetchUnreadCounts();
+    }
+    return () => {
+      if (chatPollRef.current) {
+        window.clearInterval(chatPollRef.current);
+        chatPollRef.current = null;
+      }
+    };
+  }, [chatTarget, friends]);
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) {
+        window.clearTimeout(notificationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const sendRequest = async (username: string) => {
     setActionLoading(-1);
@@ -5206,6 +5297,11 @@ const FriendsView = () => {
     setChatTarget(friend);
     setChatMessages([]);
     setChatInput('');
+    setUnreadMessages(prev => {
+      const next = { ...prev };
+      delete next[friend.id];
+      return next;
+    });
     try {
       const token = localStorage.getItem('pasus_auth_token');
       const response = await apiFetch(`/api/friends/chat/${friend.id}`, {
@@ -5380,8 +5476,13 @@ const FriendsView = () => {
                   <button onClick={() => setTipTarget(friend)} className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Tip">
                     <DollarSign size={16} />
                   </button>
-                  <button onClick={() => openChat(friend)} className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Chat">
+                  <button onClick={() => openChat(friend)} className="relative p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Chat">
                     <MessageCircle size={16} />
+                    {unreadMessages[friend.id] ? (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {unreadMessages[friend.id] > 9 ? '9+' : unreadMessages[friend.id]}
+                      </span>
+                    ) : null}
                   </button>
                   <button onClick={() => removeFriend(friend.id)} disabled={actionLoading === friend.id}
                     className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-red-400 hover:bg-white/10 transition-all disabled:opacity-50" title="Remove">
@@ -5456,6 +5557,29 @@ const FriendsView = () => {
           </div>
         </div>
       )}
+
+      {/* Chat Notification Toast */}
+      <AnimatePresence>
+        {chatNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 20, x: '-50%' }}
+            className="fixed bottom-6 left-1/2 z-50 bg-[#141821] border border-white/20 rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2a3a5a] to-[#1a2540] flex items-center justify-center text-lg font-black text-white/70 overflow-hidden">
+              {chatNotification.username.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div className="text-sm font-black text-white">{chatNotification.username}</div>
+              <div className="text-xs text-white/60">{chatNotification.text}</div>
+            </div>
+            <button onClick={() => setChatNotification(null)} className="ml-2 p-1 hover:bg-white/10 rounded-lg">
+              <X size={14} className="text-white/40" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

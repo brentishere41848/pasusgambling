@@ -132,7 +132,7 @@ export const CrashGame: React.FC = () => {
             <input
               type="number"
               value={bet}
-              onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
+              onChange={(e) => setBet(Math.max(0.01, Number(e.target.value)))}
               min="0.01"
               step="0.01"
               disabled={snapshot.phase === 'running' || joined}
@@ -302,24 +302,40 @@ export const CrashGame: React.FC = () => {
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/30 font-black mb-3">
             <Users size={12} />
-            <span>Participants</span>
-            <span className="ml-auto">{participants.length}</span>
+            <span>Participants ({participants.length})</span>
           </div>
           <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
-            {participants.map((participant: CrashParticipant) => (
-              <div key={participant.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
-                <div>
-                  <div className={cn('text-sm font-bold', participant.isPlayer ? participant.isSecondary ? 'text-purple-400' : 'text-[#00FF88]' : 'text-white/80')}>
-                    {participant.username}
+            {participants.length === 0 ? (
+              <div className="text-center text-white/30 py-4 text-xs">Waiting for bets...</div>
+            ) : participants.map((participant: CrashParticipant) => (
+              <div key={participant.id} className={cn('flex items-center justify-between rounded-xl border px-3 py-2',
+                participant.isPlayer ? 'border-[#00FF88]/30 bg-[#00FF88]/5' : 'border-white/5 bg-white/[0.03]'
+              )}>
+                <div className="flex items-center gap-2">
+                  <div className={cn('w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black',
+                    participant.isPlayer ? 'bg-[#00FF88] text-black' : 'bg-white/10 text-white/60'
+                  )}>
+                    {participant.username.charAt(0).toUpperCase()}
                   </div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-white/25">{participant.status.replace('_', ' ')}</div>
+                  <div>
+                    <div className={cn('text-sm font-bold', participant.isPlayer ? 'text-[#00FF88]' : 'text-white/80')}>
+                      {participant.username} {participant.isPlayer && '(You)'}
+                    </div>
+                    <div className={cn('text-[10px] uppercase tracking-wider',
+                      participant.status === 'cashed_out' ? 'text-[#00FF88]' :
+                      participant.status === 'crashed' ? 'text-red-400' :
+                      'text-white/40'
+                    )}>
+                      {participant.status === 'cashed_out' ? `Cashed @ ${participant.payout ? (participant.wager * (participant.payout / participant.wager)).toFixed(2) : participant.autoCashoutAt?.toFixed(2)}x` :
+                       participant.status === 'crashed' ? 'Crashed' :
+                       participant.status.replace('_', ' ')}
+                    </div>
+                  </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-mono text-white">{participant.wager}</div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-white/25">
-                    {participant.status === 'cashed_out' && participant.payout ? `+${participant.payout}` :
-                     participant.autoCashoutAt ? `${participant.autoCashoutAt.toFixed(2)}x` :
-                     participant.isPlayer ? 'Manual' : ''}
+                  <div className="text-sm font-mono text-white">${participant.wager.toFixed(2)}</div>
+                  <div className="text-[10px] text-white/40">
+                    {participant.autoCashoutAt ? `Auto @ ${participant.autoCashoutAt.toFixed(2)}x` : 'Manual'}
                   </div>
                 </div>
               </div>
