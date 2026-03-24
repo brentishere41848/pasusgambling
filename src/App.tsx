@@ -5325,8 +5325,8 @@ const FriendsView = () => {
         body: JSON.stringify({ friendId: chatTarget.id, text: chatInput.trim() }),
       });
       const data = await response.json().catch(() => ({}));
-      if (response.ok) {
-        setChatMessages(prev => [...prev, { id: Date.now(), senderId: user?.id || 0, text: chatInput.trim(), createdAt: new Date().toISOString() }]);
+      if (response.ok && data.message) {
+        setChatMessages(prev => [...prev, data.message]);
         setChatInput('');
       }
     } catch {}
