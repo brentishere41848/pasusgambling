@@ -113,7 +113,7 @@ const GAMES = [
     bg: 'bg-emerald-400/10',
     component: CrashGame,
     featured: true,
-    image: '/assets/crash.svg'
+    image: '/assets/crash.png'
   },
   {
     id: 'blackjack',
@@ -124,7 +124,7 @@ const GAMES = [
     bg: 'bg-blue-400/10',
     component: BlackjackGame,
     featured: true,
-    image: '/assets/blackjack.svg'
+    image: '/assets/blackjack.png'
   },
   {
     id: 'mines',
@@ -135,18 +135,7 @@ const GAMES = [
     bg: 'bg-blue-400/10',
     component: MinesGame,
     featured: true,
-    image: '/assets/mines.svg'
-  },
-  {
-    id: 'coinflip',
-    name: 'Coinflip',
-    description: 'Call heads or tails and double up on the flip.',
-    icon: CurrencyIcon,
-    color: 'text-amber-300',
-    bg: 'bg-amber-300/10',
-    component: CoinflipGame,
-    featured: false,
-    image: '/assets/coinflip.svg'
+    image: '/assets/mines.png'
   },
   {
     id: 'dice',
@@ -156,85 +145,8 @@ const GAMES = [
     color: 'text-orange-400',
     bg: 'bg-orange-400/10',
     component: DiceGame,
-    featured: false,
-    image: '/assets/dice.svg'
-  },
-  {
-    id: 'limbo',
-    name: 'Limbo',
-    description: 'Set a target multiplier and hope the roll lands higher.',
-    icon: Flame,
-    color: 'text-orange-300',
-    bg: 'bg-orange-300/10',
-    component: LimboGame,
     featured: true,
-    image: '/assets/limbo.svg'
-  },
-  {
-    id: 'keno',
-    name: 'Keno',
-    description: 'Pick your numbers and catch the draw.',
-    icon: Dices,
-    color: 'text-emerald-300',
-    bg: 'bg-emerald-300/10',
-    component: KenoGame,
-    featured: true,
-    image: '/assets/keno.svg'
-  },
-  {
-    id: 'hilo',
-    name: 'HiLo',
-    description: 'Call higher or lower and build the streak.',
-    icon: ArrowUpRight,
-    color: 'text-red-400',
-    bg: 'bg-red-400/10',
-    component: HiloGame,
-    featured: false,
-    image: '/assets/hilo.svg'
-  },
-  {
-    id: 'baccarat',
-    name: 'Baccarat',
-    description: 'Bet on player, banker, or tie in a fast table game.',
-    icon: Disc,
-    color: 'text-cyan-300',
-    bg: 'bg-cyan-300/10',
-    component: BaccaratGame,
-    featured: false,
-    image: '/assets/baccarat.svg'
-  },
-  {
-    id: 'plinko',
-    name: 'Plinko',
-    description: 'Drop balls through pegs and chase the high multiplier buckets.',
-    icon: Plus,
-    color: 'text-sky-300',
-    bg: 'bg-sky-300/10',
-    component: PlinkoGame,
-    featured: true,
-    image: '/assets/plinko.svg'
-  },
-  {
-    id: 'roulette',
-    name: 'Roulette',
-    description: 'Cover the board and spin a full European wheel.',
-    icon: Disc,
-    color: 'text-rose-300',
-    bg: 'bg-rose-300/10',
-    component: RouletteGame,
-    featured: true,
-    image: '/assets/roulette.svg'
-  },
-  {
-    id: 'wheel',
-    name: 'Wheel',
-    description: 'Simple wheel game with high multipliers.',
-    icon: RotateCcw,
-    color: 'text-purple-400',
-    bg: 'bg-purple-400/10',
-    component: WheelGame,
-    featured: false,
-    image: '/assets/wheel.svg'
+    image: '/assets/dice.png'
   },
 ];
 
@@ -2193,11 +2105,10 @@ const LiveBetsStrip = () => {
 };
 
 const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => {
-  const featuredGames = GAMES.filter(g => g.featured).slice(0, 4);
+  const featuredGames = GAMES.slice(0, 4);
   const [heroIndex, setHeroIndex] = useState(0);
   const [stats, setStats] = useState({ playersOnline: 0, totalWageredToday: 0, biggestWin: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
-  const [category, setCategory] = useState('all');
 
   useEffect(() => {
     const loadStats = async () => {
@@ -2226,22 +2137,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
   }, [featuredGames.length]);
 
   const heroGame = featuredGames[heroIndex];
-  const categories = ['all', 'slots', 'table', 'originals', 'featured'];
-  const categoryLabels: Record<string, string> = { all: 'All', slots: 'Slots', table: 'Table', originals: 'Originals', featured: 'Featured' };
-
-  const filteredGames = category === 'all'
-    ? GAMES
-    : category === 'featured'
-      ? GAMES.filter(g => g.featured)
-      : GAMES;
-
-  const categoryColors: Record<string, string> = {
-    all: '#00FF88',
-    slots: '#f59e0b',
-    table: '#3b82f6',
-    originals: '#a855f7',
-    featured: '#ef4444',
-  };
+  const filteredGames = GAMES;
 
   return (
     <div className="min-h-screen">
@@ -2315,78 +2211,33 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
         </div>
       </div>
 
-      {/* Category Filter */}
-      <div className="px-4 md:px-6 pb-4">
-        <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategory(cat)}
-              className={cn(
-                'shrink-0 px-5 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all border',
-                category === cat
-                  ? 'bg-white text-black border-transparent'
-                  : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white/70'
-              )}
-            >
-              {categoryLabels[cat]}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Games Grid */}
       <div className="px-4 md:px-6 pb-8">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {filteredGames.map((game) => {
-            const GameIcon = typeof game.icon === 'string' ? null : game.icon;
             return (
               <motion.button
                 key={game.id}
-                whileHover={{ y: -6, scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ y: -4, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => onSelectGame(game.id)}
-                className={cn(
-                  'relative rounded-2xl overflow-hidden border transition-all duration-300 group cursor-pointer',
-                  game.featured
-                    ? 'border-[#00FF88]/30 hover:border-[#00FF88]/60 hover:shadow-[0_0_30px_rgba(0,255,136,0.15)]'
-                    : 'border-white/8 hover:border-white/20 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]'
-                )}
+                className="relative rounded-2xl overflow-hidden border border-white/10 hover:border-[#00FF88]/40 transition-all duration-300 cursor-pointer group"
               >
-                {/* Game Image */}
-                <div className="aspect-[4/3] relative overflow-hidden">
+                <div className="aspect-[4/3] relative">
                   <img
                     src={game.image}
                     alt={game.name}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-
-                  {/* Featured Badge */}
-                  {game.featured && (
-                    <div className="absolute top-2 left-2 bg-[#00FF88] text-black text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg shadow-[#00FF88]/40">
-                      <TrendingUp size={8} /> Hot
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  
+                  <div className="absolute inset-0 flex items-end p-4">
+                    <div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-tight">{game.name}</h3>
+                      <p className="text-xs text-white/50">{game.description}</p>
                     </div>
-                  )}
-
-                  {/* Game Name */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      {GameIcon && <GameIcon size={11} className={game.color} />}
-                      <span className="text-sm font-black text-white tracking-tight">{game.name}</span>
-                    </div>
-                    <p className="text-[9px] text-white/35 leading-tight line-clamp-1 hidden sm:block">{game.description}</p>
                   </div>
-
-                  {/* Hover Glow */}
-                  <div className={cn('absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300', game.featured ? 'bg-[#00FF88]/5' : 'bg-white/5')} />
-                </div>
-
-                {/* Bottom Bar */}
-                <div className="bg-[#0a0f1a]/90 backdrop-blur-sm px-3 py-2 flex items-center justify-between">
-                  <span className={cn('text-[9px] font-bold uppercase tracking-wider', game.color)}>{game.name}</span>
-                  <ChevronRight size={12} className="text-white/20 group-hover:text-white/60 group-hover:translate-x-0.5 transition-all" />
                 </div>
               </motion.button>
             );
