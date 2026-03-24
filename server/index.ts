@@ -5407,6 +5407,18 @@ async function processJackpotRounds() {
 // ==================== FRIENDS API ====================
 app.get('/api/friends', requireAuth, async (req: AuthedRequest, res) => {
   try {
+    // Check if friendships table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'friendships'
+      ) as exists
+    `);
+    
+    if (!tableCheck.rows[0]?.exists) {
+      return res.json({ friends: [], incoming: [], outgoing: [] });
+    }
+    
     const userId = req.auth!.user.id;
     
     // Get accepted friends
@@ -5460,7 +5472,7 @@ app.get('/api/friends', requireAuth, async (req: AuthedRequest, res) => {
     });
   } catch (error) {
     console.error('Friends error:', error);
-    res.status(500).json({ error: 'Failed to load friends' });
+    res.json({ friends: [], incoming: [], outgoing: [] });
   }
 });
 
@@ -5582,6 +5594,18 @@ app.delete('/api/friends/:id', requireAuth, async (req: AuthedRequest, res) => {
 // ==================== TOURNAMENTS API ====================
 app.get('/api/tournaments', async (req, res) => {
   try {
+    // Check if tournaments table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'tournaments'
+      ) as exists
+    `);
+    
+    if (!tableCheck.rows[0]?.exists) {
+      return res.json({ tournaments: [] });
+    }
+    
     const result = await pool.query(`
       SELECT t.*,
         (SELECT COUNT(*) FROM tournament_participants WHERE tournament_id = t.id) as participant_count,
@@ -5634,7 +5658,7 @@ app.get('/api/tournaments', async (req, res) => {
     });
   } catch (error) {
     console.error('Tournaments error:', error);
-    res.status(500).json({ error: 'Failed to load tournaments' });
+    res.json({ tournaments: [] });
   }
 });
 
