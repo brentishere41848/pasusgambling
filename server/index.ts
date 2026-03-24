@@ -445,7 +445,39 @@ function getDailyRewardStatus(row: any, now = new Date()): DailyRewardStatus {
 }
 
 function calculateLevel(xp: number): { level: number; xpToNextLevel: number } {
-  const xpThresholds = [0, 1000, 3000, 6000, 10000];
+  // Harder XP thresholds for VIP levels (1-30)
+  const xpThresholds = [
+    0,       // Level 1
+    5000,    // Level 2
+    15000,   // Level 3
+    35000,   // Level 4
+    70000,   // Level 5
+    120000,  // Level 6
+    200000,  // Level 7
+    320000,  // Level 8
+    500000,  // Level 9
+    750000,  // Level 10
+    1100000, // Level 11
+    1550000, // Level 12
+    2100000, // Level 13
+    2800000, // Level 14
+    3700000, // Level 15
+    4800000, // Level 16
+    6200000, // Level 17
+    8000000, // Level 18
+    10300000,// Level 19
+    13200000,// Level 20
+    16800000,// Level 21
+    21200000,// Level 22
+    26500000,// Level 23
+    33000000,// Level 24
+    41000000,// Level 25
+    51000000,// Level 26
+    63500000,// Level 27
+    79000000,// Level 28
+    98500000,// Level 29
+    123000000,// Level 30
+  ];
   let level = 1;
   for (let i = xpThresholds.length - 1; i >= 0; i--) {
     if (xp >= xpThresholds[i]) {
@@ -454,8 +486,17 @@ function calculateLevel(xp: number): { level: number; xpToNextLevel: number } {
     }
   }
   const nextThreshold = xpThresholds[level] || xpThresholds[xpThresholds.length - 1];
-  const xpToNextLevel = level >= 5 ? 0 : Math.max(0, nextThreshold - xp);
+  const xpToNextLevel = level >= 30 ? 0 : Math.max(0, nextThreshold - xp);
   return { level, xpToNextLevel };
+}
+
+function getVipRewardForLevel(level: number): number {
+  // Reward every 3 levels: 1, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30
+  if (level % 3 !== 0 || level === 0) return 0;
+  // Level 1 = $0.10, Level 3 = $0.50, Level 6 = $1.00, etc.
+  // Reward formula: $0.10 * (level/3) * (level/3 + 1) / 2
+  const tier = Math.floor(level / 3);
+  return Math.round(tier * (tier + 1) * 10); // Returns cents
 }
 
 function calculateRewardForStreak(streak: number): { coins: number; xp: number } {
@@ -1243,7 +1284,7 @@ async function getOnlineUserCount(client: Pool | PoolClient, windowMinutes = 5) 
     `SELECT COUNT(DISTINCT user_id)::int AS count
      FROM user_sessions
      WHERE (expires_at IS NULL OR expires_at > NOW())
-       AND updated_at >= NOW() - ($1::int * INTERVAL '1 minute')`,
+       AND last_active_at >= NOW() - ($1::int * INTERVAL '1 minute')`,
     [windowMinutes]
   );
 
@@ -1335,6 +1376,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_reward_last_claimed TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS xp_amount BIGINT NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS user_level INT NOT NULL DEFAULT 1`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS vip_claimed_levels TEXT NOT NULL DEFAULT ''`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
 
@@ -2764,6 +2806,8 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
            FROM bet_activities b
            WHERE b.user_id = $1
          ), 0)::int AS total_bets,
+         u.xp_amount,
+         u.user_level,
          COALESCE(u.rakeback_claimed_total, 0)::bigint AS rakeback_claimed_total,
          COALESCE(u.rakeback_claimed_instant, 0)::bigint AS rakeback_claimed_instant,
          COALESCE(u.rakeback_claimed_daily, 0)::bigint AS rakeback_claimed_daily,
@@ -2771,7 +2815,8 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
          COALESCE(u.rakeback_claimed_monthly, 0)::bigint AS rakeback_claimed_monthly,
          u.rakeback_last_claimed_daily,
          u.rakeback_last_claimed_weekly,
-         u.rakeback_last_claimed_monthly
+         u.rakeback_last_claimed_monthly,
+         COALESCE(u.vip_claimed_levels, '')::text AS vip_claimed_levels
        FROM users u
        LEFT JOIN wallets w ON w.user_id = u.id
        WHERE u.id = $1
@@ -2783,6 +2828,8 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
     const totalDeposited = Number(row?.total_deposited || 0);
     const totalWagered = Number(row?.total_wagered || 0);
     const totalBets = Number(row?.total_bets || 0);
+    const xp = Number(row?.xp_amount || 0);
+    const userLevel = Number(row?.user_level || 1);
     const rakebackClaimedTotal = Number(row?.rakeback_claimed_total || 0);
     const earnedRakeback = totalDeposited >= 1000 ? Math.floor(totalDeposited * 0.005) : 0;
     const buckets = getRakebackBuckets(earnedRakeback, row);
@@ -2791,6 +2838,14 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
       buckets.daily.claimable +
       buckets.weekly.claimable +
       buckets.monthly.claimable;
+
+    const levelInfo = calculateLevel(xp);
+    const nextRewardLevel = levelInfo.level % 3 === 0 ? levelInfo.level : levelInfo.level + (3 - (levelInfo.level % 3));
+    const nextRewardAmount = getVipRewardForLevel(nextRewardLevel);
+    
+    const claimedLevels = (row?.vip_claimed_levels || '').split(',').filter(Boolean).map(Number);
+    const currentReward = getVipRewardForLevel(levelInfo.level);
+    const canClaimReward = levelInfo.level % 3 === 0 && levelInfo.level > 0 && !claimedLevels.includes(levelInfo.level);
 
     return res.json({
       vip: {
@@ -2801,11 +2856,70 @@ app.get('/api/vip/overview', requireAuth, async (req: AuthedRequest, res) => {
         earnedRakeback,
         claimableRakeback,
         rakeback: buckets,
+        level: levelInfo.level,
+        xp: xp,
+        xpToNextLevel: levelInfo.xpToNextLevel,
+        nextRewardLevel,
+        nextRewardAmount,
+        currentReward,
+        canClaimReward,
       },
     });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Failed to load VIP overview.' });
+  }
+});
+
+app.post('/api/vip/level-reward/claim', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await ensureWallet(client, req.auth!.user.id);
+    
+    const userResult = await client.query(
+      `SELECT xp_amount, user_level, vip_claimed_levels FROM users WHERE id = $1 FOR UPDATE`,
+      [req.auth!.user.id]
+    );
+    
+    const row = userResult.rows[0];
+    const xp = Number(row?.xp_amount || 0);
+    const level = Number(row?.user_level || 1);
+    const claimedLevels = (row?.vip_claimed_levels || '').split(',').filter(Boolean).map(Number);
+    
+    // Check if eligible for reward (every 3 levels)
+    if (level % 3 !== 0 || level === 0 || claimedLevels.includes(level)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'No reward available for this level.' });
+    }
+    
+    const reward = getVipRewardForLevel(level);
+    if (reward <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'No reward available.' });
+    }
+    
+    // Add reward to wallet
+    await client.query(
+      `UPDATE wallets SET balance = balance + $1::numeric, total_deposited = total_deposited + $1::numeric, updated_at = NOW() WHERE user_id = $2`,
+      [reward, req.auth!.user.id]
+    );
+    
+    // Mark level as claimed
+    const newClaimedLevels = [...claimedLevels, level].join(',');
+    await client.query(
+      `UPDATE users SET vip_claimed_levels = $1 WHERE id = $2`,
+      [newClaimedLevels, req.auth!.user.id]
+    );
+    
+    await client.query('COMMIT');
+    return res.json({ success: true, reward, level });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to claim VIP reward.' });
+  } finally {
+    client.release();
   }
 });
 

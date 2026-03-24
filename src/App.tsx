@@ -6366,13 +6366,15 @@ const AppContent = () => {
         onClose={() => setChatOpen(false)}
       />
 
-      <button
-        onClick={() => setIsRightRailOpen(true)}
-        className="fixed bottom-6 right-6 z-30 xl:hidden bg-[#00FF88] text-black w-14 h-14 rounded-full shadow-lg shadow-[#00FF88]/30 flex items-center justify-center hover:bg-[#00FF88]/90 transition-all active:scale-95"
-        aria-label="Open chat and rain"
-      >
-        <MessageSquare size={22} />
-      </button>
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 z-30 bg-[#00FF88] text-black w-14 h-14 rounded-full shadow-lg shadow-[#00FF88]/30 flex items-center justify-center hover:bg-[#00FF88]/90 transition-all active:scale-95"
+          aria-label="Open chat"
+        >
+          <MessageSquare size={22} />
+        </button>
+      )}
 
       <AnimatePresence>
         {isWalletOpen && (
