@@ -284,7 +284,7 @@ function formatMoney(value: number) {
   }).format(Number(value || 0));
 }
 
-const COINS_PER_DOLLAR = 100;
+const COINS_PER_DOLLAR = 1;
 const DISPLAY_CURRENCY_RATES: Record<string, number> = {
   USD: 1,
   EUR: 0.92,

@@ -23,7 +23,7 @@ interface WalletResponse {
 const BalanceContext = createContext<BalanceContextType | undefined>(undefined);
 
 const TOKEN_STORAGE_KEY = 'pasus_auth_token';
-const COINS_PER_DOLLAR = 100;
+const COINS_PER_DOLLAR = 1;
 
 async function parseApiResponse(response: Response) {
   const data = await response.json().catch(() => ({}));
