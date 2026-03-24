@@ -720,7 +720,7 @@ export const ChatRain: React.FC<{
                     className="w-full rounded-xl border border-white/10 bg-black/30 pl-7 pr-3 py-2.5 text-base font-mono text-white focus:outline-none"
                   />
                 </div>
-                <div className="text-[10px] text-white/35">100 coins = $1.00</div>
+                <div className="text-[10px] text-white/35">All amounts in dollars</div>
                 <div className="flex gap-2">
                   <button onClick={() => setRainDraft(null)} className="flex-1 rounded-xl bg-white/5 py-2.5 text-[10px] font-black uppercase tracking-wider">
                     Cancel

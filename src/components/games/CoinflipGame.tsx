@@ -161,7 +161,9 @@ export const CoinflipGame: React.FC = () => {
             <input 
               type="number" 
               value={bet} 
-              onChange={(e) => setBet(Math.max(10, Number(e.target.value)))} 
+              onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} 
+              min="0.01"
+              step="0.01"
               disabled={isFlipping || showGamble} 
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50" 
             />

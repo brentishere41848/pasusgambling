@@ -1630,7 +1630,7 @@ const DailyBonusModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 <div className="flex items-center justify-between text-sm mb-2">
                   <span className="text-white/40">Reward</span>
                   <span className="font-black text-[#00FF88]">
-                    {formatMoneyFromCoins((status?.streak || 1) * 100)} coins
+                    {formatMoneyFromCoins((status?.streak || 1) * 100)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">

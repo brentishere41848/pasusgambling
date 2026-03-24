@@ -22,10 +22,10 @@ type SpotData = {
 };
 
 const PRIZES = [
-  { matched: 3, coins: 100, label: '3 Matches' },
-  { matched: 4, coins: 200, label: '4 Matches' },
-  { matched: 5, coins: 350, label: '5 Matches' },
-  { matched: 9, coins: 1000, label: 'Full Card' },
+  { matched: 3, amount: 100, label: '3 Matches' },
+  { matched: 4, amount: 200, label: '4 Matches' },
+  { matched: 5, amount: 350, label: '5 Matches' },
+  { matched: 9, amount: 1000, label: 'Full Card' },
 ];
 
 export const ScratchGame: React.FC = () => {
@@ -72,7 +72,7 @@ export const ScratchGame: React.FC = () => {
       const symbol = spots[4].symbol;
       const matched = spots.filter(s => s.symbol === symbol).length;
       const prize = PRIZES.find(p => p.matched === matched);
-      const winAmount = prize ? prize.coins : 0;
+      const winAmount = prize ? prize.amount : 0;
       setWinnings(winAmount);
       setPrizeLabel(prize ? prize.label : 'No Match');
       setPhase('ended');
@@ -91,7 +91,7 @@ export const ScratchGame: React.FC = () => {
     setSpots(prev => prev.map(s => ({ ...s, revealed: true })));
     const matched = spots.filter(s => s.symbol === winningSymbol).length;
     const prize = PRIZES.find(p => p.matched === matched);
-    const winAmount = prize ? prize.coins : 0;
+    const winAmount = prize ? prize.amount : 0;
     setWinnings(winAmount);
     setPrizeLabel(prize ? prize.label : 'No Match');
     setPhase('ended');
@@ -115,7 +115,7 @@ export const ScratchGame: React.FC = () => {
                 <Star size={14} className="text-[#d9bb63]" />
                 <span className="text-xs font-black text-white/70">{p.label}</span>
               </div>
-              <span className="text-sm font-black text-[#00FF88]">${(p.coins / 100).toFixed(2)}</span>
+              <span className="text-sm font-black text-[#00FF88]">${(p.amount / 100).toFixed(2)}</span>
             </div>
           ))}
         </div>

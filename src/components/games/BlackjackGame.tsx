@@ -493,7 +493,7 @@ export const BlackjackGame: React.FC = () => {
               <label className="text-[10px] uppercase tracking-widest text-white/40 block">Bet per Hand</label>
               <span className="text-[#00FF88] font-mono font-black text-sm">${(baseBet / 100).toFixed(2)}</span>
             </div>
-            <input type="number" value={baseBet} onChange={(e) => setBaseBet(Math.max(100, Math.round(Number(e.target.value) / 100) * 100))} disabled={phase !== 'idle' && phase !== 'ended'} className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#d9bb63]/50 mb-2" />
+            <input type="number" value={baseBet} onChange={(e) => setBaseBet(Math.max(1, Math.round(Number(e.target.value) / 100) * 100))} min="0.01" step="0.01" disabled={phase !== 'idle' && phase !== 'ended'} className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#d9bb63]/50 mb-2" />
             <QuickBetButtons balance={balance} bet={baseBet} onSetBet={setBaseBet} disabled={phase !== 'idle' && phase !== 'ended'} pcts={[25, 50, 75, 100]} />
           </div>
 

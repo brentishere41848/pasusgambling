@@ -48,7 +48,7 @@ export const JackpotGame: React.FC = () => {
 
   const join = async () => {
     if (!user || joining) return;
-    const amt = Math.max(100, Math.round(Number(amount) * 100));
+    const amt = Math.max(1, Math.round(Number(amount) * 100));
     if (amt > balance) { setError('Insufficient balance'); return; }
     if (!subtractBalance(amt)) { setError('Insufficient balance'); return; }
     setJoining(true);
