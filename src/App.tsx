@@ -5905,16 +5905,7 @@ const AppContent = () => {
 
   useEffect(() => {
     if (window.bootFeaturebase) {
-      if (isAuthenticated && user) {
-        window.bootFeaturebase({
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          createdAt: new Date().toISOString()
-        });
-      } else {
-        window.bootFeaturebase(null);
-      }
+      window.bootFeaturebase(null);
     }
   }, [isAuthenticated, user]);
 
