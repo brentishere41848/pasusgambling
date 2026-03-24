@@ -5849,8 +5849,8 @@ app.get('/api/friends/chat/:friendId', requireAuth, async (req: AuthedRequest, r
     `, [userId, friendId]);
     
     res.json({ messages: result.rows.map(r => ({
-      id: r.id,
-      senderId: r.sender_id,
+      id: Number(r.id),
+      senderId: Number(r.sender_id),
       text: r.text,
       createdAt: r.created_at
     })) });
@@ -5893,8 +5893,8 @@ app.post('/api/friends/chat', requireAuth, async (req: AuthedRequest, res) => {
     
     const row = result.rows[0];
     res.json({ message: {
-      id: row.id,
-      senderId: row.sender_id,
+      id: Number(row.id),
+      senderId: Number(row.sender_id),
       text: row.text,
       createdAt: row.created_at
     }});
