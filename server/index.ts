@@ -1695,48 +1695,49 @@ async function initDb() {
       rain_notifications BOOLEAN NOT NULL DEFAULT TRUE,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-
-    CREATE TABLE IF NOT EXISTS friendships (
-      id SERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      friend_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      status VARCHAR(20) NOT NULL DEFAULT 'pending',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(user_id, friend_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS tournaments (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      description TEXT,
-      game_key VARCHAR(50),
-      start_time TIMESTAMPTZ NOT NULL,
-      end_time TIMESTAMPTZ NOT NULL,
-      min_wager BIGINT NOT NULL DEFAULT 0,
-      prize_pool BIGINT NOT NULL DEFAULT 0,
-      max_participants INTEGER,
-      status VARCHAR(20) NOT NULL DEFAULT 'upcoming',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS tournament_participants (
-      id SERIAL PRIMARY KEY,
-      tournament_id BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      total_wagered BIGINT NOT NULL DEFAULT 0,
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(tournament_id, user_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS tournament_prizes (
-      id SERIAL PRIMARY KEY,
-      tournament_id BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL,
-      amount BIGINT NOT NULL,
-      UNIQUE(tournament_id, position)
-    );
   `);
+
+  // Create additional tables individually
+  try { await pool.query(`CREATE TABLE IF NOT EXISTS friendships (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    friend_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, friend_id)
+  )`); } catch (e) { console.error('friendships table:', e.message); }
+
+  try { await pool.query(`CREATE TABLE IF NOT EXISTS tournaments (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    game_key VARCHAR(50),
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    min_wager BIGINT NOT NULL DEFAULT 0,
+    prize_pool BIGINT NOT NULL DEFAULT 0,
+    max_participants INTEGER,
+    status VARCHAR(20) NOT NULL DEFAULT 'upcoming',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`); } catch (e) { console.error('tournaments table:', e.message); }
+
+  try { await pool.query(`CREATE TABLE IF NOT EXISTS tournament_participants (
+    id SERIAL PRIMARY KEY,
+    tournament_id BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    total_wagered BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tournament_id, user_id)
+  )`); } catch (e) { console.error('tournament_participants table:', e.message); }
+
+  try { await pool.query(`CREATE TABLE IF NOT EXISTS tournament_prizes (
+    id SERIAL PRIMARY KEY,
+    tournament_id BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    amount BIGINT NOT NULL,
+    UNIQUE(tournament_id, position)
+  )`); } catch (e) { console.error('tournament_prizes table:', e.message); }
 
 }
 
