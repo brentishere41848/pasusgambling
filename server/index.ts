@@ -5747,6 +5747,163 @@ app.delete('/api/friends/:id', requireAuth, async (req: AuthedRequest, res) => {
   }
 });
 
+// Friend tip endpoint
+app.post('/api/friends/tip', requireAuth, async (req: AuthedRequest, res) => {
+  const client = await pool.connect();
+  try {
+    const userId = req.auth!.user.id;
+    const { friendId, amount } = req.body;
+    
+    if (!friendId || !amount || amount <= 0) {
+      return res.status(400).json({ error: 'Valid friend and amount required' });
+    }
+    
+    // Check if they are friends
+    const friendCheck = await client.query(`
+      SELECT 1 FROM friendships 
+      WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1))
+        AND status = 'accepted'
+    `, [userId, friendId]);
+    
+    if (!friendCheck.rowCount) {
+      return res.status(400).json({ error: 'You are not friends with this user' });
+    }
+    
+    const amountCoins = Math.round(Number(amount) * 100);
+    if (amountCoins < 1) {
+      return res.status(400).json({ error: 'Minimum tip is $0.01' });
+    }
+    
+    await client.query('BEGIN');
+    
+    // Check balance
+    const walletResult = await client.query(`
+      SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE
+    `, [userId]);
+    
+    const balance = Number(walletResult.rows[0]?.balance || 0);
+    if (balance < amountCoins) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+    
+    // Deduct from sender
+    await client.query(`
+      UPDATE wallets SET balance = balance - $1::numeric, total_withdrawn = total_withdrawn + $1::numeric, updated_at = NOW() WHERE user_id = $2
+    `, [amountCoins, userId]);
+    
+    // Add to recipient
+    await client.query(`
+      UPDATE wallets SET balance = balance + $1::numeric, total_deposited = total_deposited + $1::numeric, updated_at = NOW() WHERE user_id = $2
+    `, [amountCoins, friendId]);
+    
+    // Create tip notification
+    await client.query(`
+      INSERT INTO tip_notifications (recipient_user_id, sender_user_id, sender_username, amount)
+      VALUES ($1, $2, $3, $4)
+    `, [friendId, userId, req.auth!.user.username, amountCoins]);
+    
+    await client.query('COMMIT');
+    return res.json({ success: true, amount: amountCoins });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Friend tip error:', error);
+    res.status(500).json({ error: 'Failed to send tip' });
+  } finally {
+    client.release();
+  }
+});
+
+// Create private messages table
+await pool.query(`CREATE TABLE IF NOT EXISTS private_messages (
+  id BIGSERIAL PRIMARY KEY,
+  sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  recipient_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`);
+
+// Get private messages
+app.get('/api/friends/chat/:friendId', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const friendId = parseInt(req.params.friendId);
+    
+    // Check if friends
+    const friendCheck = await pool.query(`
+      SELECT 1 FROM friendships 
+      WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1))
+        AND status = 'accepted'
+    `, [userId, friendId]);
+    
+    if (!friendCheck.rowCount) {
+      return res.status(400).json({ error: 'You are not friends with this user' });
+    }
+    
+    const result = await pool.query(`
+      SELECT id, sender_id, text, created_at
+      FROM private_messages
+      WHERE (sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1)
+      ORDER BY created_at ASC
+      LIMIT 100
+    `, [userId, friendId]);
+    
+    res.json({ messages: result.rows.map(r => ({
+      id: r.id,
+      senderId: r.sender_id,
+      text: r.text,
+      createdAt: r.created_at
+    })) });
+  } catch (error) {
+    console.error('Get chat error:', error);
+    res.status(500).json({ error: 'Failed to load messages' });
+  }
+});
+
+// Send private message
+app.post('/api/friends/chat', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.auth!.user.id;
+    const { friendId, text } = req.body;
+    
+    if (!friendId || !text || text.trim().length === 0) {
+      return res.status(400).json({ error: 'Valid friend and message required' });
+    }
+    
+    if (text.length > 500) {
+      return res.status(400).json({ error: 'Message too long (max 500 characters)' });
+    }
+    
+    // Check if friends
+    const friendCheck = await pool.query(`
+      SELECT 1 FROM friendships 
+      WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1))
+        AND status = 'accepted'
+    `, [userId, friendId]);
+    
+    if (!friendCheck.rowCount) {
+      return res.status(400).json({ error: 'You are not friends with this user' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO private_messages (sender_id, recipient_id, text)
+      VALUES ($1, $2, $3)
+      RETURNING id, sender_id, text, created_at
+    `, [userId, friendId, text.trim()]);
+    
+    const row = result.rows[0];
+    res.json({ message: {
+      id: row.id,
+      senderId: row.sender_id,
+      text: row.text,
+      createdAt: row.created_at
+    }});
+  } catch (error) {
+    console.error('Send chat error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
 // ==================== TOURNAMENTS API ====================
 app.get('/api/tournaments', async (req, res) => {
   try {

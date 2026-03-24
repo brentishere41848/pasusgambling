@@ -5056,6 +5056,7 @@ type FriendRequest = {
 
 const FriendsView = () => {
   const { user } = useAuth();
+  const { refreshWallet } = useBalance();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [incoming, setIncoming] = useState<FriendRequest[]>([]);
   const [outgoing, setOutgoing] = useState<FriendRequest[]>([]);
@@ -5065,6 +5066,14 @@ const FriendsView = () => {
   const [activeTab, setActiveTab] = useState<'friends' | 'requests' | 'search'>('friends');
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [tipTarget, setTipTarget] = useState<Friend | null>(null);
+  const [tipAmount, setTipAmount] = useState('');
+  const [tipError, setTipError] = useState('');
+  const [tipSuccess, setTipSuccess] = useState(false);
+  const [chatTarget, setChatTarget] = useState<Friend | null>(null);
+  const [chatMessages, setChatMessages] = useState<Array<{id: number; senderId: number; text: string; createdAt: string}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   const loadFriends = async () => {
     try {
@@ -5170,6 +5179,52 @@ const FriendsView = () => {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const sendTip = async () => {
+    if (!tipTarget || !tipAmount || Number(tipAmount) <= 0) return;
+    setTipError('');
+    setTipSuccess(false);
+    try {
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await apiFetch('/api/friends/tip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ friendId: tipTarget.id, amount: Number(tipAmount) }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to send tip');
+      setTipSuccess(true);
+      refreshWallet();
+      setTimeout(() => { setTipTarget(null); setTipAmount(''); setTipSuccess(false); }, 1500);
+    } catch (err) {
+      setTipError(err instanceof Error ? err.message : 'Failed to send tip');
+    }
+  };
+
+  const openChat = async (friend: Friend) => {
+    setChatTarget(friend);
+    setChatMessages([]);
+    setChatInput('');
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatTarget || !chatInput.trim()) return;
+    setSendingMessage(true);
+    try {
+      const token = localStorage.getItem('pasus_auth_token');
+      const response = await apiFetch('/api/friends/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ friendId: chatTarget.id, text: chatInput.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setChatMessages(prev => [...prev, { id: Date.now(), senderId: user?.id || 0, text: chatInput.trim(), createdAt: new Date().toISOString() }]);
+        setChatInput('');
+      }
+    } catch {}
+    setSendingMessage(false);
   };
 
   const UserCard = ({ u, showActions, onAction }: { u: any; showActions?: boolean; onAction?: () => void }) => (
@@ -5312,10 +5367,10 @@ const FriendsView = () => {
                   <div className="text-xs text-white/40">Friend since {friend.friendSince ? new Date(friend.friendSince).toLocaleDateString() : 'N/A'}</div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Tip">
+                  <button onClick={() => setTipTarget(friend)} className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Tip">
                     <DollarSign size={16} />
                   </button>
-                  <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Chat">
+                  <button onClick={() => openChat(friend)} className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-[#00FF88] hover:bg-white/10 transition-all" title="Chat">
                     <MessageCircle size={16} />
                   </button>
                   <button onClick={() => removeFriend(friend.id)} disabled={actionLoading === friend.id}
@@ -5333,6 +5388,62 @@ const FriendsView = () => {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tip Modal */}
+      {tipTarget && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#141821] border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4">
+            <h2 className="text-xl font-black text-white mb-4">Tip {tipTarget.username}</h2>
+            {tipError && <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/20 border border-red-500/50 text-red-300 text-sm">{tipError}</div>}
+            {tipSuccess && <div className="mb-4 px-4 py-3 rounded-xl bg-green-500/20 border border-green-500/50 text-green-300 text-sm">Tip sent!</div>}
+            <div className="relative mb-4">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-lg font-bold">$</span>
+              <input type="number" value={tipAmount} onChange={e => setTipAmount(e.target.value)} placeholder="0.00"
+                className="w-full bg-black border border-white/10 rounded-xl pl-8 pr-4 py-3 text-white text-xl font-mono focus:outline-none focus:border-[#00FF88]/50" />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setTipTarget(null); setTipAmount(''); setTipError(''); setTipSuccess(false); }}
+                className="flex-1 py-3 bg-white/10 text-white font-black rounded-xl hover:bg-white/20 transition-all">Cancel</button>
+              <button onClick={sendTip} className="flex-1 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 transition-all">
+                Send Tip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Modal */}
+      {chatTarget && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#141821] border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 flex flex-col" style={{maxHeight: '80vh'}}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black text-white">Chat with {chatTarget.username}</h2>
+              <button onClick={() => setChatTarget(null)} className="p-2 hover:bg-white/10 rounded-lg"><X size={20} className="text-white/60" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-3 mb-4 min-h-[200px] max-h-[300px]">
+              {chatMessages.length === 0 ? (
+                <div className="text-center text-white/40 py-8">No messages yet. Say hi!</div>
+              ) : chatMessages.map(msg => (
+                <div key={msg.id} className={cn('px-4 py-2 rounded-xl max-w-[80%]',
+                  msg.senderId === user?.id ? 'bg-[#00FF88]/20 ml-auto' : 'bg-white/10 mr-auto'
+                )}>
+                  <div className="text-sm text-white">{msg.text}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                placeholder="Type a message..."
+                className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+              <button onClick={sendChatMessage} disabled={sendingMessage || !chatInput.trim()}
+                className="px-6 py-3 bg-[#00FF88] text-black font-black rounded-xl hover:bg-[#00FF88]/90 disabled:opacity-50">
+                Send
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
