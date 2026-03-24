@@ -1,10 +1,11 @@
 services:
   - type: web
     name: pasusgambling-api
+    rootDir: .
     env: node
     region: oregon
-    buildCommand: npm install && npm run build:server
-    startCommand: npm run start:server
+    buildCommand: npm install
+    startCommand: node --import tsx server/index.ts
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
