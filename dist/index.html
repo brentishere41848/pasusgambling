@@ -14,12 +14,49 @@
     </script>
     <script type="text/javascript" src="//widget.trustpilot.com/bootstrap/v1/tp.widget.bootstrap.min.js"></script>
     
-    <!-- Featurebase Feedback/Support Widget -->
+    <!-- Featurebase SDK - Load First -->
     <script>
-      window.featureBaseReady = false;
-      !(function(e,t){var a="featurebase-sdk";function n(){if(!t.getElementById(a)){var e=t.createElement("script");(e.id=a),(e.src="https://do.featurebase.app/js/sdk.js"),t.getElementsByTagName("script")[0].parentNode.insertBefore(e,t.getElementsByTagName("script")[0])}window.featureBaseReady = true;if(window.pendingFeaturebaseInit){window.pendingFeaturebaseInit();window.pendingFeaturebaseInit=null;}};"function"!=typeof e.Featurebase&&(e.Featurebase=function(){(e.Featurebase.q=e.Featurebase.q||[]).push(arguments)}),"complete"===t.readyState||"interactive"===t.readyState?n():t.addEventListener("DOMContentLoaded",n)})(window,document);
+      (function(e,t){
+        var a="featurebase-sdk";
+        // Create queue if not exists
+        if(typeof e.Featurebase==="undefined"){
+          e.Featurebase=function(){
+            if(e.Featurebase.q){
+              e.Featurebase.q.push(arguments);
+            }
+          };
+          e.Featurebase.q=[];
+        }
+        // Function to load SDK
+        function n(){
+          // Check if already loaded
+          if(t.getElementById(a)) return;
+          var s=t.createElement("script");
+          s.id=a;
+          s.src="https://do.featurebase.app/js/sdk.js?v="+Date.now();
+          s.onload=function(){
+            window.featureBaseLoaded=true;
+            // Process queued commands
+            if(e.Featurebase.q){
+              e.Featurebase.q.forEach(function(args){
+                if(typeof e.Featurebase==='function'){
+                  e.Featurebase.apply(null,args);
+                }
+              });
+              e.Featurebase.q=[];
+            }
+          };
+          t.head.appendChild(s);
+        }
+        // Load if not complete
+        if(t.readyState==="complete"||t.readyState==="interactive"){
+          n();
+        }else{
+          t.addEventListener("DOMContentLoaded",n);
+        }
+      })(window,document);
     </script>
-    <script type="module" crossorigin src="/assets/index-sfWiCiqA.js"></script>
+    <script type="module" crossorigin src="/assets/index-BRWRSlzr.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-RPfBqoEg.css">
   </head>
   <body>
@@ -29,49 +66,44 @@
     <div class="trustpilot-widget" data-template-id="54d2d827d967d6c4b0544c7f" data-business-unit-id="pasus-0c7770cce6-4f7b-8b51-5452a2dae229" data-style-height="24px" data-style-width="100%" data-theme="dark" style="position: relative;">
     </div>
     
-    <!-- Initialize Featurebase with user data if logged in -->
+    <!-- Featurebase Boot Script -->
     <script>
-      window.initFeaturebase = function(userData) {
-        function doBoot() {
-          if (userData && userData.email) {
-            Featurebase("boot", {
-              appId: "69c1b44485cadc7c01d5c697",
-              email: userData.email,
-              userId: String(userData.id),
-              createdAt: userData.createdAt || new Date().toISOString(),
-              theme: "dark",
-              language: "en"
-            });
-          } else {
-            Featurebase("boot", {
-              appId: "69c1b44485cadc7c01d5c697",
-              theme: "dark",
-              language: "en"
-            });
-          }
+      window.bootFeaturebase = function(userData) {
+        var config = {
+          appId: "69c1b44485cadc7c01d5c697",
+          theme: "dark",
+          language: "en"
+        };
+        if (userData && userData.email) {
+          config.email = userData.email;
+          config.userId = String(userData.id);
+          config.createdAt = userData.createdAt || new Date().toISOString();
         }
-        
-        if (window.featureBaseReady && typeof Featurebase === 'function') {
-          doBoot();
+        Featurebase("boot", config);
+        window.featurebaseBooted = true;
+      };
+      
+      window.openFeaturebaseChat = function() {
+        if (window.featureBaseLoaded) {
+          try {
+            Featurebase("open_chat");
+          } catch(e) {
+            console.error("Featurebase open_chat error:", e);
+          }
         } else {
-          window.pendingFeaturebaseInit = doBoot;
-          var checkCount = 0;
-          var checkInterval = setInterval(function() {
-            checkCount++;
-            if (window.featureBaseReady && typeof Featurebase === 'function') {
-              clearInterval(checkInterval);
-              if (window.pendingFeaturebaseInit) {
-                window.pendingFeaturebaseInit();
-                window.pendingFeaturebaseInit = null;
-              }
+          // Try again after a short delay
+          setTimeout(function() {
+            try {
+              Featurebase("open_chat");
+            } catch(e) {
+              console.error("Featurebase open_chat error:", e);
             }
-            if (checkCount > 50) clearInterval(checkInterval);
-          }, 100);
+          }, 1000);
         }
       };
       
-      // Initialize with anonymous user on page load
-      window.initFeaturebase(null);
+      // Boot on page load
+      window.bootFeaturebase(null);
     </script>
   </body>
 </html>

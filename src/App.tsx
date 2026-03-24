@@ -5757,22 +5757,8 @@ const SupportView = () => {
         <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Use this page to contact support and track ticket activity. Everyone can now view the live support threads, while replies stay limited to the ticket owner and the owner account.</p>
         <button 
           onClick={() => {
-            if (typeof window !== 'undefined') {
-              if (typeof (window as any).Featurebase === 'function') {
-                try {
-                  (window as any).Featurebase('open_chat');
-                } catch (e) {
-                  console.error('Featurebase error:', e);
-                }
-              } else if ((window as any).featureBaseReady) {
-                // SDK ready but not booted yet
-                (window as any).initFeaturebase(null);
-                setTimeout(() => {
-                  if (typeof (window as any).Featurebase === 'function') {
-                    (window as any).Featurebase('open_chat');
-                  }
-                }, 500);
-              }
+            if (typeof window !== 'undefined' && (window as any).openFeaturebaseChat) {
+              (window as any).openFeaturebaseChat();
             }
           }}
           className="mt-4 rounded-2xl bg-[#00FF88] text-black px-6 py-3 text-xs font-black uppercase tracking-[0.16em]"
@@ -5918,16 +5904,16 @@ const AppContent = () => {
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
 
   useEffect(() => {
-    if (window.initFeaturebase) {
+    if (window.bootFeaturebase) {
       if (isAuthenticated && user) {
-        window.initFeaturebase({
+        window.bootFeaturebase({
           id: user.id,
           email: user.email,
           username: user.username,
           createdAt: new Date().toISOString()
         });
       } else {
-        window.initFeaturebase(null);
+        window.bootFeaturebase(null);
       }
     }
   }, [isAuthenticated, user]);
