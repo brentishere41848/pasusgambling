@@ -4090,7 +4090,7 @@ app.post('/api/promo/claim', requireAuth, async (req: AuthedRequest, res) => {
     return res.json({
       success: true,
       amount: coinAmount,
-      message: `You received ${formatCoinsLabel(coinAmount)} coins!`,
+      message: `You received $${formatCoinsLabel(coinAmount)}!`,
       wallet: sanitizeWallet(walletResult.rows[0]),
     });
   } catch (error) {

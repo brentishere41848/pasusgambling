@@ -650,15 +650,6 @@ const Sidebar = ({
           <span>Provably Fair</span>
         </button>
 
-        {onToggleChat && (
-          <button onClick={onToggleChat}
-            className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-              chatOpen ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'text-white/40 hover:text-white hover:bg-white/5')}>
-            <MessageCircle size={17} />
-            <span>{chatOpen ? 'Hide Chat' : 'Show Chat'}</span>
-          </button>
-        )}
-
         {user?.role === 'owner' && (
           <button onClick={() => handleNav(() => onOpenView('admin'))}
             className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
@@ -1777,24 +1768,6 @@ const Header = ({
 
           {isAuthenticated ? (
             <>
-              {onToggleChat && (
-                <button
-                  onClick={onToggleChat}
-                  className={cn(
-                    'w-9 h-9 md:w-10 md:h-10 rounded-full border flex items-center justify-center transition-all',
-                    chatOpen 
-                      ? 'bg-[#00FF88]/20 border-[#00FF88]/50 text-[#00FF88]' 
-                      : 'bg-[#1a1d23] border-white/10 text-white/60 hover:border-white/30'
-                  )}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    <path d="M8 10h8" opacity="0.5"/>
-                    <path d="M8 14h4" opacity="0.5"/>
-                  </svg>
-                </button>
-              )}
-
               <button 
                 onClick={onOpenWallet}
                 className="bg-[#00FF88] text-black text-sm font-black px-3 md:px-4 py-1.5 md:py-2 rounded-full hover:bg-[#00FF88]/90 transition-colors text-xs md:text-sm"
@@ -2788,9 +2761,9 @@ const ProfileView = () => {
           </h3>
           <div className="space-y-4">
             {[
-              { label: 'Total Wagered', value: '90,400 Coins' },
-              { label: 'Total Won', value: '96,300 Coins' },
-              { label: 'Net Profit', value: '+5,900 Coins', color: 'text-[#00FF88]' },
+              { label: 'Total Wagered', value: '$90,400' },
+              { label: 'Total Won', value: '$96,300' },
+              { label: 'Net Profit', value: '+$5,900', color: 'text-[#00FF88]' },
               { label: 'Highest Multiplier', value: '1,240x' },
             ].map((stat, i) => (
               <div key={i} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
@@ -5998,10 +5971,10 @@ const VipView = () => {
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Tier Ladder</div>
           {[
-            'Bronze: 0+ Coins wagered',
-            'Silver: 10,000+ Coins wagered',
-            'Gold: 50,000+ Coins wagered',
-            'Diamond: 200,000+ Coins wagered',
+            'Bronze: $0+ wagered',
+            'Silver: $10,000+ wagered',
+            'Gold: $50,000+ wagered',
+            'Diamond: $200,000+ wagered',
           ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
         </div>
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
