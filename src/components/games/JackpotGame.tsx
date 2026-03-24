@@ -80,7 +80,7 @@ export const JackpotGame: React.FC = () => {
           <Gift size={28} className="text-amber-400" />
           <h1 className="text-3xl font-black uppercase tracking-wider">Jackpot</h1>
         </div>
-        <p className="text-sm text-white/40">Everyone deposits coins. One random winner takes the pot!</p>
+        <p className="text-sm text-white/40">Everyone deposits funds. One random winner takes the pot!</p>
       </div>
 
       {/* Pool */}
@@ -111,7 +111,7 @@ export const JackpotGame: React.FC = () => {
               className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-xl font-mono text-white focus:outline-none focus:border-amber-500/30"
             />
           </div>
-          <div className="text-[10px] text-white/25 mt-1">Min bet: $0.01 (1 coin)</div>
+          <div className="text-[10px] text-white/25 mt-1">Min bet: $0.01</div>
         </div>
 
         <div className="grid grid-cols-4 gap-1">

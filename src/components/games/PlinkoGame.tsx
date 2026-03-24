@@ -185,7 +185,7 @@ export const PlinkoGame: React.FC = () => {
                 disabled={isAuto}
                 className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50"
               />
-              <div className="text-[9px] text-white/25 mt-1">Min: $0.01 (1 coin)</div>
+              <div className="text-[9px] text-white/25 mt-1">Min: $0.01</div>
               <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isAuto} />
             </div>
 

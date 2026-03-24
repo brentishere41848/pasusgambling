@@ -95,7 +95,7 @@ function CurrencyIcon({ className = '', size = 18 }: { className?: string; size?
   return (
     <img
       src="/assets/currency.png"
-      alt="Coins"
+      alt="Balance"
       className={className}
       style={{ width: size, height: size }}
     />
@@ -292,7 +292,7 @@ const DISPLAY_CURRENCY_RATES: Record<string, number> = {
   CAD: 1.35,
 };
 
-function formatCoins(value: number) {
+function formatDollars(value: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -306,7 +306,7 @@ function coinsToUsd(value: number) {
 }
 
 function formatMoneyFromCoins(value: number) {
-  return formatCoins(Number(value || 0));
+  return formatDollars(Number(value || 0));
 }
 
 function usdToCoins(value: number) {
@@ -1081,7 +1081,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
                 {isProcessing ? <LoaderCircle size={16} className="animate-spin" /> : <Gift size={16} />}
                 {isProcessing ? 'Redeeming...' : 'Redeem Code'}
               </button>
-              <p className="text-[11px] text-white/40 text-center">Enter a promo code to receive bonus coins.</p>
+              <p className="text-[11px] text-white/40 text-center">Enter a promo code to receive bonus funds.</p>
             </div>
           )}
 
@@ -4085,7 +4085,7 @@ const AdminView = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Coin Amount</label>
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Amount ($)</label>
               <input
                 type="number"
                 value={newPromoCoins}
@@ -4511,11 +4511,11 @@ const AdminView = () => {
               <input type="number" value={newRainInterval} onChange={(e) => setNewRainInterval(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="60" />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Min Pool Amount (coins)</label>
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Min Pool Amount ($)</label>
               <input type="number" value={newRainMinPool} onChange={(e) => setNewRainMinPool(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="100" />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Rain Amount (coins)</label>
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Rain Amount ($)</label>
               <input type="number" value={newRainAmount} onChange={(e) => setNewRainAmount(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="500" />
             </div>
             <button
@@ -4566,7 +4566,7 @@ const AdminView = () => {
                       <span className="text-sm font-black">{schedule.intervalMinutes}min</span>
                     </div>
                     <div className="text-[10px] text-white/40">
-                      Min pool: {schedule.minPoolAmount} | Rain: {schedule.rainAmount} coins
+                      Min pool: ${(schedule.minPoolAmount / 100).toFixed(2)} | Rain: ${(schedule.rainAmount / 100).toFixed(2)}
                     </div>
                     {schedule.lastTriggeredAt && (
                       <div className="text-[10px] text-white/20">
