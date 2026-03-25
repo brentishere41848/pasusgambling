@@ -132,6 +132,13 @@ const HOME_GAMES = [
 
 const FEATURED_GAMES = [
   {
+    id: 'news',
+    name: 'News',
+    description: 'Click to see what\'s new!',
+    image: '/assets/hero.png',
+    heroImage: '/assets/hero.png'
+  },
+  {
     id: 'blackjack',
     name: 'Blackjack',
     description: 'Classic card game. Get closer to 21 than the dealer.',
@@ -2153,6 +2160,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
   const [heroIndex, setHeroIndex] = useState(0);
   const [stats, setStats] = useState({ playersOnline: 0, totalWageredToday: 0, biggestWin: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [showNewsModal, setShowNewsModal] = useState(false);
 
   useEffect(() => {
     const loadStats = async () => {
@@ -2220,7 +2228,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
               <motion.div key={heroIndex} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-[9px] font-black uppercase tracking-[0.3em] text-black bg-[#00FF88] px-3 py-1 rounded-full">
-                    Featured Game
+                    {heroGame.id === 'news' ? 'New!' : 'Featured Game'}
                   </span>
                 </div>
                 <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white leading-none mb-2 drop-shadow-lg">
@@ -2229,7 +2237,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
                 <p className="text-white/80 text-sm max-w-lg mb-5 drop-shadow-md">{heroGame.description}</p>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => onSelectGame(heroGame.id)}
+                    onClick={() => heroGame.id === 'news' ? setShowNewsModal(true) : onSelectGame(heroGame.id)}
                     className="bg-[#00FF88] text-black px-8 py-3 rounded-full text-xs font-black uppercase tracking-[0.2em] hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/30"
                   >
                     Play Now
@@ -2287,6 +2295,128 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
         <LiveBetsStrip />
         <RecentActivity />
       </div>
+
+      {/* News Modal */}
+      {showNewsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowNewsModal(false)} />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative bg-gradient-to-b from-[#1a1a2e] to-[#0a0a15] rounded-3xl border border-white/10 w-full max-w-2xl max-h-[85vh] overflow-hidden shadow-2xl"
+          >
+            <div className="relative h-48 md:h-64 overflow-hidden">
+              <img src="/assets/hero.png" alt="Pasus Released" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a15] via-transparent to-transparent" />
+              <button 
+                onClick={() => setShowNewsModal(false)}
+                className="absolute top-4 right-4 w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-black/70 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 md:p-8 overflow-y-auto max-h-[calc(85vh-16rem)]">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="px-3 py-1 bg-[#00FF88]/20 text-[#00FF88] text-xs font-black uppercase tracking-wider rounded-full">
+                  Official Announcement
+                </span>
+              </div>
+              
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+                PASUS IS <span className="text-[#00FF88]">LIVE!</span>
+              </h2>
+              
+              <p className="text-white/70 text-lg mb-8 leading-relaxed">
+                Welcome to Pasus - the ultimate gambling platform. We're excited to bring you an unparalleled gaming experience with fair play, instant payouts, and incredible rewards.
+              </p>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
+                  <div className="text-[#00FF88] text-2xl md:text-3xl font-black mb-1">
+                    {isLoadingStats ? '...' : stats.playersOnline.toLocaleString()}
+                  </div>
+                  <div className="text-white/40 text-xs uppercase tracking-wider">Players Online</div>
+                </div>
+                <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
+                  <div className="text-amber-400 text-2xl md:text-3xl font-black mb-1">
+                    {isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday)}
+                  </div>
+                  <div className="text-white/40 text-xs uppercase tracking-wider">Wagered Today</div>
+                </div>
+                <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
+                  <div className="text-purple-400 text-2xl md:text-3xl font-black mb-1">
+                    {isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin)}
+                  </div>
+                  <div className="text-white/40 text-xs uppercase tracking-wider">Biggest Win</div>
+                </div>
+              </div>
+
+              {/* Games */}
+              <h3 className="text-xl font-black text-white mb-4 uppercase tracking-tight">
+                Our Games
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+                {[
+                  { name: 'Crash', desc: 'Multipliers up to 1000x' },
+                  { name: 'Blackjack', desc: 'Classic 21 action' },
+                  { name: 'Mines', desc: 'Find gems, avoid bombs' },
+                  { name: 'Dice', desc: 'Predict the roll' },
+                  { name: 'Hilo', desc: 'Higher or lower?' },
+                  { name: 'Plinko', desc: 'Drop & win big' },
+                ].map((game) => (
+                  <button
+                    key={game.name}
+                    onClick={() => {
+                      const gameId = game.name.toLowerCase().replace(' ', '');
+                      onSelectGame(gameId === 'dice' ? 'coinflip' : gameId);
+                      setShowNewsModal(false);
+                    }}
+                    className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-4 text-left transition-all group"
+                  >
+                    <div className="text-white font-bold mb-1 group-hover:text-[#00FF88] transition-colors">{game.name}</div>
+                    <div className="text-white/40 text-xs">{game.desc}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Features */}
+              <h3 className="text-xl font-black text-white mb-4 uppercase tracking-tight">
+                Why Choose Pasus?
+              </h3>
+              <div className="space-y-3 mb-6">
+                {[
+                  { icon: Shield, title: 'Provably Fair', desc: 'Every game is verifiable fair using cryptography' },
+                  { icon: Zap, title: 'Instant Payouts', desc: 'Withdraw your winnings instantly with no delays' },
+                  { icon: Users, title: 'VIP Club', desc: 'Climb the ranks and unlock exclusive rewards' },
+                  { icon: MessageCircle, title: '24/7 Support', desc: 'Our team is always here to help via Featurebase' },
+                ].map((feature) => (
+                  <div key={feature.title} className="flex items-start gap-4 bg-white/5 rounded-xl p-4 border border-white/5">
+                    <div className="w-10 h-10 bg-[#00FF88]/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <feature.icon className="w-5 h-5 text-[#00FF88]" />
+                    </div>
+                    <div>
+                      <div className="text-white font-bold mb-0.5">{feature.title}</div>
+                      <div className="text-white/50 text-sm">{feature.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <div className="text-center pt-4">
+                <button
+                  onClick={() => setShowNewsModal(false)}
+                  className="bg-[#00FF88] text-black px-8 py-4 rounded-full font-black uppercase tracking-wider hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/30"
+                >
+                  Start Playing Now
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
