@@ -169,7 +169,8 @@ export const BlackjackGame: React.FC = () => {
 
     const { score } = calculateScore([...hands[idx].cards, newCard]);
     if (score > 21 || score === 21) {
-      setTimeout(() => advanceGame(), 400);
+      const delay = score > 21 ? 1200 : 600;
+      setTimeout(() => advanceGame(), delay);
     }
   };
 
