@@ -1398,17 +1398,18 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
               </div>
             )}
 
-            {isRegister && (
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={emailOptIn}
-                  onChange={(e) => setEmailOptIn(e.target.checked)}
-                  className="w-5 h-5 rounded border-white/20 bg-black/40 text-[#00FF88] focus:ring-[#00FF88] focus:ring-offset-0"
-                />
-                <span className="text-sm text-white/60">Receive promotional emails</span>
-              </label>
-            )}
+            <label className="flex items-center gap-3 cursor-pointer py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+              <input
+                type="checkbox"
+                checked={emailOptIn}
+                onChange={(e) => setEmailOptIn(e.target.checked)}
+                className="w-5 h-5 rounded border-white/20 bg-black/40 text-[#00FF88] focus:ring-[#00FF88] focus:ring-offset-0"
+              />
+              <div>
+                <span className="text-sm text-white">Receive promotional emails</span>
+                <div className="text-[10px] text-white/40">Get updates and special offers via email</div>
+              </div>
+            </label>
 
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Password</label>
