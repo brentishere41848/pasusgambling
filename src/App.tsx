@@ -284,7 +284,7 @@ const getPreferredAvatar = (user?: {
   return user.customAvatarUrl || user.avatar || user.discordAvatarUrl || user.robloxAvatarUrl || '';
 };
 
-type MainView = 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'tournaments' | 'friends' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
+type MainView = 'welcome' | 'dashboard' | 'profile' | 'connections' | 'settings' | 'admin' | 'vip' | 'affiliate' | 'leaderboard' | 'tournaments' | 'friends' | 'provably-fair' | 'support' | 'terms' | 'privacy' | 'responsible-gaming';
 
 const VIEW_PATHS: Partial<Record<MainView, string>> = {
   dashboard: '/',

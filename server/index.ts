@@ -50,15 +50,48 @@ async function sendEmail(to: string, subject: string, html: string) {
 
 async function sendWelcomeEmail(email: string, username: string) {
   const html = `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h1 style="color: #00FF88;">Welcome to Pasus, ${username}!</h1>
-      <p>Thanks for joining Pasus. You received a <strong>$5 welcome bonus</strong> to get started.</p>
-      <p>Start playing and good luck!</p>
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center;">
+      <img src="cid:welcome-image" alt="Welcome to Pasus" style="max-width: 100%; height: auto; border-radius: 12px; margin-bottom: 20px;" />
+      <h1 style="color: #00FF88; margin-bottom: 10px;">Welcome to Pasus, ${username}!</h1>
+      <p style="color: #333; font-size: 16px; line-height: 1.6;">
+        Thanks for joining Pasus. You received a <strong>$5 welcome bonus</strong> to get started.
+      </p>
+      <p style="color: #333; font-size: 16px; line-height: 1.6;">
+        Start playing and good luck!
+      </p>
       <br/>
-      <p style="color: #666;">- The Pasus Team</p>
+      <a href="${appBaseUrl}" style="display: inline-block; background: #00FF88; color: black; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; margin: 10px 0;">
+        Start Playing
+      </a>
+      <br/><br/>
+      <p style="color: #888; font-size: 12px;">- The Pasus Team</p>
     </div>
   `;
-  await sendEmail(email, 'Welcome to Pasus!', html);
+  
+  if (!resend) {
+    console.log('[Email disabled] Would send welcome email to:', email);
+    return;
+  }
+  
+  try {
+    const welcomeImagePath = path.join(distPath, 'assets', 'welcome.png');
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email,
+      subject: 'Welcome to Pasus!',
+      html,
+      attachments: [
+        {
+          filename: 'welcome.png',
+          path: welcomeImagePath,
+          contentId: 'welcome-image',
+        },
+      ],
+    });
+    console.log('[Welcome email sent] To:', email);
+  } catch (error) {
+    console.error('[Welcome email error]', error);
+  }
 }
 
 async function sendPromoEmail(email: string, username: string, promo: string) {
