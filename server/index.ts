@@ -1221,8 +1221,8 @@ async function getWallet(client: Pool | PoolClient, userId: number) {
 
 async function ensureWallet(client: Pool | PoolClient, userId: number) {
   await client.query(
-    `INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn)
-     VALUES ($1, 0, 0, 0)
+    `INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn, total_wagered)
+     VALUES ($1, 0, 0, 0, 0)
      ON CONFLICT (user_id) DO NOTHING`,
     [userId]
   );
@@ -2400,8 +2400,8 @@ app.post('/api/auth/register', async (req, res) => {
     const user = sanitizeUser(userResult.rows[0]);
 
     await client.query(
-      `INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn)
-       VALUES ($1, 50, 50, 0)`,
+      `INSERT INTO wallets (user_id, balance, total_deposited, total_withdrawn, total_wagered)
+       VALUES ($1, 5, 0, 0, 0)`,
       [user.id]
     );
 
