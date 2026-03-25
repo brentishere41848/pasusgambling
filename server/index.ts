@@ -54,7 +54,7 @@ async function sendWelcomeEmail(email: string, username: string) {
       <img src="${appBaseUrl}/assets/welcome.png" alt="Welcome to Pasus" style="max-width: 100%; height: auto; border-radius: 12px; margin-bottom: 20px;" />
       <h1 style="color: #00FF88; margin-bottom: 10px;">Welcome to Pasus, ${username}!</h1>
       <p style="color: #333; font-size: 16px; line-height: 1.6;">
-        Thanks for joining Pasus. You received a <strong>$5 welcome bonus</strong> to get started.
+        Thanks for joining Pasus. You received a <strong>$1 welcome bonus</strong> to get started.
       </p>
       <p style="color: #333; font-size: 16px; line-height: 1.6;">
         Start playing and good luck!
