@@ -173,7 +173,7 @@ const GAMES = [
     bg: 'bg-amber-300/10',
     component: CoinflipGame,
     featured: false,
-    image: '/assets/coinflip.png'
+    image: '/assets/dice2.png'
   },
   {
     id: 'dice',
