@@ -4,7 +4,7 @@ services:
     rootDir: .
     env: node
     region: oregon
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: node --import tsx server/index.ts
     healthCheckPath: /api/health
     envVars:
