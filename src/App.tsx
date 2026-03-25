@@ -105,6 +105,12 @@ function CurrencyIcon({ className = '', size = 18 }: { className?: string; size?
 
 const HOME_GAMES = [
   {
+    id: 'crash',
+    name: 'Crash',
+    description: 'Predict the multiplier and cash out before it crashes.',
+    image: '/assets/crash2.png',
+  },
+  {
     id: 'blackjack',
     name: 'Blackjack',
     description: 'Classic card game. Get closer to 21 than the dealer.',
@@ -119,6 +125,13 @@ const HOME_GAMES = [
     heroImage: '/assets/mines_hero.png'
   },
   {
+    id: 'hilo',
+    name: 'Hilo',
+    description: 'Higher or lower? Test your luck and intuition.',
+    image: '/assets/hilo_hero.png',
+    heroImage: '/assets/hilo_hero.png'
+  },
+  {
     id: 'coinflip',
     name: 'Dice',
     description: 'Call heads or tails and double up on the flip.',
@@ -126,6 +139,8 @@ const HOME_GAMES = [
     heroImage: '/assets/dice_hero.png'
   },
 ];
+
+const FEATURED_GAMES = HOME_GAMES.filter(g => g.heroImage);
 
 const GAMES = [
   {
@@ -2115,7 +2130,7 @@ const LiveBetsStrip = () => {
 };
 
 const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => {
-  const featuredGames = HOME_GAMES;
+  const featuredGames = FEATURED_GAMES;
   const [heroIndex, setHeroIndex] = useState(0);
   const [stats, setStats] = useState({ playersOnline: 0, totalWageredToday: 0, biggestWin: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
