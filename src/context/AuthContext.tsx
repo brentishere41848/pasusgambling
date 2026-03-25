@@ -26,7 +26,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string, totpCode?: string) => Promise<void>;
-  register: (username: string, email: string, password: string, affiliateCode?: string) => Promise<void>;
+  register: (username: string, email: string, password: string, affiliateCode?: string, emailOptIn?: boolean) => Promise<void>;
   logout: () => void;
   updateCurrency: (currency: string) => void;
   updatePreferences: (preferences: { currency?: string; avatarSource?: 'custom' | 'roblox' | 'discord'; customAvatarUrl?: string }) => Promise<void>;
@@ -127,7 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     applyAuthenticatedUser(data.user as User, data.token as string);
   };
 
-  const register = async (username: string, email: string, password: string, affiliateCode?: string) => {
+  const register = async (username: string, email: string, password: string, affiliateCode?: string, emailOptIn?: boolean) => {
     const data = await parseApiResponse(
       await apiFetch('/api/auth/register', {
         method: 'POST',
@@ -139,6 +139,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email,
           password,
           affiliateCode,
+          emailOptIn: emailOptIn ?? false,
         }),
       })
     );

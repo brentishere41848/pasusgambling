@@ -1263,6 +1263,7 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
   const [totpCode, setTotpCode] = useState('');
   const [requiresTotp, setRequiresTotp] = useState(false);
   const [affiliateCode, setAffiliateCode] = useState('');
+  const [emailOptIn, setEmailOptIn] = useState(true);
   const [isRegister, setIsRegister] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1299,7 +1300,7 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
     try {
       setIsSubmitting(true);
       if (isRegister) {
-        await register(username.trim(), email.trim(), password, affiliateCode.trim());
+        await register(username.trim(), email.trim(), password, affiliateCode.trim(), emailOptIn);
       } else {
         await login(username.trim(), password, requiresTotp ? totpCode.trim() : undefined);
       }
@@ -1395,6 +1396,18 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
                   />
                 </div>
               </div>
+            )}
+
+            {isRegister && (
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={emailOptIn}
+                  onChange={(e) => setEmailOptIn(e.target.checked)}
+                  className="w-5 h-5 rounded border-white/20 bg-black/40 text-[#00FF88] focus:ring-[#00FF88] focus:ring-offset-0"
+                />
+                <span className="text-sm text-white/60">Receive promotional emails</span>
+              </label>
             )}
 
             <div className="space-y-2">
@@ -6564,6 +6577,10 @@ const AppContent = () => {
                 <div className="font-black uppercase tracking-widest mb-4">Social</div>
                 <a href="https://x.com/PasusInc" target="_blank" rel="noreferrer" className="block hover:text-white transition-colors">Twitter / X</a>
                 <a href="https://discord.gg/zRhFqK4kgk" target="_blank" rel="noreferrer" className="block hover:text-white transition-colors">Discord</a>
+              </div>
+              <div className="text-xs space-y-2">
+                <div className="font-black uppercase tracking-widest mb-4">Support</div>
+                <a href="mailto:support@pasus.xyz" className="block hover:text-white transition-colors">support@pasus.xyz</a>
               </div>
             </div>
           </footer>

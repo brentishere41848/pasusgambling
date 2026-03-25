@@ -1377,6 +1377,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS xp_amount BIGINT NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS user_level INT NOT NULL DEFAULT 1`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS vip_claimed_levels TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_opt_in BOOLEAN NOT NULL DEFAULT true`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
 
@@ -2347,6 +2348,7 @@ app.post('/api/auth/register', async (req, res) => {
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = String(req.body.password || '');
     const affiliateCode = normalizeAffiliateCode(req.body.affiliateCode);
+    const emailOptIn = Boolean(req.body.emailOptIn);
 
     if (!username || !email || !password) {
       return res.status(400).json({ error: 'Username, email, and password are required.' });
@@ -2389,12 +2391,12 @@ app.post('/api/auth/register', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`;
     const userResult = await client.query(
-      `INSERT INTO users (username, email, password_hash, avatar, referred_by_user_id, affiliate_code_used)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (username, email, password_hash, avatar, referred_by_user_id, affiliate_code_used, email_opt_in)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, username, email, currency, avatar, custom_avatar_url, avatar_source, role,
                  roblox_user_id, roblox_username, roblox_display_name, roblox_avatar_url, roblox_verified_at,
                  discord_user_id, discord_username, discord_display_name, discord_avatar_url, discord_verified_at`,
-      [username, email, passwordHash, avatar, referredByUserId, affiliateCode || null]
+      [username, email, passwordHash, avatar, referredByUserId, affiliateCode || null, emailOptIn]
     );
 
     const user = sanitizeUser(userResult.rows[0]);
