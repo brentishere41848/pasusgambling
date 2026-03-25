@@ -313,6 +313,13 @@ export const BlackjackGame: React.FC = () => {
         logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout, multiplier: 2, outcome: 'win', detail: 'Dealer busted' });
         recordBet(hand.bet, payout, true);
         confetti({ particleCount: 100, spread: 60, origin: { y: 0.5 }, colors: ['#00FF88'] });
+      } else if (playerScore === 21) {
+        const payout = hand.bet * 2;
+        addBalance(payout);
+        totalPayout += payout;
+        newResults.push({ hand: idx, text: 'YOU WIN', won: true, payout });
+        logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout, multiplier: 2, outcome: 'win', detail: `Won with ${playerScore}` });
+        recordBet(hand.bet, payout, true);
       } else if (playerScore > dealerScore) {
         const payout = hand.bet * 2;
         addBalance(payout);
