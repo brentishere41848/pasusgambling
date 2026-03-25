@@ -126,7 +126,7 @@ const HOME_GAMES = [
     id: 'coinflip',
     name: 'Dice',
     description: 'Call heads or tails and double up on the flip.',
-    image: '/assets/dice.png'
+    image: '/assets/dice2.png'
   },
 ];
 
