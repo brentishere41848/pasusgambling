@@ -5258,6 +5258,45 @@ app.post('/api/admin/rain-bot/:id/toggle', requireAuth, requireOwner, async (req
   }
 });
 
+app.put('/api/admin/rain-bot/:id', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid schedule ID.' });
+
+    const intervalMinutes = Math.max(1, Math.min(1440, Number(req.body.intervalMinutes || 60)));
+    const minPoolAmount = Math.max(1, normalizeCoins(req.body.minPoolAmount || 100));
+    const rainAmount = Math.max(1, normalizeCoins(req.body.rainAmount || 500));
+
+    const result = await pool.query(
+      `UPDATE rain_bot_schedules
+       SET interval_minutes = $2,
+           min_pool_amount = $3,
+           rain_amount = $4
+       WHERE id = $1
+       RETURNING id, interval_minutes, min_pool_amount, rain_amount, is_active, created_at, last_triggered_at`,
+      [id, intervalMinutes, minPoolAmount, rainAmount]
+    );
+
+    if (!result.rowCount) return res.status(404).json({ error: 'Schedule not found.' });
+
+    const row = result.rows[0];
+    return res.json({
+      schedule: {
+        id: Number(row.id),
+        intervalMinutes: Number(row.interval_minutes),
+        minPoolAmount: Number(row.min_pool_amount),
+        rainAmount: Number(row.rain_amount),
+        isActive: Boolean(row.is_active),
+        createdAt: row.created_at,
+        lastTriggeredAt: row.last_triggered_at,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to update rain bot schedule.' });
+  }
+});
+
 app.delete('/api/admin/rain-bot/:id', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
   try {
     const id = Number(req.params.id);

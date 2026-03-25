@@ -3439,6 +3439,7 @@ const AdminView = () => {
   const [newRainInterval, setNewRainInterval] = useState('60');
   const [newRainMinPool, setNewRainMinPool] = useState('100');
   const [newRainAmount, setNewRainAmount] = useState('500');
+  const [rainEditDrafts, setRainEditDrafts] = useState<Record<number, { intervalMinutes: string; minPoolAmount: string; rainAmount: string }>>({});
 
   const loadOverview = useCallback(async () => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -3547,6 +3548,14 @@ const AdminView = () => {
       const data = await response.json().catch(() => ({}));
       if (response.ok && Array.isArray(data.schedules)) {
         setRainBotSchedules(data.schedules);
+        setRainEditDrafts(Object.fromEntries(data.schedules.map((schedule: any) => [
+          Number(schedule.id),
+          {
+            intervalMinutes: String(Number(schedule.intervalMinutes || 60)),
+            minPoolAmount: String(Number(schedule.minPoolAmount || 0) / 100),
+            rainAmount: String(Number(schedule.rainAmount || 0) / 100),
+          },
+        ])));
       }
     } catch {}
   }, []);
@@ -4516,8 +4525,54 @@ const AdminView = () => {
                       <span className={cn('w-2 h-2 rounded-full', schedule.isActive ? 'bg-emerald-400' : 'bg-white/20')} />
                       <span className="text-sm font-black">{schedule.intervalMinutes}min</span>
                     </div>
-                    <div className="text-[10px] text-white/40">
+                   <div className="text-[10px] text-white/40">
                       Min pool: ${(schedule.minPoolAmount / 100).toFixed(2)} | Rain: ${(schedule.rainAmount / 100).toFixed(2)}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
+                      <input
+                        type="number"
+                        value={rainEditDrafts[schedule.id]?.intervalMinutes ?? String(schedule.intervalMinutes)}
+                        onChange={(e) => setRainEditDrafts((prev) => ({
+                          ...prev,
+                          [schedule.id]: {
+                            intervalMinutes: e.target.value,
+                            minPoolAmount: prev[schedule.id]?.minPoolAmount ?? String(schedule.minPoolAmount / 100),
+                            rainAmount: prev[schedule.id]?.rainAmount ?? String(schedule.rainAmount / 100),
+                          },
+                        }))}
+                        className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[11px] focus:outline-none"
+                        placeholder="Minutes"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={rainEditDrafts[schedule.id]?.minPoolAmount ?? String(schedule.minPoolAmount / 100)}
+                        onChange={(e) => setRainEditDrafts((prev) => ({
+                          ...prev,
+                          [schedule.id]: {
+                            intervalMinutes: prev[schedule.id]?.intervalMinutes ?? String(schedule.intervalMinutes),
+                            minPoolAmount: e.target.value,
+                            rainAmount: prev[schedule.id]?.rainAmount ?? String(schedule.rainAmount / 100),
+                          },
+                        }))}
+                        className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[11px] focus:outline-none"
+                        placeholder="Min pool $"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={rainEditDrafts[schedule.id]?.rainAmount ?? String(schedule.rainAmount / 100)}
+                        onChange={(e) => setRainEditDrafts((prev) => ({
+                          ...prev,
+                          [schedule.id]: {
+                            intervalMinutes: prev[schedule.id]?.intervalMinutes ?? String(schedule.intervalMinutes),
+                            minPoolAmount: prev[schedule.id]?.minPoolAmount ?? String(schedule.minPoolAmount / 100),
+                            rainAmount: e.target.value,
+                          },
+                        }))}
+                        className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[11px] focus:outline-none"
+                        placeholder="Rain $"
+                      />
                     </div>
                     {schedule.lastTriggeredAt && (
                       <div className="text-[10px] text-white/20">
@@ -4529,6 +4584,27 @@ const AdminView = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        const token = localStorage.getItem('pasus_auth_token');
+                        if (!token) return;
+                        const draft = rainEditDrafts[schedule.id];
+                        await apiFetch(`/api/admin/rain-bot/${schedule.id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({
+                            intervalMinutes: parseInt(draft?.intervalMinutes || String(schedule.intervalMinutes), 10) || schedule.intervalMinutes,
+                            minPoolAmount: Number(draft?.minPoolAmount || String(schedule.minPoolAmount / 100)) || (schedule.minPoolAmount / 100),
+                            rainAmount: Number(draft?.rainAmount || String(schedule.rainAmount / 100)) || (schedule.rainAmount / 100),
+                          }),
+                        });
+                        setStatus('Rain bot schedule updated.');
+                        loadRainBotSchedules();
+                      }}
+                      className="px-3 py-1 rounded-xl text-[10px] font-black uppercase bg-[#00FF88]/15 text-[#00FF88]"
+                    >
+                      Save
+                    </button>
                     <button
                       onClick={async () => {
                         const token = localStorage.getItem('pasus_auth_token');
