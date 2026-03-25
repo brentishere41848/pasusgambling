@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
-import { Play, Zap, RotateCcw, Target, Sparkles, DollarSign } from 'lucide-react';
+import { Play, RotateCcw } from 'lucide-react';
 import { QuickBetButtons, GameStatsBar, useLocalGameStats, useGameHotkeys } from './GameHooks';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
@@ -39,33 +39,155 @@ const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   },
 };
 
-const BALL_COLORS = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#9b59b6', '#ff85a1'];
+const PEG_COLOR = '#ffffff';
+const BALL_RADIUS = 8;
+const PEG_RADIUS = 4;
+const GRAVITY = 0.3;
+const BOUNCE = 0.5;
+const FRICTION = 0.99;
 
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
-  const [rows, setRows] = useState<number>(10);
+  const [bet, setBet] = useState(1);
+  const [rows, setRows] = useState<number>(12);
   const [risk, setRisk] = useState<RiskLevel>('medium');
   const [isAuto, setIsAuto] = useState(false);
   const [autoCount, setAutoCount] = useState(10);
   const [lastResult, setLastResult] = useState<{ multiplier: number; payout: number } | null>(null);
-  const [ballCount, setBallCount] = useState(0);
   const [isDropping, setIsDropping] = useState(false);
-  const [balls, setBalls] = useState<Array<{ id: number; x: number; y: number; color: string }>>([]);
-  const [pegHits, setPegHits] = useState<number>(0);
+  const [droppedBalls, setDroppedBalls] = useState(0);
+  const [currentBallPos, setCurrentBallPos] = useState<{ x: number; y: number } | null>(null);
+  const [finalPosition, setFinalPosition] = useState<number | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const ballsRef = useRef<Array<{ x: number; y: number; vx: number; vy: number; color: string; trail: Array<{ x: number; y: number }> }>>([]);
+  const pegsRef = useRef<Array<{ x: number; y: number }>>([]);
+  const bucketsRef = useRef<Array<{ x: number; y: number; width: number }>>([]);
+  const ballRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const animationRef = useRef<number>();
-  const autoTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const ballIdRef = useRef(0);
+  const bucketHitRef = useRef(false);
 
   const { getStats, recordBet } = useLocalGameStats('plinko');
   const stats = getStats();
 
   const multipliers = useMemo(() => MULTIPLIERS[rows][risk], [rows, risk]);
-
   const canDrop = !isDropping && balance >= bet;
+
+  const canvasWidth = 400;
+  const canvasHeight = 450;
+  const topPadding = 40;
+  const bucketHeight = 30;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const pegs: Array<{ x: number; y: number }> = [];
+    const pegSpacingY = (canvasHeight - topPadding - bucketHeight) / (rows + 1);
+    
+    for (let row = 0; row < rows; row++) {
+      const pegsInRow = row + 4;
+      const rowWidth = (pegsInRow - 1) * 40;
+      const startX = (canvasWidth - rowWidth) / 2;
+      
+      for (let col = 0; col < pegsInRow; col++) {
+        pegs.push({
+          x: startX + col * 40,
+          y: topPadding + (row + 1) * pegSpacingY,
+        });
+      }
+    }
+    
+    pegsRef.current = pegs;
+
+    const buckets: Array<{ x: number; y: number; width: number }> = [];
+    const numBuckets = multipliers.length;
+    const bucketWidth = canvasWidth / numBuckets;
+    
+    for (let i = 0; i < numBuckets; i++) {
+      buckets.push({
+        x: i * bucketWidth,
+        y: canvasHeight - bucketHeight,
+        width: bucketWidth,
+      });
+    }
+    
+    bucketsRef.current = buckets;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    ctx.fillStyle = '#0f1923';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvasWidth; x += 25) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvasHeight);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvasHeight; y += 25) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvasWidth, y);
+      ctx.stroke();
+    }
+
+    pegs.forEach(peg => {
+      const gradient = ctx.createRadialGradient(peg.x - 1, peg.y - 1, 0, peg.x, peg.y, PEG_RADIUS);
+      gradient.addColorStop(0, '#ffffff');
+      gradient.addColorStop(1, '#888888');
+      
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, PEG_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      
+      ctx.shadowColor = 'rgba(255,255,255,0.3)';
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, PEG_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    multipliers.forEach((m, i) => {
+      const bucketX = i * bucketWidth;
+      const isHigh = m >= 10;
+      const isMid = m >= 1 && m < 10;
+      
+      let bgColor = 'rgba(255,255,255,0.1)';
+      let textColor = 'rgba(255,255,255,0.5)';
+      
+      if (isHigh) {
+        bgColor = 'rgba(239,68,68,0.3)';
+        textColor = '#ef4444';
+      } else if (isMid) {
+        bgColor = 'rgba(34,197,94,0.2)';
+        textColor = '#22c55e';
+      }
+
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(bucketX + 1, canvasHeight - bucketHeight, bucketWidth - 2, bucketHeight - 1);
+      
+      ctx.fillStyle = textColor;
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${m.toFixed(1)}x`, bucketX + bucketWidth / 2, canvasHeight - bucketHeight / 2);
+    });
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, canvasHeight - bucketHeight);
+    ctx.lineTo(canvasWidth, canvasHeight - bucketHeight);
+    ctx.stroke();
+
+  }, [rows, multipliers, canvasHeight]);
 
   const dropBall = useCallback(() => {
     if (!canDrop) return;
@@ -75,92 +197,209 @@ export const PlinkoGame: React.FC = () => {
 
     setIsDropping(true);
     setLastResult(null);
-    setPegHits(0);
+    setFinalPosition(null);
+    bucketHitRef.current = false;
 
-    const newBall = {
-      id: ballIdRef.current++,
-      x: 280 + (Math.random() - 0.5) * 20,
-      y: 30,
-      color: BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)],
+    const startX = canvasWidth / 2 + (Math.random() - 0.5) * 30;
+    ballRef.current = {
+      x: startX,
+      y: 20,
+      vx: (Math.random() - 0.5) * 2,
+      vy: 0,
     };
-    
-    ballsRef.current = [{ x: newBall.x, y: newBall.y, vx: 0, vy: 0, color: newBall.color, trail: [] }];
-    setBalls([newBall]);
-    setBallCount(prev => prev + 1);
 
-    const evaluateAfterDelay = () => {
-      const multiplier = multipliers[Math.floor(Math.random() * multipliers.length)];
-      const payout = Math.round(bet * multiplier);
-      
-      addBalance(payout);
-      setLastResult({ multiplier, payout });
-      
-      if (payout > bet * 2) {
-        confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !canvas) return;
 
-        logBetActivity({
-          gameKey: 'plinko',
-          wager: bet,
-          payout,
-          multiplier,
-          outcome: 'win',
-          detail: `Hit ${multiplier}x`,
-        });
-        recordBet(bet, payout, true);
-      } else {
-        logBetActivity({
-          gameKey: 'plinko',
-          wager: bet,
-          payout: 0,
-          multiplier: 0,
-          outcome: 'loss',
-          detail: `Hit ${multiplier}x`,
-        });
-        recordBet(bet, 0, false);
+    const animate = () => {
+      const ball = ballRef.current;
+      if (!ball || bucketHitRef.current) return;
+
+      ball.vy += GRAVITY;
+      ball.vx *= FRICTION;
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      if (ball.x < BALL_RADIUS) {
+        ball.x = BALL_RADIUS;
+        ball.vx = -ball.vx * BOUNCE;
+      }
+      if (ball.x > canvasWidth - BALL_RADIUS) {
+        ball.x = canvasWidth - BALL_RADIUS;
+        ball.vx = -ball.vx * BOUNCE;
       }
 
-      setIsDropping(false);
-
-      if (isAuto && autoCount > 0) {
-        setAutoCount(prev => prev - 1);
-        if (autoCount - 1 <= 0) {
-          setIsAuto(false);
+      for (const peg of pegsRef.current) {
+        const dx = ball.x - peg.x;
+        const dy = ball.y - peg.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < BALL_RADIUS + PEG_RADIUS) {
+          const angle = Math.atan2(dy, dx);
+          const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+          
+          ball.vx = Math.cos(angle) * speed * BOUNCE + (Math.random() - 0.5) * 2;
+          ball.vy = Math.sin(angle) * speed * BOUNCE;
+          
+          const overlap = BALL_RADIUS + PEG_RADIUS - dist;
+          ball.x += Math.cos(angle) * overlap;
+          ball.y += Math.sin(angle) * overlap;
         }
       }
+
+      if (ball.y > canvasHeight - bucketHeight - BALL_RADIUS && !bucketHitRef.current) {
+        bucketHitRef.current = true;
+        
+        const numBuckets = multipliers.length;
+        const bucketWidth = canvasWidth / numBuckets;
+        const bucketIndex = Math.min(Math.max(Math.floor(ball.x / bucketWidth), 0), numBuckets - 1);
+        
+        setFinalPosition(bucketIndex);
+        
+        const multiplier = multipliers[bucketIndex];
+        const payout = Math.round(bet * multiplier);
+        
+        setTimeout(() => {
+          addBalance(payout);
+          setLastResult({ multiplier, payout });
+          
+          if (payout > bet) {
+            confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+          }
+          
+          if (payout > bet * 2) {
+            logBetActivity({ gameKey: 'plinko', wager: bet, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier}x` });
+            recordBet(bet, payout, true);
+          } else if (payout > 0) {
+            logBetActivity({ gameKey: 'plinko', wager: bet, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier}x` });
+            recordBet(bet, payout, payout > bet);
+          } else {
+            logBetActivity({ gameKey: 'plinko', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Hit ${multiplier}x` });
+            recordBet(bet, 0, false);
+          }
+          
+          setDroppedBalls(prev => prev + 1);
+          setIsDropping(false);
+          
+          if (isAuto && autoCount > 1) {
+            setAutoCount(prev => prev - 1);
+          } else if (isAuto) {
+            setIsAuto(false);
+          }
+        }, 300);
+        
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+      
+      ctx.fillStyle = '#0f1923';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvasWidth; x += 25) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvasHeight);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvasHeight; y += 25) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvasWidth, y);
+        ctx.stroke();
+      }
+
+      pegsRef.current.forEach(peg => {
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, PEG_RADIUS, 0, Math.PI * 2);
+        ctx.fillStyle = '#666666';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(peg.x - 1, peg.y - 1, PEG_RADIUS - 1, 0, Math.PI * 2);
+        ctx.fillStyle = '#999999';
+        ctx.fill();
+      });
+
+      multipliers.forEach((m, i) => {
+        const bucketX = i * (canvasWidth / multipliers.length);
+        const bucketWidth = canvasWidth / multipliers.length;
+        const isHigh = m >= 10;
+        const isMid = m >= 1 && m < 10;
+        
+        let bgColor = 'rgba(255,255,255,0.1)';
+        let textColor = 'rgba(255,255,255,0.5)';
+        
+        if (isHigh) {
+          bgColor = 'rgba(239,68,68,0.3)';
+          textColor = '#ef4444';
+        } else if (isMid) {
+          bgColor = 'rgba(34,197,94,0.2)';
+          textColor = '#22c55e';
+        }
+
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(bucketX + 1, canvasHeight - bucketHeight, bucketWidth - 2, bucketHeight - 1);
+        
+        ctx.fillStyle = textColor;
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${m.toFixed(1)}x`, bucketX + bucketWidth / 2, canvasHeight - bucketHeight / 2);
+      });
+
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+      const ballGradient = ctx.createRadialGradient(ball.x - 2, ball.y - 2, 0, ball.x, ball.y, BALL_RADIUS);
+      ballGradient.addColorStop(0, '#ffffff');
+      ballGradient.addColorStop(1, '#cccccc');
+      ctx.fillStyle = ballGradient;
+      ctx.fill();
+      
+      ctx.shadowColor = 'rgba(255,255,255,0.5)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      setCurrentBallPos({ x: ball.x, y: ball.y });
+      
+      animationRef.current = requestAnimationFrame(animate);
     };
 
-    setTimeout(evaluateAfterDelay, 2000);
-  }, [canDrop, bet, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet]);
+    animate();
+  }, [canDrop, bet, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet, canvasWidth, canvasHeight]);
+
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isAuto && autoCount > 0 && !isDropping) {
+      const timer = setTimeout(dropBall, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuto, autoCount, isDropping, dropBall]);
 
   useGameHotkeys({
     onBet: dropBall,
     isDisabled: !canDrop,
   });
 
-  useEffect(() => {
-    if (isAuto && autoCount > 0 && !isDropping) {
-      autoTimerRef.current = setTimeout(dropBall, 300);
-    }
-    return () => {
-      if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
-    };
-  }, [isAuto, autoCount, isDropping, dropBall]);
-
   const toggleAuto = () => {
     if (isAuto) {
       setIsAuto(false);
-      setAutoCount(10);
     } else {
       setIsAuto(true);
       setAutoCount(10);
-    }
-  };
-
-  const getRiskColor = (r: RiskLevel) => {
-    switch (r) {
-      case 'low': return 'text-green-400';
-      case 'medium': return 'text-yellow-400';
-      case 'high': return 'text-red-400';
     }
   };
 
@@ -171,6 +410,14 @@ export const PlinkoGame: React.FC = () => {
     return 'text-white/40';
   };
 
+  const getRiskColor = (r: RiskLevel) => {
+    switch (r) {
+      case 'low': return 'text-green-400';
+      case 'medium': return 'text-yellow-400';
+      case 'high': return 'text-red-400';
+    }
+  };
+
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 p-4 max-w-6xl mx-auto">
       <div className="lg:col-span-1 space-y-4">
@@ -178,17 +425,17 @@ export const PlinkoGame: React.FC = () => {
           <div className="space-y-4">
             <div>
               <label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
+              <div className="text-xl font-black text-[#00FF88] mb-2">${bet.toFixed(2)}</div>
               <input
                 type="number"
                 value={bet}
-                onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
+                onChange={(e) => setBet(Math.max(0.01, Number(e.target.value)))}
                 min="0.01"
                 step="0.01"
                 disabled={isAuto}
-                className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50"
+                className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#00FF88]/50 disabled:opacity-50"
               />
-              <div className="text-[9px] text-white/25 mt-1">Min: $0.01</div>
-              <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isAuto} />
+              <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isAuto} pcts={[25, 50, 75, 100]} />
             </div>
 
             <div>
@@ -223,12 +470,10 @@ export const PlinkoGame: React.FC = () => {
                     className={cn(
                       'py-2 rounded-lg text-[10px] font-black uppercase transition-all',
                       risk === r 
-                        ? getRiskColor(r) + ' bg-white/10 border border-' + r 
-                        : 'bg-white/5 text-white/40 hover:text-white'
+                        ? getRiskColor(r) + ' bg-white/10 border' 
+                        : 'bg-white/5 text-white/40 hover:text-white border border-transparent'
                     )}
-                    style={{
-                      borderColor: risk === r ? (r === 'low' ? '#4ade80' : r === 'medium' ? '#facc15' : '#f87171') : 'transparent'
-                    }}
+                    style={{ borderColor: risk === r ? (r === 'low' ? '#4ade80' : r === 'medium' ? '#facc15' : '#f87171') : 'transparent' }}
                   >
                     {r}
                   </button>
@@ -255,22 +500,13 @@ export const PlinkoGame: React.FC = () => {
               disabled={!canDrop}
               className={cn(
                 'w-full py-4 rounded-xl font-black text-lg uppercase tracking-wider transition-all flex items-center justify-center gap-2',
-                isAuto || isDropping
+                isDropping
                   ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
                   : 'bg-[#00FF88] hover:bg-[#00FF88]/90 text-black shadow-lg shadow-[#00FF88]/30',
                 !canDrop && 'opacity-50'
               )}
             >
-              {isDropping ? (
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1 }}
-                >
-                  <Zap size={20} />
-                </motion.div>
-              ) : (
-                <Play size={20} fill="currentColor" />
-              )}
+              <Play size={20} fill="currentColor" />
               {isDropping ? 'Dropping...' : 'Drop Ball'}
             </button>
           </div>
@@ -279,19 +515,20 @@ export const PlinkoGame: React.FC = () => {
         <GameStatsBar stats={[
           { label: 'Drops', value: String(stats.totalBets) },
           { label: 'Wins', value: String(stats.totalWins) },
-          { label: 'Biggest', value: `${stats.biggestWin.toFixed(1)}x` },
-          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          { label: 'Profit', value: `$${((stats.totalWagered > 0 ? stats.totalWagered - stats.totalWagered : 0) / 100).toFixed(2)}` },
         ]} />
 
         <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-4">
           <div className="text-[10px] uppercase tracking-widest text-white/40 mb-3">Payouts</div>
-          <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
+          <div className="grid gap-1 max-h-32 overflow-y-auto">
             {multipliers.map((m, i) => (
               <div 
                 key={i} 
                 className={cn(
-                  'text-center py-1 rounded text-[10px] font-black',
-                  getMultiplierColor(m)
+                  'text-center py-1 px-2 rounded text-[10px] font-black',
+                  m >= 10 ? 'bg-red-500/20 text-red-400' :
+                  m >= 1 ? 'bg-green-500/10 text-green-400' :
+                  'bg-white/5 text-white/40'
                 )}
               >
                 {m.toFixed(1)}x
@@ -302,7 +539,7 @@ export const PlinkoGame: React.FC = () => {
       </div>
 
       <div className="lg:col-span-4">
-        <div className="relative bg-gradient-to-b from-[#1a1d23] to-[#0a0a0a] border border-white/10 rounded-3xl p-6 overflow-hidden min-h-[500px]">
+        <div className="relative bg-gradient-to-b from-[#1a1d23] to-[#0a0a0a] border border-white/10 rounded-3xl p-6 overflow-hidden">
           <div className="absolute inset-0 opacity-5" style={{
             backgroundImage: `
               linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
@@ -331,7 +568,7 @@ export const PlinkoGame: React.FC = () => {
                     </div>
                     <div className="text-lg font-black text-white mt-1">
                       {lastResult.payout > bet ? '+' : '-'}$
-                      {Math.abs(lastResult.payout / 100).toFixed(2)}
+                      {Math.abs(lastResult.payout).toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -339,121 +576,60 @@ export const PlinkoGame: React.FC = () => {
             )}
           </AnimatePresence>
 
-          <div className="relative z-10">
-            <div className="text-center mb-4">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-black">PLINKO</div>
-              <div className="text-3xl font-black italic text-white mt-1">
-                <span className="text-blue-400">DROP</span>
-                <span className="text-white/60"> </span>
-                <span className="text-green-400">MULTIPLIERS</span>
-              </div>
+          <div className="relative z-10 text-center mb-4">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-black">PLINKO</div>
+            <div className="text-3xl font-black italic text-white mt-1">
+              <span className="text-blue-400">DROP</span>
+              <span className="text-white/60"> </span>
+              <span className="text-green-400">MULTIPLIERS</span>
             </div>
+          </div>
 
-            <div className="flex justify-center gap-4 mb-4">
-              {['low', 'medium', 'high'].map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRisk(r as RiskLevel)}
-                  disabled={isAuto}
-                  className={cn(
-                    'px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all',
-                    risk === r 
-                      ? getRiskColor(r as RiskLevel) + ' bg-white/10 border'
-                      : 'text-white/30 border border-transparent'
-                  )}
-                  style={{ borderColor: risk === r ? (r === 'low' ? '#4ade80' : r === 'medium' ? '#facc15' : '#f87171') : 'transparent' }}
-                >
-                  {r}
-                </button>
-              ))}
-              <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider text-white/40">
-                {rows} rows
-              </span>
+          <div className="flex justify-center gap-4 mb-4">
+            {(['low', 'medium', 'high'] as RiskLevel[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRisk(r)}
+                disabled={isAuto}
+                className={cn(
+                  'px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all',
+                  risk === r 
+                    ? getRiskColor(r) + ' bg-white/10 border' 
+                    : 'text-white/30 border border-transparent'
+                )}
+                style={{ borderColor: risk === r ? (r === 'low' ? '#4ade80' : r === 'medium' ? '#facc15' : '#f87171') : 'transparent' }}
+              >
+                {r}
+              </button>
+            ))}
+            <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider text-white/40">
+              {rows} rows
+            </span>
+          </div>
+
+          <div className="flex justify-center">
+            <canvas
+              ref={canvasRef}
+              width={canvasWidth}
+              height={canvasHeight}
+              className="rounded-2xl border border-white/10"
+            />
+          </div>
+
+          <div className="flex justify-center items-center gap-6 mt-4">
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-widest text-white/30">Max Win</div>
+              <div className="text-2xl font-black text-red-400">{Math.max(...multipliers).toFixed(1)}x</div>
             </div>
-
-            <div className="relative aspect-[4/3] max-w-lg mx-auto bg-gradient-to-b from-[#0f1923] to-[#080b12] rounded-2xl border border-white/10 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent" />
-
-              <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white/5 to-transparent" />
-
-              <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black/80 to-transparent" />
-
-              {multipliers.map((m, i) => {
-                const width = 100 / multipliers.length;
-                return (
-                  <div
-                    key={i}
-                    className="absolute bottom-1 h-10 flex items-center justify-center"
-                    style={{
-                      left: `${i * width}%`,
-                      width: `${width}%`,
-                    }}
-                  >
-                    <div className={cn(
-                      'text-xs font-black px-1 py-0.5 rounded',
-                      m >= 10 ? 'bg-red-500/30 text-red-400' :
-                      m >= 1 ? 'bg-green-500/20 text-green-400' :
-                      'bg-white/5 text-white/40'
-                    )}>
-                      {m.toFixed(1)}x
-                    </div>
-                  </div>
-                );
-              })}
-
-              {isDropping && ballsRef.current[0] && (
-                <motion.div
-                  initial={{ y: 30, x: 0 }}
-                  animate={{ y: 320, x: Math.random() * 40 - 20 }}
-                  transition={{ duration: 1.5, ease: 'easeIn' }}
-                  className="absolute left-1/2 -translate-x-1/2 w-5 h-5 rounded-full shadow-lg"
-                  style={{ 
-                    backgroundColor: ballsRef.current[0]?.color || '#fff',
-                    boxShadow: `0 0 20px ${ballsRef.current[0]?.color || '#fff'}`
-                  }}
-                />
-              )}
-
-              {!isDropping && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-5xl font-black uppercase tracking-widest">
-                  DROP
-                </div>
-              )}
-
-              {Array.from({ length: Math.min(rows, 12) }).map((_, rowIndex) => {
-                const pegsInRow = rowIndex + 4;
-                const rowY = 40 + rowIndex * 26;
-                const pegSpacing = 300 / (pegsInRow + 1);
-                const startX = (300 - (pegsInRow - 1) * pegSpacing) / 2;
-                
-                return Array.from({ length: pegsInRow }).map((_, pegIndex) => (
-                  <div
-                    key={`${rowIndex}-${pegIndex}`}
-                    className="absolute w-2.5 h-2.5 rounded-full bg-gradient-to-br from-white/40 to-white/10 shadow-[0_0_6px_rgba(255,255,255,0.2)]"
-                    style={{
-                      left: `calc(50% - 150px + ${startX + pegIndex * pegSpacing}px)`,
-                      top: rowY,
-                    }}
-                  />
-                ));
-              })}
+            <div className="w-px h-10 bg-white/10" />
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-widest text-white/30">Min Win</div>
+              <div className="text-2xl font-black text-white/40">{Math.min(...multipliers).toFixed(1)}x</div>
             </div>
-
-            <div className="flex justify-center items-center gap-4 mt-4">
-              <div className="text-center">
-                <div className="text-[10px] uppercase tracking-widest text-white/30">Max Win</div>
-                <div className="text-2xl font-black text-green-400">{Math.max(...multipliers).toFixed(1)}x</div>
-              </div>
-              <div className="w-px h-10 bg-white/10" />
-              <div className="text-center">
-                <div className="text-[10px] uppercase tracking-widest text-white/30">Min Win</div>
-                <div className="text-2xl font-black text-white/40">{Math.min(...multipliers).toFixed(1)}x</div>
-              </div>
-              <div className="w-px h-10 bg-white/10" />
-              <div className="text-center">
-                <div className="text-[10px] uppercase tracking-widest text-white/30">Balls</div>
-                <div className="text-2xl font-black text-blue-400">{ballCount}</div>
-              </div>
+            <div className="w-px h-10 bg-white/10" />
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-widest text-white/30">Balls</div>
+              <div className="text-2xl font-black text-blue-400">{droppedBalls}</div>
             </div>
           </div>
 
