@@ -146,7 +146,7 @@ const GAMES = [
     bg: 'bg-amber-300/10',
     component: CoinflipGame,
     featured: true,
-    image: '/assets/coinflip2.png'
+    image: '/assets/dice2.png'
   },
 ];
 
