@@ -85,6 +85,7 @@ import { PlinkoGame } from './components/games/PlinkoGame';
 import { RouletteGame } from './components/games/RouletteGame';
 import { LimboGame } from './components/games/LimboGame';
 import { KenoGame } from './components/games/KenoGame';
+import { ChickenRoadGame } from './components/games/ChickenRoadGame';
 import { ChatRain } from './components/ChatRain';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ProvablyFairPanel } from './components/ProvablyFairPanel';
@@ -225,6 +226,17 @@ const GAMES = [
     component: HiloGame,
     featured: false,
     image: '/assets/hilo.svg'
+  },
+  {
+    id: 'chicken-road',
+    name: 'Chicken Road',
+    description: 'Hop through traffic, stack the multiplier, and cash out before impact.',
+    icon: MapPin,
+    color: 'text-lime-300',
+    bg: 'bg-lime-300/10',
+    component: ChickenRoadGame,
+    featured: false,
+    image: '/assets/chicken_sprite.png'
   },
   {
     id: 'baccarat',
