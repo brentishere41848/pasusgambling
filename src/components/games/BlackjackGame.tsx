@@ -314,12 +314,20 @@ export const BlackjackGame: React.FC = () => {
         recordBet(hand.bet, payout, true);
         confetti({ particleCount: 100, spread: 60, origin: { y: 0.5 }, colors: ['#00FF88'] });
       } else if (playerScore === 21) {
-        const payout = hand.bet * 2;
-        addBalance(payout);
-        totalPayout += payout;
-        newResults.push({ hand: idx, text: 'YOU WIN', won: true, payout });
-        logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout, multiplier: 2, outcome: 'win', detail: `Won with ${playerScore}` });
-        recordBet(hand.bet, payout, true);
+        if (dealerScore === 21) {
+          addBalance(hand.bet);
+          totalPayout += hand.bet;
+          newResults.push({ hand: idx, text: 'PUSH - BOTH 21', won: false, payout: hand.bet });
+          logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout: hand.bet, multiplier: 1, outcome: 'push', detail: 'Both got 21' });
+          recordBet(hand.bet, hand.bet, true);
+        } else {
+          const payout = hand.bet * 2;
+          addBalance(payout);
+          totalPayout += payout;
+          newResults.push({ hand: idx, text: '21 - YOU WIN', won: true, payout });
+          logBetActivity({ gameKey: 'blackjack', wager: hand.bet, payout, multiplier: 2, outcome: 'win', detail: `Won with ${playerScore}` });
+          recordBet(hand.bet, payout, true);
+        }
       } else if (playerScore > dealerScore) {
         const payout = hand.bet * 2;
         addBalance(payout);
