@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, RotateCcw } from 'lucide-react';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats, useGameHotkeys } from './GameHooks';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats, useGameHotkeys, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
 
@@ -70,7 +70,8 @@ export const PlinkoGame: React.FC = () => {
   const stats = getStats();
 
   const multipliers = useMemo(() => MULTIPLIERS[rows][risk], [rows, risk]);
-  const canDrop = !isDropping && balance >= bet;
+  const betCoins = useMemo(() => dollarsToCents(bet), [bet]);
+  const canDrop = !isDropping && balance >= betCoins;
 
   const canvasWidth = 400;
   const canvasHeight = 450;
@@ -192,7 +193,7 @@ export const PlinkoGame: React.FC = () => {
   const dropBall = useCallback(() => {
     if (!canDrop) return;
 
-    const cost = bet;
+    const cost = betCoins;
     if (!subtractBalance(cost)) return;
 
     setIsDropping(true);
@@ -258,25 +259,25 @@ export const PlinkoGame: React.FC = () => {
         setFinalPosition(bucketIndex);
         
         const multiplier = multipliers[bucketIndex];
-        const payout = Math.round(bet * multiplier);
-        
+        const payout = Math.round(cost * multiplier);
+
         setTimeout(() => {
           addBalance(payout);
           setLastResult({ multiplier, payout });
-          
-          if (payout > bet) {
+
+          if (payout > cost) {
             confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
           }
-          
-          if (payout > bet * 2) {
-            logBetActivity({ gameKey: 'plinko', wager: bet, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier}x` });
-            recordBet(bet, payout, true);
+
+          if (payout > cost * 2) {
+            logBetActivity({ gameKey: 'plinko', wager: cost, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier}x` });
+            recordBet(cost, payout, true);
           } else if (payout > 0) {
-            logBetActivity({ gameKey: 'plinko', wager: bet, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier}x` });
-            recordBet(bet, payout, payout > bet);
+            logBetActivity({ gameKey: 'plinko', wager: cost, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier}x` });
+            recordBet(cost, payout, payout > cost);
           } else {
-            logBetActivity({ gameKey: 'plinko', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Hit ${multiplier}x` });
-            recordBet(bet, 0, false);
+            logBetActivity({ gameKey: 'plinko', wager: cost, payout: 0, multiplier: 0, outcome: 'loss', detail: `Hit ${multiplier}x` });
+            recordBet(cost, 0, false);
           }
           
           setDroppedBalls(prev => prev + 1);
@@ -372,7 +373,7 @@ export const PlinkoGame: React.FC = () => {
     };
 
     animate();
-  }, [canDrop, bet, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet, canvasWidth, canvasHeight]);
+  }, [canDrop, betCoins, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet, canvasWidth, canvasHeight]);
 
   useEffect(() => {
     return () => {
@@ -429,13 +430,13 @@ export const PlinkoGame: React.FC = () => {
               <input
                 type="number"
                 value={bet}
-                onChange={(e) => setBet(Math.max(0.01, Number(e.target.value)))}
+                onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))}
                 min="0.01"
                 step="0.01"
                 disabled={isAuto}
                 className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#00FF88]/50 disabled:opacity-50"
               />
-              <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isAuto} pcts={[25, 50, 75, 100]} />
+              <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isAuto} pcts={[25, 50, 75, 100]} />
             </div>
 
             <div>
@@ -515,7 +516,7 @@ export const PlinkoGame: React.FC = () => {
         <GameStatsBar stats={[
           { label: 'Drops', value: String(stats.totalBets) },
           { label: 'Wins', value: String(stats.totalWins) },
-          { label: 'Profit', value: `$${((stats.totalWagered > 0 ? stats.totalWagered - stats.totalWagered : 0) / 100).toFixed(2)}` },
+          { label: 'Profit', value: formatCents(stats.totalPayout - stats.totalWagered) },
         ]} />
 
         <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-4">
@@ -558,7 +559,7 @@ export const PlinkoGame: React.FC = () => {
               >
                 <div className={cn(
                   'px-8 py-4 rounded-2xl border backdrop-blur-md',
-                  lastResult.payout > bet 
+                  lastResult.payout > betCoins 
                     ? 'bg-green-500/20 border-green-500/50 shadow-lg shadow-green-500/30' 
                     : 'bg-red-500/20 border-red-500/50'
                 )}>
@@ -567,8 +568,7 @@ export const PlinkoGame: React.FC = () => {
                       {lastResult.multiplier.toFixed(1)}x
                     </div>
                     <div className="text-lg font-black text-white mt-1">
-                      {lastResult.payout > bet ? '+' : '-'}$
-                      {Math.abs(lastResult.payout).toFixed(2)}
+                      {lastResult.payout > betCoins ? '+' : '-'}{formatCents(Math.abs(lastResult.payout))}
                     </div>
                   </div>
                 </div>

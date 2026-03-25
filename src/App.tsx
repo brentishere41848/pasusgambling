@@ -321,7 +321,7 @@ function formatMoney(value: number) {
 const COINS_PER_DOLLAR = 1;
 const DISPLAY_CURRENCY_RATES: Record<string, number> = {
   USD: 1,
-  EUR: 0.92,
+  EUR: 0.87,
   GBP: 0.79,
   JPY: 149,
   CAD: 1.35,
@@ -342,6 +342,18 @@ function coinsToUsd(value: number) {
 
 function formatMoneyFromCoins(value: number) {
   return formatDollars(Number(value || 0));
+}
+
+function formatDisplayCurrency(value: number, currency: string) {
+  const safeCurrency = DISPLAY_CURRENCY_RATES[currency] ? currency : 'USD';
+  const dollars = Number(value || 0) / 100;
+  const converted = dollars * DISPLAY_CURRENCY_RATES[safeCurrency];
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: safeCurrency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(converted);
 }
 
 function usdToCoins(value: number) {
@@ -3278,7 +3290,26 @@ const SettingsView = () => {
               >
                 {curr}
               </button>
-            ))}
+              ))}
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Preview</div>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { label: 'Balance', amount: 100 },
+                { label: 'Small Win', amount: 250 },
+                { label: 'Big Cashout', amount: 1250 },
+              ].map((entry) => (
+                <div key={entry.label} className="rounded-2xl border border-white/5 bg-[#11161d] px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-white/30 font-black">{entry.label}</div>
+                  <div className="mt-2 text-lg font-black text-[#00FF88]">{formatDisplayCurrency(entry.amount, currency)}</div>
+                  <div className="text-[11px] text-white/35">USD base: {formatMoneyFromCoins(entry.amount)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-[11px] text-white/35">
+              Example: {formatMoneyFromCoins(100)} becomes {formatDisplayCurrency(100, currency)} in {currency}.
+            </div>
           </div>
         </div>
 

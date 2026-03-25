@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { Play, RotateCcw, Zap, Timer } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 const NUMBERS = [
   0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
@@ -77,7 +77,7 @@ function getPocketIndexFromAngles(wheelRotation: number, ballRotation: number) {
 
 export const RouletteGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(1);
   const [selectedBet, setSelectedBet] = useState<BetType>({ kind: 'color', value: 'red', label: 'Red', payout: 1.8 });
   const [isSpinning, setIsSpinning] = useState(false);
   const [isAuto, setIsAuto] = useState(false);
@@ -93,6 +93,7 @@ export const RouletteGame: React.FC = () => {
   const ballRotationRef = useRef(0);
   const { getStats, recordBet } = useLocalGameStats('roulette');
   const stats = getStats();
+  const betCents = dollarsToCents(bet);
 
   const straightOptions = useMemo(
     () => Array.from({ length: 37 }, (_, index) => index),
@@ -104,7 +105,7 @@ export const RouletteGame: React.FC = () => {
       return;
     }
 
-    if (!subtractBalance(bet)) {
+    if (!subtractBalance(betCents)) {
       setIsAuto(false);
       setRemainingRounds(0);
       setStatusText('Insufficient balance');
@@ -150,7 +151,7 @@ export const RouletteGame: React.FC = () => {
     const result = NUMBERS[landedPocketIndex];
 
     const won = isBetWinner(selectedBet, result);
-    const payout = won ? bet * selectedBet.payout : 0;
+    const payout = won ? Math.round(betCents * selectedBet.payout) : 0;
 
     setLastResult(result);
     setHistory((prev) => [result, ...prev].slice(0, 8));
@@ -158,15 +159,15 @@ export const RouletteGame: React.FC = () => {
     if (won) {
       addBalance(payout);
       setStatusText(`${selectedBet.label} wins on ${result}`);
-      logBetActivity({ gameKey: 'roulette', wager: bet, payout, multiplier: selectedBet.payout, outcome: 'win', detail: `Landed on ${result}` });
-      recordBet(bet, payout, true);
+      logBetActivity({ gameKey: 'roulette', wager: betCents, payout, multiplier: selectedBet.payout, outcome: 'win', detail: `Landed on ${result}` });
+      recordBet(betCents, payout, true);
       if (!isFast) {
         confetti({ particleCount: 90, spread: 65, origin: { y: 0.6 } });
       }
     } else {
       setStatusText(`Ball landed on ${result}`);
-      logBetActivity({ gameKey: 'roulette', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Landed on ${result}` });
-      recordBet(bet, 0, false);
+      logBetActivity({ gameKey: 'roulette', wager: betCents, payout: 0, multiplier: 0, outcome: 'loss', detail: `Landed on ${result}` });
+      recordBet(betCents, 0, false);
     }
 
     setIsSpinning(false);
@@ -177,7 +178,7 @@ export const RouletteGame: React.FC = () => {
       setIsAuto(false);
       setRemainingRounds(0);
     }
-  }, [addBalance, ballControls, bet, isAuto, isFast, isSpinning, remainingRounds, selectedBet, subtractBalance, wheelControls]);
+  }, [addBalance, ballControls, betCents, isAuto, isFast, isSpinning, remainingRounds, selectedBet, subtractBalance, wheelControls]);
 
   useEffect(() => {
     if (isAuto && remainingRounds > 0 && !isSpinning) {
@@ -388,8 +389,8 @@ export const RouletteGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} min="0.01" step="0.01" disabled={isSpinning || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
-            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isSpinning || isAuto} />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isSpinning || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isSpinning || isAuto} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -427,7 +428,7 @@ export const RouletteGame: React.FC = () => {
 
           <button
             onClick={isAuto ? toggleAuto : spin}
-            disabled={(balance < bet && !isAuto) || isSpinning}
+            disabled={(balance < betCents && !isAuto) || isSpinning}
             className={cn(
               'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
               isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black'
@@ -471,8 +472,8 @@ export const RouletteGame: React.FC = () => {
           <GameStatsBar stats={[
             { label: 'Bets', value: String(stats.totalBets) },
             { label: 'Wins', value: String(stats.totalWins) },
-            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+            { label: 'Biggest', value: formatCents(stats.biggestWin) },
+            { label: 'Wagered', value: formatCents(stats.totalWagered) },
           ]} />
         </div>
       </div>

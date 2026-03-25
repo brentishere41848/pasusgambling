@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { Play, User, Copy, ArrowDownToLine, RotateCcw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 type Card = {
   suit: string;
@@ -96,6 +96,7 @@ export const BlackjackGame: React.FC = () => {
   const [results, setResults] = useState<{ hand: number; text: string; won: boolean; payout: number }[]>([]);
   const { getStats, recordBet } = useLocalGameStats('blackjack');
   const stats = getStats();
+  const betCents = dollarsToCents(betAmount);
 
   const deckRef = useRef<Card[]>([]);
 
@@ -114,7 +115,7 @@ export const BlackjackGame: React.FC = () => {
   }, [shuffleDeck]);
 
   const startGame = () => {
-    if (!subtractBalance(betAmount)) return;
+    if (!subtractBalance(betCents)) return;
     shuffleDeck();
 
     const pCard1 = drawCard();
@@ -129,7 +130,7 @@ export const BlackjackGame: React.FC = () => {
 
     const initialHand: PlayerHand = {
       cards: [pCard1, pCard2],
-      bet: betAmount,
+      bet: betCents,
       status: playerBlackjack ? 'blackjack' : 'active',
     };
 
@@ -420,7 +421,7 @@ export const BlackjackGame: React.FC = () => {
             className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#00FF88]/50 disabled:opacity-50"
           />
           <QuickBetButtons
-            balance={balance}
+            balance={centsToDollars(balance)}
             bet={betAmount}
             onSetBet={setBetAmount}
             disabled={phase !== 'betting' && phase !== 'ended'}
@@ -439,7 +440,7 @@ export const BlackjackGame: React.FC = () => {
         {phase === 'betting' || phase === 'ended' ? (
           <button
             onClick={phase === 'ended' ? newGame : startGame}
-            disabled={phase === 'betting' && balance < betAmount}
+            disabled={phase === 'betting' && balance < betCents}
             className="w-full bg-[#00FF88] hover:bg-[#00FF88]/90 disabled:opacity-40 text-black font-black py-3 sm:py-4 rounded-xl transition-all flex items-center justify-center gap-2"
           >
             <Play size={18} fill="currentColor" />
@@ -462,7 +463,7 @@ export const BlackjackGame: React.FC = () => {
             stats={[
               { label: 'Hands', value: String(stats.totalBets) },
               { label: 'Wins', value: String(stats.totalWins) },
-              { label: 'Profit', value: `$${((stats.totalWagered > 0 ? (stats.totalWagered - stats.totalWagered) : 0)).toFixed(2)}` },
+               { label: 'Profit', value: formatCents(stats.totalPayout - stats.totalWagered) },
             ]}
           />
         </div>
@@ -536,7 +537,7 @@ export const BlackjackGame: React.FC = () => {
               >
                 <div className="flex items-center gap-2 text-[10px] text-white/40 uppercase tracking-widest">
                   {hand.splitFrom !== undefined && <span>Split {hand.splitFrom + 1}</span>}
-                  <span>${hand.bet.toFixed(2)}</span>
+                  <span>{formatCents(hand.bet)}</span>
                   {hand.doubled && <span className="text-amber-400">2x</span>}
                 </div>
 

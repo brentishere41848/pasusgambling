@@ -16,14 +16,14 @@ import {
   placeCrashBet,
   placeSecondaryCrashBet,
 } from '../../lib/crashEngine';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 const MAX_HISTORY = 20;
 
 export const CrashGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const { user } = useAuth();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(1);
   const [secondaryBet, setSecondaryBet] = useState(0);
   const [autoCashout, setAutoCashout] = useState('');
   const [secondaryAutoCashout, setSecondaryAutoCashout] = useState('');
@@ -65,19 +65,21 @@ export const CrashGame: React.FC = () => {
   const joinNextRound = () => {
     if (snapshot.phase !== 'countdown' || snapshot.playerBet || !user?.username) return;
     const auto = autoCashout ? parseFloat(autoCashout) : undefined;
-    if (!subtractBalance(bet)) return;
-    const placed = placeCrashBet(user.username, bet, auto);
-    if (!placed) addBalance(bet);
+    const wager = dollarsToCents(bet);
+    if (!subtractBalance(wager)) return;
+    const placed = placeCrashBet(user.username, wager, auto);
+    if (!placed) addBalance(wager);
   };
 
   const placeSecondBet = () => {
     if (snapshot.phase !== 'countdown' || snapshot.playerSecondaryBet || !user?.username) return;
     if (secondaryBet <= 0) return;
-    if (secondaryBet > balance) return;
+    const wager = dollarsToCents(secondaryBet);
+    if (wager > balance) return;
     const auto = secondaryAutoCashout ? parseFloat(secondaryAutoCashout) : undefined;
-    if (!subtractBalance(secondaryBet)) return;
-    const placed = placeSecondaryCrashBet(user.username, secondaryBet, auto);
-    if (!placed) addBalance(secondaryBet);
+    if (!subtractBalance(wager)) return;
+    const placed = placeSecondaryCrashBet(user.username, wager, auto);
+    if (!placed) addBalance(wager);
   };
 
   const cashOut = () => {
@@ -89,11 +91,11 @@ export const CrashGame: React.FC = () => {
   };
 
   const setPreset = (percent: number) => {
-    setBet(Math.max(1, Math.round((balance * percent) / 100)));
+    setBet(Math.max(MIN_BET, Number((centsToDollars(balance) * percent / 100).toFixed(2))));
   };
 
   const setSecondaryPreset = (percent: number) => {
-    setSecondaryBet(Math.max(1, Math.round((balance * percent) / 100)));
+    setSecondaryBet(Math.max(MIN_BET, Number((centsToDollars(balance) * percent / 100).toFixed(2))));
   };
 
   const progress = snapshot.phase === 'countdown' ? Math.max(0, Math.min(100, (snapshot.countdown / 5) * 100)) : 0;
@@ -144,7 +146,7 @@ export const CrashGame: React.FC = () => {
               <button onClick={() => setPreset(10)} disabled={snapshot.phase === 'running' || joined} className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] text-white/60">10%</button>
             </div>
           </div>
-          <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={snapshot.phase === 'running' || joined} />
+            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={snapshot.phase === 'running' || joined} />
         </div>
 
         <div>
@@ -163,7 +165,7 @@ export const CrashGame: React.FC = () => {
           />
           {autoCashout && !isNaN(parseFloat(autoCashout)) && parseFloat(autoCashout) > 1 && (
             <div className="text-[10px] text-white/25 mt-1">
-              Payout: {formatCoins(Math.round(bet * parseFloat(autoCashout)))}
+              Payout: {formatCents(Math.round(dollarsToCents(bet) * parseFloat(autoCashout)))}
             </div>
           )}
         </div>
@@ -174,12 +176,12 @@ export const CrashGame: React.FC = () => {
             className="w-full bg-[#00FF88] hover:bg-[#00FF88]/90 text-black font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,255,136,0.3)]"
           >
             <Square size={18} fill="currentColor" />
-            CASH OUT {formatCoins(Math.round(playerBet.wager * snapshot.multiplier))}
+            CASH OUT {formatCents(Math.round(playerBet.wager * snapshot.multiplier))}
           </button>
         ) : (
           <button
             onClick={joinNextRound}
-            disabled={snapshot.phase !== 'countdown' || joined || balance < bet}
+            disabled={snapshot.phase !== 'countdown' || joined || balance < dollarsToCents(bet)}
             className="w-full bg-white hover:bg-white/90 text-black font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Play size={18} fill="currentColor" />
@@ -202,7 +204,7 @@ export const CrashGame: React.FC = () => {
           <div className="border border-[#00FF88]/20 bg-[#00FF88]/5 rounded-xl p-3">
             <div className="flex justify-between text-[10px] text-white/40 uppercase tracking-widest">
               <span>Primary Bet</span>
-              <span>{formatCoins(bet)}</span>
+              <span>{formatCents(dollarsToCents(bet))}</span>
             </div>
             {playerBet?.autoCashoutAt && (
               <div className="flex justify-between text-[10px] text-white/30 mt-1">
@@ -250,7 +252,7 @@ export const CrashGame: React.FC = () => {
             {snapshot.phase === 'countdown' && (
               <button
                 onClick={placeSecondBet}
-                disabled={balance < secondaryBet || secondaryBet <= 0}
+                disabled={balance < dollarsToCents(secondaryBet) || secondaryBet <= 0}
                 className="w-full bg-purple-500 hover:bg-purple-400 text-white font-bold py-2 rounded-lg transition-all text-xs disabled:opacity-50"
               >
                 Add Second Bet
@@ -263,7 +265,7 @@ export const CrashGame: React.FC = () => {
           <div className="border border-purple-500/20 bg-purple-500/5 rounded-xl p-3">
             <div className="flex justify-between text-[10px] text-white/40 uppercase tracking-widest">
               <span>Second Bet</span>
-              <span>{formatCoins(secondaryBetData?.wager || 0)}</span>
+               <span>{formatCents(secondaryBetData?.wager || 0)}</span>
             </div>
             {secondaryBetData?.autoCashoutAt && (
               <div className="flex justify-between text-[10px] text-white/30 mt-1">
@@ -357,8 +359,8 @@ export const CrashGame: React.FC = () => {
           <GameStatsBar stats={[
             { label: 'Bets', value: String(stats.totalBets) },
             { label: 'Wins', value: String(stats.totalWins) },
-            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+            { label: 'Biggest', value: formatCents(stats.biggestWin) },
+            { label: 'Wagered', value: formatCents(stats.totalWagered) },
           ]} />
         </div>
       </div>
@@ -421,7 +423,3 @@ export const CrashGame: React.FC = () => {
     </div>
   );
 };
-
-function formatCoins(value: number) {
-  return (value / 100).toFixed(2);
-}

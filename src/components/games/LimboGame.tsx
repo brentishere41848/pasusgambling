@@ -5,7 +5,7 @@ import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
-import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 const MIN_TARGET = 1.01;
 const MAX_TARGET = 1000;
@@ -26,7 +26,7 @@ function rollLimboMultiplier() {
 
 export const LimboGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(1);
   const [target, setTarget] = useState(2);
   const [result, setResult] = useState<number | null>(null);
   const [isRolling, setIsRolling] = useState(false);
@@ -40,6 +40,7 @@ export const LimboGame: React.FC = () => {
   const remainingRoundsRef = useRef(0);
   const { getStats, recordBet } = useLocalGameStats('limbo');
   const stats = getStats();
+  const betCents = dollarsToCents(bet);
 
   const clearTicker = () => { if (intervalRef.current !== null) { window.clearInterval(intervalRef.current); intervalRef.current = null; } };
 
@@ -51,7 +52,7 @@ export const LimboGame: React.FC = () => {
 
   const runRound = () => {
     const resolvedTarget = clampTarget(target);
-    if (!subtractBalance(bet)) { stopAuto(); return; }
+    if (!subtractBalance(betCents)) { stopAuto(); return; }
     setIsRolling(true);
     setResult(null);
     const landed = rollLimboMultiplier();
@@ -69,15 +70,15 @@ export const LimboGame: React.FC = () => {
       setDisplayValue(landed);
       setResult(landed);
       const won = landed >= resolvedTarget;
-      const payout = won ? Math.round(bet * resolvedTarget) : 0;
+      const payout = won ? Math.round(betCents * resolvedTarget) : 0;
       if (won) {
         addBalance(payout);
-        logBetActivity({ gameKey: 'limbo', wager: bet, payout, multiplier: resolvedTarget, outcome: 'win', detail: `Target ${resolvedTarget.toFixed(2)}x, landed ${landed.toFixed(2)}x` });
+        logBetActivity({ gameKey: 'limbo', wager: betCents, payout, multiplier: resolvedTarget, outcome: 'win', detail: `Target ${resolvedTarget.toFixed(2)}x, landed ${landed.toFixed(2)}x` });
         if (landed >= resolvedTarget * 2) confetti({ particleCount: 60, spread: 60, origin: { y: 0.58 } });
-        recordBet(bet, payout, true);
+        recordBet(betCents, payout, true);
       } else {
-        logBetActivity({ gameKey: 'limbo', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Target ${resolvedTarget.toFixed(2)}x, landed ${landed.toFixed(2)}x` });
-        recordBet(bet, 0, false);
+        logBetActivity({ gameKey: 'limbo', wager: betCents, payout: 0, multiplier: 0, outcome: 'loss', detail: `Target ${resolvedTarget.toFixed(2)}x, landed ${landed.toFixed(2)}x` });
+        recordBet(betCents, 0, false);
       }
       setIsRolling(false);
       if (isAutoRef.current && remainingRoundsRef.current > 1) setRemainingRounds(prev => prev - 1);
@@ -100,7 +101,7 @@ export const LimboGame: React.FC = () => {
     remainingRoundsRef.current = autoRounds;
   };
 
-  useGameHotkeys({ onBet: runRound, onStop: stopAuto, onAuto: toggleAuto, isDisabled: (balance < bet && !isAuto) || isRolling });
+  useGameHotkeys({ onBet: runRound, onStop: stopAuto, onAuto: toggleAuto, isDisabled: (balance < betCents && !isAuto) || isRolling });
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
@@ -108,8 +109,8 @@ export const LimboGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} min="0.01" step="0.01" disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
-            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
           </div>
 
           <div>
@@ -137,7 +138,7 @@ export const LimboGame: React.FC = () => {
             <input type="number" value={autoRounds} onChange={(e) => setAutoRounds(Math.max(1, Number(e.target.value)))} disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#00FF88]/50" />
           )}
 
-          <button onClick={isAuto ? toggleAuto : runRound} disabled={(balance < bet && !isAuto) || isRolling} className={cn('w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50', isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black')}>
+          <button onClick={isAuto ? toggleAuto : runRound} disabled={(balance < betCents && !isAuto) || isRolling} className={cn('w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50', isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black')}>
             {isAuto ? <><Timer size={18} />STOP AUTO</> : <><Play size={18} fill="currentColor" />START LIMBO</>}
           </button>
           <div className="text-[9px] text-center text-white/20 uppercase tracking-widest">Space: Bet &nbsp;|&nbsp; Esc: Stop &nbsp;|&nbsp; A: Auto</div>
@@ -145,14 +146,14 @@ export const LimboGame: React.FC = () => {
 
         <div className="space-y-3">
           <div className="flex justify-between text-xs"><span className="text-white/40">Target</span><span className="text-white font-mono">{clampTarget(target).toFixed(2)}x</span></div>
-          <div className="flex justify-between text-xs"><span className="text-white/40">Potential Payout</span><span className="text-[#00FF88] font-mono">{Math.round(bet * clampTarget(target)).toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-white/40">Potential Payout</span><span className="text-[#00FF88] font-mono">{formatCents(Math.round(betCents * clampTarget(target)))}</span></div>
         </div>
 
         <GameStatsBar stats={[
           { label: 'Bets', value: String(stats.totalBets) },
           { label: 'Wins', value: String(stats.totalWins) },
-          { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          { label: 'Biggest', value: formatCents(stats.biggestWin) },
+          { label: 'Wagered', value: formatCents(stats.totalWagered) },
         ]} />
       </div>
 

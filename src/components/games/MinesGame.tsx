@@ -5,11 +5,11 @@ import { cn } from '../../lib/utils';
 import { Bomb, Gem, Play, RotateCcw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats, useGameHotkeys } from './GameHooks';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats, useGameHotkeys, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 export const MinesGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(1);
   const [minesCount, setMinesCount] = useState(5);
   const [grid, setGrid] = useState<(null | 'gem' | 'bomb')[]>(Array(25).fill(null));
   const [gameState, setGameState] = useState<'idle' | 'playing' | 'ended'>('idle');
@@ -18,10 +18,11 @@ export const MinesGame: React.FC = () => {
   const [betPlaced, setBetPlaced] = useState(0);
   const { getStats, recordBet } = useLocalGameStats('mines');
   const stats = getStats();
+  const betCents = dollarsToCents(bet);
 
   const startGame = () => {
-    if (subtractBalance(bet)) {
-      setBetPlaced(bet);
+    if (subtractBalance(betCents)) {
+      setBetPlaced(betCents);
       const positions: number[] = [];
       while (positions.length < minesCount) {
         const r = Math.floor(Math.random() * 25);
@@ -81,15 +82,15 @@ export const MinesGame: React.FC = () => {
     else if (gameState === 'ended') setGameState('idle');
   };
 
-  useGameHotkeys({ onBet: handleMainAction, isDisabled: (gameState === 'idle' && balance < bet) || (gameState === 'playing' && revealedCount === 0) });
+  useGameHotkeys({ onBet: handleMainAction, isDisabled: (gameState === 'idle' && balance < betCents) || (gameState === 'playing' && revealedCount === 0) });
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
       <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-          <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} min="0.01" step="0.01" disabled={gameState === 'playing'} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
-          <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={gameState === 'playing'} />
+          <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={gameState === 'playing'} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+          <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={gameState === 'playing'} />
         </div>
 
         <div>
@@ -101,10 +102,10 @@ export const MinesGame: React.FC = () => {
 
         {gameState === 'playing' ? (
           <button onClick={cashOut} disabled={revealedCount === 0} className="w-full bg-[#00FF88] hover:bg-[#00FF88]/90 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50">
-            CASH OUT ({(betPlaced * currentMultiplier / 100).toFixed(2)})
+            CASH OUT ({formatCents(Math.round(betPlaced * currentMultiplier))})
           </button>
         ) : (
-          <button onClick={startGame} disabled={balance < bet} className="w-full bg-white hover:bg-white/90 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+          <button onClick={startGame} disabled={balance < betCents} className="w-full bg-white hover:bg-white/90 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2">
             <Play size={18} fill="currentColor" />PLAY
           </button>
         )}
@@ -125,8 +126,8 @@ export const MinesGame: React.FC = () => {
         <GameStatsBar stats={[
           { label: 'Bets', value: String(stats.totalBets) },
           { label: 'Wins', value: String(stats.totalWins) },
-          { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          { label: 'Biggest', value: formatCents(stats.biggestWin) },
+          { label: 'Wagered', value: formatCents(stats.totalWagered) },
         ]} />
       </div>
 

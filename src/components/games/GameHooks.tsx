@@ -2,6 +2,20 @@ import { useEffect, useRef } from 'react';
 
 type QuickBetPcts = number[];
 
+export const MIN_BET = 0.01;
+
+export function centsToDollars(value: number) {
+  return Number((Number(value || 0) / 100).toFixed(2));
+}
+
+export function dollarsToCents(value: number) {
+  return Math.max(1, Math.round(Number(value || 0) * 100));
+}
+
+export function formatCents(value: number) {
+  return `$${centsToDollars(value).toFixed(2)}`;
+}
+
 export function useGameHotkeys({
   onBet,
   onAuto,
@@ -51,16 +65,16 @@ export function QuickBetButtons({
   pcts?: QuickBetPcts;
   disabled?: boolean;
 }) {
-  const coins = balance;
+  const dollars = balance;
   return (
     <div className="flex gap-1.5 mt-2">
       {pcts.map((p) => {
-        const amount = Math.round((coins * p) / 100);
+        const amount = Number(Math.max(MIN_BET, (dollars * p) / 100).toFixed(2));
         return (
           <button
             key={p}
-            onClick={() => onSetBet(Math.max(1, amount))}
-            disabled={disabled || coins < 1}
+            onClick={() => onSetBet(Math.max(MIN_BET, amount))}
+            disabled={disabled || dollars < MIN_BET}
             className="flex-1 rounded-lg bg-white/5 px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-white/50 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             {p}%

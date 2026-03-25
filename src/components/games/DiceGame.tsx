@@ -4,11 +4,11 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, Zap, RotateCcw, Timer } from 'lucide-react';
 import { logBetActivity } from '../../lib/activity';
-import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 export const DiceGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(1);
   const [target, setTarget] = useState(50);
   const [isOver, setIsOver] = useState(true);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
@@ -24,6 +24,7 @@ export const DiceGame: React.FC = () => {
 
   const { getStats, recordBet } = useLocalGameStats('dice');
   const stats = getStats();
+  const betCents = dollarsToCents(bet);
 
   const winChance = isOver ? 100 - target : target;
   const multiplier = (90 / winChance).toFixed(4);
@@ -39,7 +40,7 @@ export const DiceGame: React.FC = () => {
   useEffect(() => { remainingRoundsRef.current = remainingRounds; }, [remainingRounds]);
 
   const roll = useCallback(() => {
-    if (!subtractBalance(bet)) { stopAuto(); return; }
+    if (!subtractBalance(betCents)) { stopAuto(); return; }
     setIsRolling(true);
     setDidWin(null);
     const rollDuration = isFast ? 350 : 850;
@@ -50,13 +51,13 @@ export const DiceGame: React.FC = () => {
       const won = isOver ? result > target : result < target;
       setDidWin(won);
       if (won) {
-        const payout = Math.round(bet * Number(multiplier));
+        const payout = Math.round(betCents * Number(multiplier));
         addBalance(payout);
-        logBetActivity({ gameKey: 'dice', wager: bet, payout, multiplier: Number(multiplier), outcome: 'win', detail: `Rolled ${result}` });
-        recordBet(bet, payout, true);
+        logBetActivity({ gameKey: 'dice', wager: betCents, payout, multiplier: Number(multiplier), outcome: 'win', detail: `Rolled ${result}` });
+        recordBet(betCents, payout, true);
       } else {
-        logBetActivity({ gameKey: 'dice', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Rolled ${result}` });
-        recordBet(bet, 0, false);
+        logBetActivity({ gameKey: 'dice', wager: betCents, payout: 0, multiplier: 0, outcome: 'loss', detail: `Rolled ${result}` });
+        recordBet(betCents, 0, false);
       }
       setIsRolling(false);
       if (isAutoRef.current && remainingRoundsRef.current > 1) {
@@ -65,7 +66,7 @@ export const DiceGame: React.FC = () => {
         stopAuto();
       }
     }, rollDuration);
-  }, [bet, target, isOver, multiplier, isFast, addBalance, subtractBalance, recordBet]);
+  }, [betCents, target, isOver, multiplier, isFast, addBalance, subtractBalance, recordBet]);
 
   useEffect(() => {
     if (isAuto && remainingRounds > 0 && !isRolling) {
@@ -84,7 +85,7 @@ export const DiceGame: React.FC = () => {
 
   const handleMainAction = () => { if (isAuto) startAuto(); else roll(); };
 
-  useGameHotkeys({ onBet: roll, onStop: stopAuto, onAuto: startAuto, isDisabled: isRolling || (!isAuto && balance < bet) });
+  useGameHotkeys({ onBet: roll, onStop: stopAuto, onAuto: startAuto, isDisabled: isRolling || (!isAuto && balance < betCents) });
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
@@ -95,13 +96,13 @@ export const DiceGame: React.FC = () => {
             <input
               type="number"
               value={bet}
-              onChange={(e) => setBet(Math.max(1, Number(e.target.value)))}
+              onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))}
               min="0.01"
               step="0.01"
               disabled={isRolling || isAuto}
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
             />
-            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
+            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -125,7 +126,7 @@ export const DiceGame: React.FC = () => {
             </div>
           )}
 
-          <button onClick={handleMainAction} disabled={(balance < bet && !isAuto) || (isRolling && !isAuto)} className={cn("w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50", isAuto ? "bg-red-500 text-white" : "bg-[#00FF88] text-black")}>
+          <button onClick={handleMainAction} disabled={(balance < betCents && !isAuto) || (isRolling && !isAuto)} className={cn("w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50", isAuto ? "bg-red-500 text-white" : "bg-[#00FF88] text-black")}>
             {isAuto ? <><Timer size={18} />STOP AUTO</> : <><Play size={18} fill="currentColor" />ROLL DICE</>}
           </button>
 
@@ -140,8 +141,8 @@ export const DiceGame: React.FC = () => {
         <GameStatsBar stats={[
           { label: 'Bets', value: String(stats.totalBets) },
           { label: 'Wins', value: String(stats.totalWins) },
-          { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          { label: 'Biggest', value: formatCents(stats.biggestWin) },
+          { label: 'Wagered', value: formatCents(stats.totalWagered) },
         ]} />
       </div>
 

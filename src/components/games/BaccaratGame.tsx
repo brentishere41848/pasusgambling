@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { Play } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 type BaccaratBet = 'player' | 'banker' | 'tie';
 
@@ -51,7 +51,7 @@ const TableCard: React.FC<{ card: Card }> = ({ card }) => (
 
 export const BaccaratGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(1);
   const [selectedBet, setSelectedBet] = useState<BaccaratBet>('player');
   const [playerCards, setPlayerCards] = useState<Card[]>([]);
   const [bankerCards, setBankerCards] = useState<Card[]>([]);
@@ -60,20 +60,21 @@ export const BaccaratGame: React.FC = () => {
   const [status, setStatus] = useState('Bet on Player, Banker, or Tie');
   const { getStats, recordBet } = useLocalGameStats('baccarat');
   const stats = getStats();
+  const betCents = dollarsToCents(bet);
 
   const payout = useMemo(() => (selectedBet === 'tie' ? 8 : selectedBet === 'banker' ? 1.95 : 2), [selectedBet]);
 
   const adjustBet = (mode: 'double' | 'max') => {
     setBet((prev) => {
       if (mode === 'double') {
-        return Math.max(1, Math.min(Math.floor(balance), prev * 2));
+        return Math.max(MIN_BET, Math.min(centsToDollars(balance), Number((prev * 2).toFixed(2))));
       }
-      return Math.max(1, Math.floor(balance));
+      return Math.max(MIN_BET, centsToDollars(balance));
     });
   };
 
   const deal = () => {
-    if (isDealing || !subtractBalance(bet)) {
+    if (isDealing || !subtractBalance(betCents)) {
       return;
     }
 
@@ -92,16 +93,16 @@ export const BaccaratGame: React.FC = () => {
       setResult(outcome);
 
       if (outcome === selectedBet) {
-        const winAmount = Number((bet * payout).toFixed(2));
+        const winAmount = Math.round(betCents * payout);
         addBalance(winAmount);
         setStatus(`${outcome.toUpperCase()} wins ${playerTotal} to ${bankerTotal}`);
-        logBetActivity({ gameKey: 'baccarat', wager: bet, payout: winAmount, multiplier: payout, outcome: 'win', detail: `Player ${playerTotal} Banker ${bankerTotal}` });
+        logBetActivity({ gameKey: 'baccarat', wager: betCents, payout: winAmount, multiplier: payout, outcome: 'win', detail: `Player ${playerTotal} Banker ${bankerTotal}` });
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
-        recordBet(bet, winAmount, true);
+        recordBet(betCents, winAmount, true);
       } else {
         setStatus(`${outcome.toUpperCase()} wins ${playerTotal} to ${bankerTotal}`);
-        logBetActivity({ gameKey: 'baccarat', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Player ${playerTotal} Banker ${bankerTotal}` });
-        recordBet(bet, 0, false);
+        logBetActivity({ gameKey: 'baccarat', wager: betCents, payout: 0, multiplier: 0, outcome: 'loss', detail: `Player ${playerTotal} Banker ${bankerTotal}` });
+        recordBet(betCents, 0, false);
       }
 
       setIsDealing(false);
@@ -126,8 +127,8 @@ export const BaccaratGame: React.FC = () => {
       <div className="lg:col-span-1 bg-[#11161d] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-          <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDealing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
-          <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isDealing} />
+          <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDealing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+          <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isDealing} />
         </div>
 
         <div className="grid grid-cols-1 gap-2">
@@ -136,7 +137,7 @@ export const BaccaratGame: React.FC = () => {
           <BetButton type="tie" label="Tie" accent="bg-[#00FF88]/30" />
         </div>
 
-        <button onClick={deal} disabled={isDealing || balance < bet} className="rounded-xl bg-[#00FF88] text-black py-4 font-black flex items-center justify-center gap-2 disabled:opacity-40">
+        <button onClick={deal} disabled={isDealing || balance < betCents} className="rounded-xl bg-[#00FF88] text-black py-4 font-black flex items-center justify-center gap-2 disabled:opacity-40">
           <Play size={18} fill="currentColor" /> DEAL
         </button>
 
@@ -147,8 +148,8 @@ export const BaccaratGame: React.FC = () => {
           <GameStatsBar stats={[
             { label: 'Bets', value: String(stats.totalBets) },
             { label: 'Wins', value: String(stats.totalWins) },
-            { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-            { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+            { label: 'Biggest', value: formatCents(stats.biggestWin) },
+            { label: 'Wagered', value: formatCents(stats.totalWagered) },
           ]} />
         </div>
       </div>

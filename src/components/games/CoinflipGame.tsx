@@ -4,7 +4,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, RotateCcw, X, Zap, Award } from 'lucide-react';
 import { logBetActivity } from '../../lib/activity';
-import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 import confetti from 'canvas-confetti';
 
 type CoinSide = 'heads' | 'tails';
@@ -14,7 +14,7 @@ const MAX_STREAK = MULTIPLIERS.length;
 
 export const CoinflipGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(100);
+  const [bet, setBet] = useState(1);
   const [selectedSide, setSelectedSide] = useState<CoinSide>('heads');
   const [result, setResult] = useState<CoinSide | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
@@ -28,9 +28,10 @@ export const CoinflipGame: React.FC = () => {
   
   const { getStats, recordBet } = useLocalGameStats('coinflip');
   const stats = getStats();
+  const betCents = dollarsToCents(bet);
 
   const runFlip = useCallback(() => {
-    if (!subtractBalance(bet)) return;
+    if (!subtractBalance(betCents)) return;
     
     setIsFlipping(true);
     setResult(null);
@@ -57,21 +58,21 @@ export const CoinflipGame: React.FC = () => {
       setIsFlipping(false);
 
       if (didWin) {
-        const winAmount = Math.round(bet * 2);
+        const winAmount = Math.round(betCents * 2);
         addBalance(winAmount);
         setPendingWin(winAmount);
         setLastWonAmount(winAmount);
         setShowGamble(true);
         
-        logBetActivity({ gameKey: 'coinflip', wager: bet, payout: winAmount, multiplier: 2, outcome: 'win', detail: `Called ${selectedSide}, landed ${landed}` });
-        recordBet(bet, winAmount, true);
+        logBetActivity({ gameKey: 'coinflip', wager: betCents, payout: winAmount, multiplier: 2, outcome: 'win', detail: `Called ${selectedSide}, landed ${landed}` });
+        recordBet(betCents, winAmount, true);
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
       } else {
-        logBetActivity({ gameKey: 'coinflip', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `Called ${selectedSide}, landed ${landed}` });
-        recordBet(bet, 0, false);
+        logBetActivity({ gameKey: 'coinflip', wager: betCents, payout: 0, multiplier: 0, outcome: 'loss', detail: `Called ${selectedSide}, landed ${landed}` });
+        recordBet(betCents, 0, false);
       }
     }, duration);
-  }, [addBalance, bet, isFast, selectedSide, subtractBalance, recordBet]);
+  }, [addBalance, betCents, isFast, selectedSide, subtractBalance, recordBet]);
 
   const gambleWin = useCallback(() => {
     if (pendingWin <= 0 || streak >= MAX_STREAK - 1) return;
@@ -130,15 +131,15 @@ export const CoinflipGame: React.FC = () => {
   const collectWinnings = useCallback(() => {
     if (pendingWin > 0) {
       addBalance(pendingWin);
-      logBetActivity({ gameKey: 'coinflip', wager: bet, payout: pendingWin, multiplier: currentMultiplier, outcome: 'win', detail: `Collected at ${currentMultiplier}x` });
-      recordBet(bet, pendingWin, true);
+      logBetActivity({ gameKey: 'coinflip', wager: betCents, payout: pendingWin, multiplier: currentMultiplier, outcome: 'win', detail: `Collected at ${currentMultiplier}x` });
+      recordBet(betCents, pendingWin, true);
     }
     setPendingWin(0);
     setShowGamble(false);
     setStreak(0);
     setCurrentMultiplier(2);
     setResult(null);
-  }, [addBalance, bet, currentMultiplier, pendingWin, recordBet]);
+  }, [addBalance, betCents, currentMultiplier, pendingWin, recordBet]);
 
   useGameHotkeys({
     onBet: () => {
@@ -161,13 +162,13 @@ export const CoinflipGame: React.FC = () => {
             <input 
               type="number" 
               value={bet} 
-              onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} 
+              onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} 
               min="0.01"
               step="0.01"
               disabled={isFlipping || showGamble} 
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50" 
             />
-            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isFlipping || showGamble} />
+            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isFlipping || showGamble} />
           </div>
 
           <div>
@@ -205,7 +206,7 @@ export const CoinflipGame: React.FC = () => {
           {!showGamble ? (
             <button 
               onClick={runFlip} 
-              disabled={(balance < bet) || isFlipping} 
+                disabled={(balance < betCents) || isFlipping} 
               className={cn(
                 'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
                 'bg-[#00FF88] hover:bg-[#00FF88]/90 text-black'
@@ -222,7 +223,7 @@ export const CoinflipGame: React.FC = () => {
                 className="w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-black"
               >
                 <Award size={18} />
-                COLLECT ${(pendingWin / 100).toFixed(2)}
+                COLLECT {formatCents(pendingWin)}
               </button>
               <button 
                 onClick={gambleWin} 
@@ -259,8 +260,8 @@ export const CoinflipGame: React.FC = () => {
         <GameStatsBar stats={[
           { label: 'Bets', value: String(stats.totalBets) },
           { label: 'Wins', value: String(stats.totalWins) },
-          { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          { label: 'Biggest', value: formatCents(stats.biggestWin) },
+          { label: 'Wagered', value: formatCents(stats.totalWagered) },
         ]} />
       </div>
 
@@ -273,7 +274,7 @@ export const CoinflipGame: React.FC = () => {
           >
             <div className="bg-yellow-500/20 border border-yellow-500/50 backdrop-blur-md px-8 py-4 rounded-2xl text-center">
               <div className="text-yellow-400 text-sm font-black uppercase tracking-wider mb-1">Current Win</div>
-              <div className="text-3xl font-black text-white">${(pendingWin / 100).toFixed(2)}</div>
+               <div className="text-3xl font-black text-white">{formatCents(pendingWin)}</div>
               <div className="text-yellow-400 text-xs mt-1">Streak: {streak + 1}x → {currentMultiplier}x</div>
             </div>
           </motion.div>

@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
+import { centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 type RiskTier = 'low' | 'medium' | 'high' | 'daredevil';
 
@@ -281,7 +282,7 @@ function getDisplayAccent(segment: WheelSegment, index: number) {
 
 export const WheelGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(1);
   const [risk, setRisk] = useState<RiskTier>('medium');
   const [wheelRotation, setWheelRotation] = useState(0);
   const [pointerKick, setPointerKick] = useState(0);
@@ -298,6 +299,7 @@ export const WheelGame: React.FC = () => {
   const [totalSpins, setTotalSpins] = useState(0);
   const [winningSpins, setWinningSpins] = useState(0);
   const [topHit, setTopHit] = useState(0);
+  const betCents = dollarsToCents(bet);
   const [spinTempo, setSpinTempo] = useState(0);
   const [glowLevel, setGlowLevel] = useState(0.15);
 
@@ -402,8 +404,8 @@ export const WheelGame: React.FC = () => {
 
   const completeRound = (landedIndex: number) => {
     const landedSegment = segments[landedIndex];
-    const payout = Math.round(bet * landedSegment.multiplier);
-    const profit = payout - bet;
+    const payout = Math.round(betCents * landedSegment.multiplier);
+    const profit = payout - betCents;
     const won = payout > 0;
 
     setResultIndex(landedIndex);
@@ -414,23 +416,23 @@ export const WheelGame: React.FC = () => {
     if (won) {
       setWinningSpins((current) => current + 1);
       addBalance(payout);
-      setStatusText(`${landedSegment.label} landed for ${payout.toLocaleString()}`);
+      setStatusText(`${landedSegment.label} landed for ${formatCents(payout)}`);
       if (landedSegment.multiplier >= 5) {
         confetti({ particleCount: 110, spread: 82, origin: { y: 0.58 } });
       }
       logBetActivity({
         gameKey: 'wheel',
-        wager: bet,
+        wager: betCents,
         payout,
         multiplier: landedSegment.multiplier,
-        outcome: payout === bet ? 'push' : 'win',
+        outcome: payout === betCents ? 'push' : 'win',
         detail: `${risk} risk on ${landedSegment.label}`,
       });
     } else {
       setStatusText(`Dead wedge on ${activeConfig.title}`);
       logBetActivity({
         gameKey: 'wheel',
-        wager: bet,
+        wager: betCents,
         payout: 0,
         multiplier: 0,
         outcome: 'loss',
@@ -471,7 +473,7 @@ export const WheelGame: React.FC = () => {
       return;
     }
 
-    if (!subtractBalance(bet)) {
+    if (!subtractBalance(betCents)) {
       stopAuto();
       setStatusText('Insufficient balance');
       return;
@@ -692,14 +694,14 @@ export const WheelGame: React.FC = () => {
                   value={bet}
                   min="0.01"
                   step="0.01"
-                  onChange={(e) => setBet(Math.max(1, Number(e.target.value) || 1))}
+                   onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value) || MIN_BET))}
                   disabled={isSpinning || isAuto}
                   className="mt-2 w-full rounded-2xl border border-[#3a4760] bg-[#05070c] px-4 py-3 text-white focus:border-[#d9bb63]/60 focus:outline-none"
                 />
                 <div className="mt-2 text-[9px] text-white/25">Min: $0.01</div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button onClick={() => setBet((current) => Math.max(1, Math.min(Math.floor(balance), current * 2)))} disabled={isSpinning || isAuto || balance < 1} className="rounded-xl bg-[#111826] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#c7d6f7] disabled:opacity-40">x2</button>
-                  <button onClick={() => setBet(Math.max(1, Math.floor(balance)))} disabled={isSpinning || isAuto || balance < 1} className="rounded-xl bg-[#111826] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#c7d6f7] disabled:opacity-40">Max</button>
+                  <button onClick={() => setBet((current) => Math.max(MIN_BET, Math.min(centsToDollars(balance), Number((current * 2).toFixed(2)))))} disabled={isSpinning || isAuto || balance < 1} className="rounded-xl bg-[#111826] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#c7d6f7] disabled:opacity-40">x2</button>
+                  <button onClick={() => setBet(Math.max(MIN_BET, centsToDollars(balance)))} disabled={isSpinning || isAuto || balance < 1} className="rounded-xl bg-[#111826] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#c7d6f7] disabled:opacity-40">Max</button>
                 </div>
               </div>
             </div>
@@ -748,7 +750,7 @@ export const WheelGame: React.FC = () => {
             <div className="space-y-3">
               <button
                 onClick={isAuto ? stopAuto : autoArmed ? startAuto : spinOnce}
-                disabled={(balance < bet && !isAuto) || isSpinning}
+                disabled={(balance < betCents && !isAuto) || isSpinning}
                 className={cn('flex w-full min-w-[180px] items-center justify-center gap-3 rounded-[24px] py-5 text-sm font-black uppercase tracking-[0.18em] disabled:opacity-50', isAuto ? 'bg-red-500 text-white' : 'bg-[linear-gradient(180deg,#fff6c1,#ddb04c)] text-[#1a1304]')}
               >
                 {isAuto ? <><Timer size={18} />Stop Auto</> : <><Play size={18} fill="currentColor" />{autoArmed ? 'Start Auto' : 'Spin Wheel'}</>}
@@ -787,7 +789,7 @@ export const WheelGame: React.FC = () => {
             <div className="rounded-3xl border border-[#38506f] bg-[#09111c] p-4">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9cc1ff]/55">Profit</div>
               <div className={cn('mt-2 text-xl font-black', sessionProfit >= 0 ? 'text-[#00FF88]' : 'text-red-400')}>
-                {sessionProfit >= 0 ? '+' : ''}{sessionProfit.toLocaleString()}
+                {sessionProfit >= 0 ? '+' : '-'}{formatCents(Math.abs(sessionProfit))}
               </div>
             </div>
             <div className="rounded-3xl border border-[#7e5a21]/45 bg-[linear-gradient(180deg,rgba(21,17,12,0.88),rgba(11,10,10,0.9))] p-4">

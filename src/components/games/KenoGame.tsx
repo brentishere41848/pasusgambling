@@ -5,7 +5,7 @@ import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats } from './GameHooks';
+import { QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 const GRID = Array.from({ length: 40 }, (_, index) => index + 1);
 
@@ -17,7 +17,7 @@ const PAYOUTS: Record<number, Record<number, number>> = {
 
 export const KenoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
-  const [bet, setBet] = useState(10);
+  const [bet, setBet] = useState(1);
   const [pickCount, setPickCount] = useState<4 | 6 | 8>(6);
   const [selected, setSelected] = useState<number[]>([]);
   const [drawn, setDrawn] = useState<number[]>([]);
@@ -25,6 +25,7 @@ export const KenoGame: React.FC = () => {
   const [isDrawing, setIsDrawing] = useState(false);
   const { getStats, recordBet } = useLocalGameStats('keno');
   const stats = getStats();
+  const betCents = dollarsToCents(bet);
 
   const payoutTable = useMemo(() => PAYOUTS[pickCount], [pickCount]);
   const potentialTop = Math.max(...(Object.values(payoutTable) as number[]));
@@ -56,7 +57,7 @@ export const KenoGame: React.FC = () => {
   };
 
   const draw = () => {
-    if (selected.length !== pickCount || !subtractBalance(bet)) {
+    if (selected.length !== pickCount || !subtractBalance(betCents)) {
       return;
     }
 
@@ -75,16 +76,16 @@ export const KenoGame: React.FC = () => {
       const hitNumbers = shuffled.filter((value) => selected.includes(value));
       setMatches(hitNumbers);
       const multiplier = payoutTable[hitNumbers.length] || 0;
-      const payout = multiplier ? Math.round(bet * multiplier) : 0;
+      const payout = multiplier ? Math.round(betCents * multiplier) : 0;
 
       if (payout > 0) {
         addBalance(payout);
-        logBetActivity({ gameKey: 'keno', wager: bet, payout, multiplier, outcome: 'win', detail: `${hitNumbers.length}/${pickCount} hits` });
+        logBetActivity({ gameKey: 'keno', wager: betCents, payout, multiplier, outcome: 'win', detail: `${hitNumbers.length}/${pickCount} hits` });
         confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-        recordBet(bet, payout, true);
+        recordBet(betCents, payout, true);
       } else {
-        logBetActivity({ gameKey: 'keno', wager: bet, payout: 0, multiplier: 0, outcome: 'loss', detail: `${hitNumbers.length}/${pickCount} hits` });
-        recordBet(bet, 0, false);
+        logBetActivity({ gameKey: 'keno', wager: betCents, payout: 0, multiplier: 0, outcome: 'loss', detail: `${hitNumbers.length}/${pickCount} hits` });
+        recordBet(betCents, 0, false);
       }
 
       setIsDrawing(false);
@@ -97,8 +98,8 @@ export const KenoGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(1, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDrawing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
-            <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={isDrawing} />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDrawing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isDrawing} />
           </div>
 
           <div>
@@ -133,7 +134,7 @@ export const KenoGame: React.FC = () => {
 
           <button
             onClick={draw}
-            disabled={isDrawing || selected.length !== pickCount || balance < bet}
+            disabled={isDrawing || selected.length !== pickCount || balance < betCents}
             className="w-full rounded-xl bg-[#00FF88] px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-black disabled:opacity-40"
           >
             {isDrawing ? (
@@ -147,8 +148,8 @@ export const KenoGame: React.FC = () => {
         <GameStatsBar stats={[
           { label: 'Bets', value: String(stats.totalBets) },
           { label: 'Wins', value: String(stats.totalWins) },
-          { label: 'Biggest', value: `$${(stats.biggestWin / 100).toFixed(2)}` },
-          { label: 'Wagered', value: `$${(stats.totalWagered / 100).toFixed(2)}` },
+          { label: 'Biggest', value: formatCents(stats.biggestWin) },
+          { label: 'Wagered', value: formatCents(stats.totalWagered) },
         ]} />
       </div>
 
