@@ -681,29 +681,13 @@ const Sidebar = ({
       </div>
 
       <nav className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-0.5">
-        {navItems.map((item, i) => (
-          <motion.button
-            key={item.label}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: i * 0.05 }}
-            onClick={() => handleNav(() => onOpenView(item.view))}
-            className={cn(
-              'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all relative overflow-hidden group',
-              item.active ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'text-white/40 hover:text-white hover:bg-white/5'
-            )}
-          >
-            {item.active && (
-              <motion.div
-                layoutId="navIndicator"
-                className="absolute left-0 top-0 bottom-0 w-1 bg-[#00FF88] rounded-r-full"
-              />
-            )}
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-              <item.icon size={17} />
-            </motion.div>
+        {navItems.map((item) => (
+          <button key={item.label} onClick={() => handleNav(() => onOpenView(item.view))}
+            className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+              item.active ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+            <item.icon size={17} />
             <span>{item.label}</span>
-          </motion.button>
+          </button>
         ))}
 
         <button onClick={onOpenPF}
@@ -2021,44 +2005,27 @@ const RecentActivity = () => {
   };
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5 }}
-    >
+    <section>
       <div className="flex items-center justify-between mb-6 gap-4">
-        <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3 text-white/90">
-          <motion.span
-            animate={{ rotate: [0, 10, -10, 0] }}
-            transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-          >
-            <TrendingUp className="text-[#00FF88]" size={20} />
-          </motion.span>
-          Recent Activity
+        <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3">
+          <TrendingUp className="text-[#00FF88]" size={20} />
+          Live Bets
         </h2>
         <div className="flex p-1 bg-black/40 rounded-full border border-white/5">
           {[
-            { id: 'all', label: 'All' },
-            { id: 'high', label: 'Big Wins' },
-            { id: 'lucky', label: 'Lucky' },
+            { id: 'all', label: 'All Bets' },
+            { id: 'high', label: 'High Wins' },
+            { id: 'lucky', label: 'Lucky Wins' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as 'all' | 'high' | 'lucky')}
               className={cn(
-                'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all relative overflow-hidden',
-                activeTab === tab.id ? 'text-black' : 'text-white/40 hover:text-white'
+                'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all',
+                activeTab === tab.id ? 'bg-[#00FF88] text-black' : 'text-white/40 hover:text-white'
               )}
             >
-              {activeTab === tab.id && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute inset-0 bg-[#00FF88] rounded-full"
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-                />
-              )}
-              <span className="relative z-10">{tab.label}</span>
+              {tab.label}
             </button>
           ))}
         </div>
@@ -2112,7 +2079,7 @@ const RecentActivity = () => {
           </table>
         </div>
       </div>
-    </motion.section>
+    </section>
   );
 };
 
@@ -2139,64 +2106,33 @@ const LiveBetsStrip = () => {
   }, []);
 
   return (
-    <motion.section 
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5 }}
-      className="space-y-4"
-    >
+    <section className="space-y-4">
       <div className="flex items-center gap-3">
-        <motion.div 
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <TrendingUp className="text-[#00FF88]" size={18} />
-        </motion.div>
-        <h2 className="text-xl font-black italic uppercase tracking-tighter text-white/90">Live Bets</h2>
-        <span className="ml-auto flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-[#00FF88] animate-pulse" />
-          <span className="text-xs text-white/40">Live</span>
-        </span>
+        <TrendingUp className="text-[#00FF88]" size={18} />
+        <h2 className="text-xl font-black italic uppercase tracking-tighter">Live Bets Feed</h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {bets.map((betItem, i) => (
-          <motion.div
-            key={betItem.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: i * 0.05 }}
-            whileHover={{ scale: 1.02, borderColor: 'rgba(0,255,136,0.3)' }}
-            className="rounded-[28px] border border-white/10 bg-[#141821] p-5 space-y-3 hover:shadow-lg hover:shadow-[#00FF88]/5 transition-all cursor-default"
-          >
+        {bets.map((betItem) => (
+          <div key={betItem.id} className="rounded-[28px] border border-white/10 bg-[#141821] p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-white/25 font-medium">{betItem.gameKey}</div>
-              <motion.div 
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className={cn('text-[10px] font-black uppercase tracking-[0.18em] px-2 py-0.5 rounded-full', 
-                  betItem.outcome === 'win' ? 'bg-[#00FF88]/20 text-[#00FF88]' : 
-                  betItem.outcome === 'push' ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-400'
-                )}
-              >
+              <div className="text-[10px] uppercase tracking-[0.2em] text-white/25">{betItem.gameKey}</div>
+              <div className={cn('text-[10px] font-black uppercase tracking-[0.18em]', betItem.outcome === 'win' ? 'text-[#00FF88]' : betItem.outcome === 'push' ? 'text-blue-400' : 'text-red-400')}>
                 {betItem.outcome}
-              </motion.div>
+              </div>
             </div>
-            <div className="text-lg font-black text-white truncate">{betItem.username}</div>
+            <div className="text-lg font-black">{betItem.username}</div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/35">Wager</span>
-              <span className="font-mono text-white/80">{formatMoneyFromCoins(betItem.wager)}</span>
+              <span className="font-mono">{formatMoneyFromCoins(betItem.wager)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/35">Payout</span>
-              <span className={betItem.payout > 0 ? 'font-mono text-[#00FF88]' : 'font-mono text-white/25'}>
-                {formatMoneyFromCoins(betItem.payout)}
-              </span>
+              <span className={betItem.payout > 0 ? 'font-mono text-[#00FF88]' : 'font-mono text-white/25'}>{formatMoneyFromCoins(betItem.payout)}</span>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
-    </motion.section>
+    </section>
   );
 };
 
@@ -2228,120 +2164,66 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
   const filteredGames = HOME_GAMES;
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4 }}
-      className="min-h-screen"
-    >
+    <div className="min-h-screen">
       {/* News Banner */}
       <div className="px-4 md:px-6 pt-4 pb-6">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+        <div 
           onClick={() => setShowNewsModal(true)}
-          className="relative rounded-3xl overflow-hidden border border-white/10 h-[280px] md:h-[320px] cursor-pointer group"
+          className="relative rounded-3xl overflow-hidden border border-white/10 h-[280px] md:h-[320px] cursor-pointer"
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a15] via-[#0f1520]/80 to-transparent z-10" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a15] via-transparent to-transparent z-10" />
           <img 
             src={NEWS_BANNER.image} 
             alt={NEWS_BANNER.name}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            className="absolute inset-0 w-full h-full object-cover"
           />
-          
-          <div className="absolute inset-0 z-20 bg-gradient-to-r from-black/60 via-transparent to-transparent" />
-          <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-          <div className="relative h-full p-6 md:p-10 flex flex-col justify-end z-30">
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="flex items-center gap-2 mb-auto pt-4"
-            >
-              <span className="px-4 py-1.5 bg-[#00FF88] text-black text-[10px] font-black uppercase tracking-[0.3em] rounded-full shadow-lg shadow-[#00FF88]/30">
+          <div className="relative h-full p-6 md:p-10 flex flex-col justify-end">
+            <div className="flex items-center gap-2 mb-auto pt-4">
+              <span className="px-3 py-1 bg-[#00FF88] text-black text-[9px] font-black uppercase tracking-[0.3em] rounded-full">
                 New!
               </span>
-              <span className="text-white/40 text-xs tracking-widest">Click to learn more</span>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="grid grid-cols-3 gap-3 mt-6"
-            >
+            <div className="grid grid-cols-3 gap-3 mt-4">
               {[
-                { label: 'Online', value: isLoadingStats ? '...' : stats.playersOnline.toLocaleString(), color: 'text-[#00FF88]', icon: Users },
-                { label: 'Wagered Today', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday), color: 'text-amber-400', icon: TrendingUp },
-                { label: 'Biggest Win', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin), color: 'text-purple-400', icon: Trophy },
-              ].map((stat, i) => (
-                <motion.div 
-                  key={stat.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.5 + i * 0.1 }}
-                  className="bg-black/40 border border-white/10 rounded-2xl px-3 py-3 text-center backdrop-blur-sm hover:border-white/20 transition-all"
-                >
-                  <div className="flex items-center justify-center gap-1.5 mb-1">
-                    <stat.icon className={cn('w-3 h-3', stat.color)} />
-                    <div className={cn('text-lg md:text-xl font-black font-mono', stat.color)}>{stat.value}</div>
-                  </div>
-                  <div className="text-[8px] uppercase tracking-[0.25em] text-white/35 font-black">{stat.label}</div>
-                </motion.div>
+                { label: 'Online', value: isLoadingStats ? '...' : stats.playersOnline.toLocaleString(), color: 'text-[#00FF88]' },
+                { label: 'Wagered Today', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday), color: 'text-amber-400' },
+                { label: 'Biggest Win', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin), color: 'text-purple-400' },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-black/30 border border-white/5 rounded-xl px-3 py-2 text-center">
+                  <div className={cn('text-base md:text-lg font-black font-mono', stat.color)}>{stat.value}</div>
+                  <div className="text-[9px] uppercase tracking-[0.2em] text-white/25 font-black">{stat.label}</div>
+                </div>
               ))}
-            </motion.div>
+            </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Games Grid */}
       <div className="px-4 md:px-6 pb-8">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-          className="flex items-center justify-between mb-4"
-        >
-          <h2 className="text-lg font-black uppercase tracking-tight text-white/90">Popular Games</h2>
-          <span className="text-xs text-white/30 tracking-widest">Swipe to explore</span>
-        </motion.div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {filteredGames.map((game, i) => {
+          {filteredGames.map((game) => {
             return (
               <motion.button
                 key={game.id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.7 + i * 0.1 }}
-                whileHover={{ y: -6, scale: 1.02 }}
+                whileHover={{ y: -4, scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => onSelectGame(game.id)}
-                className="relative rounded-2xl overflow-hidden border border-white/10 hover:border-[#00FF88]/50 transition-all duration-300 cursor-pointer group aspect-[9/16] max-h-[400px] shadow-lg shadow-black/20"
+                className="relative rounded-2xl overflow-hidden border border-white/10 hover:border-[#00FF88]/40 transition-all duration-300 cursor-pointer group aspect-[9/16] max-h-[400px]"
               >
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a15] via-black/20 to-transparent z-10" />
                 <img
                   src={game.image}
                   alt={game.name}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   referrerPolicy="no-referrer"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-20" />
-                <div className="absolute inset-0 z-30 flex flex-col justify-end p-4">
-                  <motion.div 
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#00FF88]/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <ChevronRight className="w-4 h-4 text-[#00FF88]" />
-                  </motion.div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight drop-shadow-lg">{game.name}</h3>
-                  <p className="text-xs text-white/60 mt-1 line-clamp-2">{game.description}</p>
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    whileHover={{ width: '60%' }}
-                    className="h-0.5 bg-[#00FF88] mt-3 rounded-full"
-                  />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                <div className="absolute inset-0 flex flex-col justify-end p-4">
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">{game.name}</h3>
+                  <p className="text-xs text-white/60 mt-1">{game.description}</p>
                 </div>
               </motion.button>
             );
@@ -2476,7 +2358,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
           </motion.div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 
