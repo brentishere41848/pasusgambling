@@ -124,11 +124,13 @@ export const BlackjackGame: React.FC = () => {
 
     const playerScore = calculateScore([pCard1, pCard2]);
     const dealerScore = calculateScore([dCard1, dCard2]);
+    const playerBlackjack = playerScore.score === 21 && [pCard1, pCard2].length === 2;
+    const dealerBlackjack = dealerScore.score === 21 && [dCard1, dCard2].length === 2;
 
     const initialHand: PlayerHand = {
       cards: [pCard1, pCard2],
       bet: betAmount,
-      status: playerScore.score === 21 ? 'blackjack' : 'active',
+      status: playerBlackjack ? 'blackjack' : 'active',
     };
 
     setHands([initialHand]);
@@ -136,7 +138,7 @@ export const BlackjackGame: React.FC = () => {
     setResults([]);
     setDealerReveal(false);
 
-    if (playerScore.score === 21) {
+    if (playerBlackjack || dealerBlackjack) {
       setDealerReveal(true);
       setPhase('dealer_turn');
       setTimeout(() => resolveGame([initialHand], [dCard1, dCard2]), 800);
@@ -252,15 +254,22 @@ export const BlackjackGame: React.FC = () => {
     setDealerReveal(true);
     setPhase('dealer_turn');
 
+    let currentDealerHand = [...dealerHand];
+
     const dealerPlay = () => {
-      const { score: dealerScore, soft } = calculateScore(dealerHand);
+      const { score: dealerScore, soft } = calculateScore(currentDealerHand);
       
-      if (dealerScore < 17 || (dealerScore === 17 && soft)) {
+      if (dealerScore > 21) {
+        currentDealerHand = [...currentDealerHand];
+        setDealerHand(currentDealerHand);
+        setTimeout(() => resolveGame(hands, currentDealerHand), 400);
+      } else if (dealerScore < 17 || (dealerScore === 17 && soft)) {
         const newCard = drawCard();
-        setDealerHand((prev) => [...prev, newCard]);
+        currentDealerHand = [...currentDealerHand, newCard];
+        setDealerHand(currentDealerHand);
         setTimeout(dealerPlay, 600);
       } else {
-        setTimeout(() => resolveGame(hands, dealerHand), 400);
+        setTimeout(() => resolveGame(hands, currentDealerHand), 400);
       }
     };
 
