@@ -103,6 +103,33 @@ function CurrencyIcon({ className = '', size = 18 }: { className?: string; size?
   );
 }
 
+const HOME_GAMES = [
+  {
+    id: 'crash',
+    name: 'Crash',
+    description: 'Predict the multiplier and cash out before it crashes.',
+    image: '/assets/crash2.png'
+  },
+  {
+    id: 'blackjack',
+    name: 'Blackjack',
+    description: 'Classic card game. Get closer to 21 than the dealer.',
+    image: '/assets/blackjack.png'
+  },
+  {
+    id: 'mines',
+    name: 'Mines',
+    description: 'Find the gems and avoid the hidden bombs.',
+    image: '/assets/mines2.png'
+  },
+  {
+    id: 'coinflip',
+    name: 'Dice',
+    description: 'Call heads or tails and double up on the flip.',
+    image: '/assets/dice.png'
+  },
+];
+
 const GAMES = [
   {
     id: 'crash',
@@ -139,14 +166,102 @@ const GAMES = [
   },
   {
     id: 'coinflip',
-    name: 'Dice',
+    name: 'Coinflip',
     description: 'Call heads or tails and double up on the flip.',
     icon: CurrencyIcon,
     color: 'text-amber-300',
     bg: 'bg-amber-300/10',
     component: CoinflipGame,
+    featured: false,
+    image: '/assets/coinflip.png'
+  },
+  {
+    id: 'dice',
+    name: 'Dice',
+    description: 'Classic high/low dice game with custom odds.',
+    icon: Dice5,
+    color: 'text-orange-400',
+    bg: 'bg-orange-400/10',
+    component: DiceGame,
+    featured: false,
+    image: '/assets/dice.svg'
+  },
+  {
+    id: 'limbo',
+    name: 'Limbo',
+    description: 'Set a target multiplier and hope the roll lands higher.',
+    icon: Flame,
+    color: 'text-orange-300',
+    bg: 'bg-orange-300/10',
+    component: LimboGame,
     featured: true,
-    image: '/assets/dice.png'
+    image: '/assets/limbo.svg'
+  },
+  {
+    id: 'keno',
+    name: 'Keno',
+    description: 'Pick your numbers and catch the draw.',
+    icon: Dices,
+    color: 'text-emerald-300',
+    bg: 'bg-emerald-300/10',
+    component: KenoGame,
+    featured: true,
+    image: '/assets/keno.svg'
+  },
+  {
+    id: 'hilo',
+    name: 'HiLo',
+    description: 'Call higher or lower and build the streak.',
+    icon: ArrowUpRight,
+    color: 'text-red-400',
+    bg: 'bg-red-400/10',
+    component: HiloGame,
+    featured: false,
+    image: '/assets/hilo.svg'
+  },
+  {
+    id: 'baccarat',
+    name: 'Baccarat',
+    description: 'Bet on player, banker, or tie in a fast table game.',
+    icon: Disc,
+    color: 'text-cyan-300',
+    bg: 'bg-cyan-300/10',
+    component: BaccaratGame,
+    featured: false,
+    image: '/assets/baccarat.svg'
+  },
+  {
+    id: 'plinko',
+    name: 'Plinko',
+    description: 'Drop balls through pegs and chase the high multiplier buckets.',
+    icon: Plus,
+    color: 'text-sky-300',
+    bg: 'bg-sky-300/10',
+    component: PlinkoGame,
+    featured: true,
+    image: '/assets/plinko.svg'
+  },
+  {
+    id: 'roulette',
+    name: 'Roulette',
+    description: 'Cover the board and spin a full European wheel.',
+    icon: Disc,
+    color: 'text-rose-300',
+    bg: 'bg-rose-300/10',
+    component: RouletteGame,
+    featured: true,
+    image: '/assets/roulette.svg'
+  },
+  {
+    id: 'wheel',
+    name: 'Wheel',
+    description: 'Simple wheel game with high multipliers.',
+    icon: RotateCcw,
+    color: 'text-purple-400',
+    bg: 'bg-purple-400/10',
+    component: WheelGame,
+    featured: false,
+    image: '/assets/wheel.svg'
   },
 ];
 
@@ -2105,7 +2220,7 @@ const LiveBetsStrip = () => {
 };
 
 const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => {
-  const featuredGames = GAMES.slice(0, 4);
+  const featuredGames = HOME_GAMES;
   const [heroIndex, setHeroIndex] = useState(0);
   const [stats, setStats] = useState({ playersOnline: 0, totalWageredToday: 0, biggestWin: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -2137,7 +2252,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
   }, [featuredGames.length]);
 
   const heroGame = featuredGames[heroIndex];
-  const filteredGames = GAMES;
+  const filteredGames = HOME_GAMES;
 
   return (
     <div className="min-h-screen">
