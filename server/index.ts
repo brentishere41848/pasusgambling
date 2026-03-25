@@ -1850,6 +1850,9 @@ async function initDb() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`); } catch (e) { console.error('tournaments table:', e.message); }
 
+  try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS start_time TIMESTAMPTZ NOT NULL DEFAULT NOW()`); } catch (e) {}
+  try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS end_time TIMESTAMPTZ NOT NULL DEFAULT NOW()`); } catch (e) {}
+
   try { await pool.query(`CREATE TABLE IF NOT EXISTS tournament_participants (
     id SERIAL PRIMARY KEY,
     tournament_id BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
