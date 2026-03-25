@@ -2050,122 +2050,6 @@ const RecentActivity = () => {
   );
 };
 
-const DailyRewardsCard = () => {
-  const { isAuthenticated } = useAuth();
-  const { refreshWallet } = useBalance();
-  const [reward, setReward] = useState<{ streak: number; rewardAmount: number; canClaim: boolean; nextClaimAt: string | null } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isClaiming, setIsClaiming] = useState(false);
-  const [status, setStatus] = useState('');
-
-  const loadReward = useCallback(async () => {
-    if (!isAuthenticated) {
-      setReward(null);
-      setIsLoading(false);
-      return;
-    }
-
-    const token = localStorage.getItem('pasus_auth_token');
-    if (!token) {
-      setReward(null);
-      setIsLoading(false);
-      return;
-    }
-
-    const response = await apiFetch('/api/rewards/daily/status', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to load reward.');
-    }
-    setReward(data.reward || null);
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    loadReward()
-      .catch((error) => {
-        setStatus(error instanceof Error ? error.message : 'Failed to load reward.');
-      })
-      .finally(() => setIsLoading(false));
-  }, [loadReward]);
-
-  const claimReward = async () => {
-    try {
-      setIsClaiming(true);
-      setStatus('');
-      const token = localStorage.getItem('pasus_auth_token');
-      const response = await apiFetch('/api/rewards/daily/claim', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to claim reward.');
-      }
-      setReward(data.reward || null);
-      setStatus(`Claimed ${formatMoneyFromCoins(Number(data.claimed || 0))}.`);
-      await refreshWallet();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Failed to claim reward.');
-    } finally {
-      setIsClaiming(false);
-    }
-  };
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  const nextClaimLabel = reward?.nextClaimAt ? new Date(reward.nextClaimAt).toLocaleString() : 'Ready now';
-
-  return (
-    <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
-      <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(0,255,136,0.12),rgba(255,255,255,0.02))] p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Daily Rewards</div>
-            <div className="text-3xl font-black italic tracking-tight">{isLoading ? 'Loading...' : formatMoneyFromCoins(reward?.rewardAmount || 0)}</div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-right">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-white/30">Streak</div>
-            <div className="text-xl font-black text-[#00FF88]">{reward?.streak || 0} days</div>
-          </div>
-        </div>
-        <div className="mt-4 text-sm text-white/55">Claim once per day. Consecutive claims increase the reward until the streak resets.</div>
-        <div className="mt-5 flex items-center gap-3">
-          <button
-            onClick={claimReward}
-            disabled={isLoading || isClaiming || !reward?.canClaim}
-            className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40"
-          >
-            {isClaiming ? 'Claiming...' : reward?.canClaim ? 'Claim Daily Reward' : 'Already Claimed'}
-          </button>
-          <div className="text-xs text-white/35">Next claim: {nextClaimLabel}</div>
-        </div>
-        {status ? <div className="mt-4 text-xs text-white/60">{status}</div> : null}
-      </div>
-
-      <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-white/30 font-black">Reward Ladder</div>
-        <div className="mt-4 grid grid-cols-5 gap-2">
-          {[1, 2, 3, 4, 5].map((day) => (
-            <div key={day} className="rounded-2xl border border-white/10 bg-black/25 px-3 py-4 text-center">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-white/25">Day {day}</div>
-              <div className="mt-2 text-sm font-black">{formatMoneyFromCoins(Math.min(10, 2 + (day - 1)) * COINS_PER_DOLLAR)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
 const LiveBetsStrip = () => {
   const [bets, setBets] = useState<ActivityFeedItem[]>([]);
 
@@ -2357,7 +2241,6 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
 
       {/* Bottom Section */}
       <div className="px-4 md:px-6 pb-8 space-y-4">
-        <DailyRewardsCard />
         <LiveBetsStrip />
         <RecentActivity />
       </div>
