@@ -113,7 +113,7 @@ const GAMES = [
     bg: 'bg-emerald-400/10',
     component: CrashGame,
     featured: true,
-    image: '/assets/crash.png'
+    image: '/assets/crash2.png'
   },
   {
     id: 'blackjack',
@@ -135,7 +135,7 @@ const GAMES = [
     bg: 'bg-blue-400/10',
     component: MinesGame,
     featured: true,
-    image: '/assets/mines.png'
+    image: '/assets/mines2.png'
   },
   {
     id: 'coinflip',
@@ -146,7 +146,7 @@ const GAMES = [
     bg: 'bg-amber-300/10',
     component: CoinflipGame,
     featured: true,
-    image: '/assets/dice.png'
+    image: '/assets/coinflip2.png'
   },
 ];
 
