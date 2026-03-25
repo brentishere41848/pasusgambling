@@ -115,6 +115,27 @@ const HOME_GAMES = [
     name: 'Blackjack',
     description: 'Classic card game. Get closer to 21 than the dealer.',
     image: '/assets/blackjack.png',
+  },
+  {
+    id: 'mines',
+    name: 'Mines',
+    description: 'Find the gems and avoid the hidden bombs.',
+    image: '/assets/mines2.png',
+  },
+  {
+    id: 'coinflip',
+    name: 'Dice',
+    description: 'Call heads or tails and double up on the flip.',
+    image: '/assets/dice2.png',
+  },
+];
+
+const FEATURED_GAMES = [
+  {
+    id: 'blackjack',
+    name: 'Blackjack',
+    description: 'Classic card game. Get closer to 21 than the dealer.',
+    image: '/assets/blackjack.png',
     heroImage: '/assets/blackjack_hero.png'
   },
   {
@@ -139,8 +160,6 @@ const HOME_GAMES = [
     heroImage: '/assets/dice_hero.png'
   },
 ];
-
-const FEATURED_GAMES = HOME_GAMES.filter(g => g.heroImage);
 
 const GAMES = [
   {
