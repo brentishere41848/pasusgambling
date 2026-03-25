@@ -139,14 +139,14 @@ const GAMES = [
   },
   {
     id: 'coinflip',
-    name: 'Coinflip',
+    name: 'Dice',
     description: 'Call heads or tails and double up on the flip.',
     icon: CurrencyIcon,
     color: 'text-amber-300',
     bg: 'bg-amber-300/10',
     component: CoinflipGame,
     featured: true,
-    image: '/assets/dice2.png'
+    image: '/assets/dice.png'
   },
 ];
 
