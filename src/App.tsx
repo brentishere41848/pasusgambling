@@ -105,13 +105,6 @@ function CurrencyIcon({ className = '', size = 18 }: { className?: string; size?
 
 const HOME_GAMES = [
   {
-    id: 'crash',
-    name: 'Crash',
-    description: 'Predict the multiplier and cash out before it crashes.',
-    image: '/assets/crash2.png',
-    heroImage: '/assets/crash_hero.png'
-  },
-  {
     id: 'blackjack',
     name: 'Blackjack',
     description: 'Classic card game. Get closer to 21 than the dealer.',
