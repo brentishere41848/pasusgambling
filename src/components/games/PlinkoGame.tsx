@@ -42,9 +42,9 @@ const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
 const PEG_COLOR = '#ffffff';
 const BALL_RADIUS = 8;
 const PEG_RADIUS = 4;
-const GRAVITY = 0.3;
-const BOUNCE = 0.5;
-const FRICTION = 0.99;
+const GRAVITY = 0.5;
+const BOUNCE = 0.6;
+const FRICTION = 0.995;
 
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
