@@ -130,43 +130,12 @@ const HOME_GAMES = [
   },
 ];
 
-const FEATURED_GAMES = [
-  {
-    id: 'news',
-    name: 'News',
-    description: 'Click to see what\'s new!',
-    image: '/assets/hero.png',
-    heroImage: '/assets/hero.png'
-  },
-  {
-    id: 'blackjack',
-    name: 'Blackjack',
-    description: 'Classic card game. Get closer to 21 than the dealer.',
-    image: '/assets/blackjack.png',
-    heroImage: '/assets/blackjack_hero.png'
-  },
-  {
-    id: 'mines',
-    name: 'Mines',
-    description: 'Find the gems and avoid the hidden bombs.',
-    image: '/assets/mines2.png',
-    heroImage: '/assets/mines_hero.png'
-  },
-  {
-    id: 'hilo',
-    name: 'Hilo',
-    description: 'Higher or lower? Test your luck and intuition.',
-    image: '/assets/hilo_hero.png',
-    heroImage: '/assets/hilo_hero.png'
-  },
-  {
-    id: 'coinflip',
-    name: 'Dice',
-    description: 'Call heads or tails and double up on the flip.',
-    image: '/assets/dice2.png',
-    heroImage: '/assets/dice_hero.png'
-  },
-];
+const NEWS_BANNER = {
+  id: 'news',
+  name: 'PASUS RELEASED',
+  description: 'Click to see what\'s new!',
+  image: '/assets/hero.png',
+};
 
 const GAMES = [
   {
@@ -2156,8 +2125,6 @@ const LiveBetsStrip = () => {
 };
 
 const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => {
-  const featuredGames = FEATURED_GAMES;
-  const [heroIndex, setHeroIndex] = useState(0);
   const [stats, setStats] = useState({ playersOnline: 0, totalWageredToday: 0, biggestWin: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [showNewsModal, setShowNewsModal] = useState(false);
@@ -2182,81 +2149,43 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (featuredGames.length <= 1) return;
-    const interval = window.setInterval(() => setHeroIndex(i => (i + 1) % featuredGames.length), 6000);
-    return () => clearInterval(interval);
-  }, [featuredGames.length]);
-
-  const heroGame = featuredGames[heroIndex];
   const filteredGames = HOME_GAMES;
 
   return (
     <div className="min-h-screen">
-      {/* Hero Banner */}
+      {/* News Banner */}
       <div className="px-4 md:px-6 pt-4 pb-6">
-        <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[280px] md:h-[320px]">
-          {heroGame && (
-            <>
-              <img 
-                src={heroGame.heroImage || heroGame.image} 
-                alt={heroGame.name}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-            </>
-          )}
+        <div 
+          onClick={() => setShowNewsModal(true)}
+          className="relative rounded-3xl overflow-hidden border border-white/10 h-[280px] md:h-[320px] cursor-pointer"
+        >
+          <img 
+            src={NEWS_BANNER.image} 
+            alt={NEWS_BANNER.name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
           <div className="relative h-full p-6 md:p-10 flex flex-col justify-end">
-            <div className="flex items-center justify-between mb-auto pt-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#00FF88] animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#00FF88]/70">Live</span>
-              </div>
-              {featuredGames.length > 1 && (
-                <div className="flex gap-1.5">
-                  {featuredGames.map((_, i) => (
-                    <button key={i} onClick={() => setHeroIndex(i)}
-                      className={cn('h-1 rounded-full transition-all duration-300', i === heroIndex ? 'w-6 bg-[#00FF88]' : 'w-1 bg-white/40 hover:bg-white/60')} />
-                  ))}
-                </div>
-              )}
+            <div className="flex items-center gap-2 mb-auto pt-4">
+              <span className="px-3 py-1 bg-[#00FF88] text-black text-[9px] font-black uppercase tracking-[0.3em] rounded-full">
+                New!
+              </span>
             </div>
 
-            {heroGame && (
-              <motion.div key={heroIndex} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-black bg-[#00FF88] px-3 py-1 rounded-full">
-                    {heroGame.id === 'news' ? 'New!' : 'Featured Game'}
-                  </span>
+            <div className="grid grid-cols-3 gap-3 mt-4">
+              {[
+                { label: 'Online', value: isLoadingStats ? '...' : stats.playersOnline.toLocaleString(), color: 'text-[#00FF88]' },
+                { label: 'Wagered Today', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday), color: 'text-amber-400' },
+                { label: 'Biggest Win', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin), color: 'text-purple-400' },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-black/30 border border-white/5 rounded-xl px-3 py-2 text-center">
+                  <div className={cn('text-base md:text-lg font-black font-mono', stat.color)}>{stat.value}</div>
+                  <div className="text-[9px] uppercase tracking-[0.2em] text-white/25 font-black">{stat.label}</div>
                 </div>
-                <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white leading-none mb-2 drop-shadow-lg">
-                  {heroGame.name}
-                </h2>
-                <p className="text-white/80 text-sm max-w-lg mb-5 drop-shadow-md">{heroGame.description}</p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => heroGame.id === 'news' ? setShowNewsModal(true) : onSelectGame(heroGame.id)}
-                    className="bg-[#00FF88] text-black px-8 py-3 rounded-full text-xs font-black uppercase tracking-[0.2em] hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/30"
-                  >
-                    Play Now
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-3 mt-4">
-                  {[
-                    { label: 'Online', value: isLoadingStats ? '...' : stats.playersOnline.toLocaleString(), color: 'text-[#00FF88]' },
-                    { label: 'Wagered Today', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday), color: 'text-amber-400' },
-                    { label: 'Biggest Win', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin), color: 'text-purple-400' },
-                  ].map((stat) => (
-                    <div key={stat.label} className="bg-black/30 border border-white/5 rounded-xl px-3 py-2 text-center">
-                      <div className={cn('text-base md:text-lg font-black font-mono', stat.color)}>{stat.value}</div>
-                      <div className="text-[9px] uppercase tracking-[0.2em] text-white/25 font-black">{stat.label}</div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
+              ))}
+            </div>
           </div>
         </div>
       </div>
