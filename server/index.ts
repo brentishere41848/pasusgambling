@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Pool, PoolClient } from 'pg';
+import { Resend } from 'resend';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config();
@@ -24,6 +25,56 @@ const discordClientId = process.env.DISCORD_CLIENT_ID;
 const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
 const discordRedirectUri = process.env.DISCORD_REDIRECT_URI || `${appBaseUrl}/api/discord/connect/callback`;
 const COINS_PER_DOLLAR = 1;
+
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
+const FROM_EMAIL = 'Pasus <noreply@pasus.xyz>';
+
+async function sendEmail(to: string, subject: string, html: string) {
+  if (!resend) {
+    console.log('[Email disabled] Would send to:', to, 'Subject:', subject);
+    return;
+  }
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html,
+    });
+    console.log('[Email sent] To:', to, 'Subject:', subject);
+  } catch (error) {
+    console.error('[Email error]', error);
+  }
+}
+
+async function sendWelcomeEmail(email: string, username: string) {
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h1 style="color: #00FF88;">Welcome to Pasus, ${username}!</h1>
+      <p>Thanks for joining Pasus. You received a <strong>$5 welcome bonus</strong> to get started.</p>
+      <p>Start playing and good luck!</p>
+      <br/>
+      <p style="color: #666;">- The Pasus Team</p>
+    </div>
+  `;
+  await sendEmail(email, 'Welcome to Pasus!', html);
+}
+
+async function sendPromoEmail(email: string, username: string, promo: string) {
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h1 style="color: #00FF88;">Pasus Promo</h1>
+      <p>Hey ${username},</p>
+      <p>${promo}</p>
+      <br/>
+      <a href="${appBaseUrl}" style="background: #00FF88; color: black; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Play Now</a>
+      <br/><br/>
+      <p style="color: #666; font-size: 12px;">Unsubscribe coming soon.</p>
+    </div>
+  `;
+  await sendEmail(email, 'Pasus - Special Offer!', html);
+}
 const MIN_DEPOSIT_USD = 1;
 const DEFAULT_RAIN_POOL_COINS = 500;
 const __filename = fileURLToPath(import.meta.url);
@@ -2412,6 +2463,11 @@ app.post('/api/auth/register', async (req, res) => {
     await ensureAffiliateCode(client, user.id, user.username);
 
     await client.query('COMMIT');
+
+    if (emailOptIn) {
+      sendWelcomeEmail(email, username).catch(console.error);
+    }
+
     return res.status(201).json({ user, token, wallet });
   } catch (error) {
     await client.query('ROLLBACK');
