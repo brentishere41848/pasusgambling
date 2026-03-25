@@ -51,7 +51,7 @@ async function sendEmail(to: string, subject: string, html: string) {
 async function sendWelcomeEmail(email: string, username: string) {
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center;">
-      <img src="cid:welcome-image" alt="Welcome to Pasus" style="max-width: 100%; height: auto; border-radius: 12px; margin-bottom: 20px;" />
+      <img src="${appBaseUrl}/assets/welcome.png" alt="Welcome to Pasus" style="max-width: 100%; height: auto; border-radius: 12px; margin-bottom: 20px;" />
       <h1 style="color: #00FF88; margin-bottom: 10px;">Welcome to Pasus, ${username}!</h1>
       <p style="color: #333; font-size: 16px; line-height: 1.6;">
         Thanks for joining Pasus. You received a <strong>$5 welcome bonus</strong> to get started.
@@ -74,19 +74,11 @@ async function sendWelcomeEmail(email: string, username: string) {
   }
   
   try {
-    const welcomeImagePath = path.join(distPath, 'assets', 'welcome.png');
     await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'Welcome to Pasus!',
       html,
-      attachments: [
-        {
-          filename: 'welcome.png',
-          path: welcomeImagePath,
-          contentId: 'welcome-image',
-        },
-      ],
     });
     console.log('[Welcome email sent] To:', email);
   } catch (error) {
