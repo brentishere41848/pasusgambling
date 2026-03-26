@@ -106,12 +106,6 @@ function CurrencyIcon({ className = '', size = 18 }: { className?: string; size?
 
 const HOME_GAMES = [
   {
-    id: 'jackpot',
-    name: 'Jackpot',
-    description: 'Server-settled jackpot rounds with live pool tracking.',
-    image: '/assets/hero.png',
-  },
-  {
     id: 'blackjack',
     name: 'Blackjack',
     description: 'Classic card game. Get closer to 21 than the dealer.',
@@ -632,8 +626,8 @@ const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Games</div>
-                <div className="mt-3 text-3xl font-black text-[#00FF88]">5</div>
-                <div className="mt-2 text-xs text-white/45">Jackpot, Blackjack, Mines, Dices, and Crash are currently live.</div>
+                <div className="mt-3 text-3xl font-black text-[#00FF88]">4</div>
+                <div className="mt-2 text-xs text-white/45">Blackjack, Mines, Dices, and Crash are currently live.</div>
               </div>
               <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Mode</div>
@@ -3027,7 +3021,7 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
               </h2>
               
               <p className="text-white/70 text-lg mb-8 leading-relaxed">
-                Welcome to Pasus. Jackpot, Blackjack, Mines, Dices, and Crash are currently live.
+                Welcome to Pasus. Blackjack, Mines, Dices, and Crash are currently live.
               </p>
 
               {/* Stats */}
@@ -3058,7 +3052,6 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
                 {[
-                  { name: 'Jackpot', desc: 'Live now with server-side round settlement', live: true, gameId: 'jackpot' },
                   { name: 'Blackjack', desc: 'Classic 21 table game', live: true, gameId: 'blackjack' },
                   { name: 'Mines', desc: 'Pick gems and avoid the bombs', live: true, gameId: 'mines' },
                   { name: 'Dices', desc: 'High and low dice with custom odds', live: true, gameId: 'dice' },
