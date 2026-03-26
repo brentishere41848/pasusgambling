@@ -3194,8 +3194,13 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
     const outcome = String(req.body.outcome || '').trim().toLowerCase();
     const detail = String(req.body.detail || '').trim();
 
-    const allowedGames = new Set(['baccarat', 'blackjack', 'coinflip', 'crash', 'dice', 'hilo', 'jackpot', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'scratch', 'slots', 'wheel']);
+    const allowedGames = new Set(['baccarat', 'blackjack', 'crash', 'jackpot', 'scratch']);
+    const blockedClientGames = new Set(['coinflip', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'slots', 'wheel']);
     const allowedOutcomes = new Set(['win', 'loss', 'push', 'cashout']);
+
+    if (blockedClientGames.has(gameKey)) {
+      return res.status(403).json({ error: 'This game is temporarily disabled until server-authoritative logic is implemented.' });
+    }
 
     if (!allowedGames.has(gameKey) || wager <= 0 || !allowedOutcomes.has(outcome)) {
       return res.status(400).json({ error: 'Missing or invalid bet activity fields.' });
