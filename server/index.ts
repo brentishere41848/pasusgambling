@@ -586,6 +586,10 @@ function normalizeFiatAmount(value: unknown) {
   return Math.round(amount * 100) / 100;
 }
 
+function dollarsToCents(value: unknown) {
+  return Math.round(normalizeFiatAmount(value) * 100);
+}
+
 function getStartOfUtcDay(value = new Date()) {
   return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
 }
@@ -6615,8 +6619,8 @@ app.get('/api/admin/rain-bot', requireAuth, requireOwner, async (_req: AuthedReq
 app.post('/api/admin/rain-bot', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
   try {
     const intervalMinutes = Math.max(1, Math.min(1440, Number(req.body.intervalMinutes || 60)));
-    const minPoolAmount = Math.max(1, dollarsToCoins(req.body.minPoolAmount || 100));
-    const rainAmount = Math.max(1, dollarsToCoins(req.body.rainAmount || 500));
+    const minPoolAmount = Math.max(1, dollarsToCents(req.body.minPoolAmount || 100));
+    const rainAmount = Math.max(1, dollarsToCents(req.body.rainAmount || 500));
 
     const result = await pool.query(
       `INSERT INTO rain_bot_schedules (interval_minutes, min_pool_amount, rain_amount, created_by_user_id)
@@ -6678,8 +6682,8 @@ app.put('/api/admin/rain-bot/:id', requireAuth, requireOwner, async (req: Authed
     if (!id) return res.status(400).json({ error: 'Invalid schedule ID.' });
 
     const intervalMinutes = Math.max(1, Math.min(1440, Number(req.body.intervalMinutes || 60)));
-    const minPoolAmount = Math.max(1, dollarsToCoins(req.body.minPoolAmount || 100));
-    const rainAmount = Math.max(1, dollarsToCoins(req.body.rainAmount || 500));
+    const minPoolAmount = Math.max(1, dollarsToCents(req.body.minPoolAmount || 100));
+    const rainAmount = Math.max(1, dollarsToCents(req.body.rainAmount || 500));
 
     const result = await pool.query(
       `UPDATE rain_bot_schedules
@@ -6721,7 +6725,7 @@ app.put('/api/admin/rain/current', requireAuth, requireOwner, async (req: Authed
       const requestedPoolAmount = req.body.poolAmount;
       const poolAmount = requestedPoolAmount === undefined || requestedPoolAmount === null || requestedPoolAmount === ''
         ? Number(currentRound.pool_amount || 0)
-        : Math.max(1, dollarsToCoins(requestedPoolAmount));
+        : Math.max(1, dollarsToCents(requestedPoolAmount));
       const timerMinutes = Math.max(1, Math.min(1440, Number(req.body.timerMinutes || 1)));
       const startsAt = new Date(currentRound.starts_at);
       const endsAt = new Date(Date.now() + timerMinutes * 60 * 1000);

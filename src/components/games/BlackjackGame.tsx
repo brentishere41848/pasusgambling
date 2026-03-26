@@ -434,7 +434,7 @@ export const BlackjackGame: React.FC = () => {
         {hands.length > 0 && (
           <div className="bg-black/40 rounded-xl p-3 border border-white/5">
             <div className="text-[10px] text-white/30 uppercase tracking-widest">Total Bet</div>
-            <div className="text-xl font-black text-white">${totalBet.toFixed(2)}</div>
+            <div className="text-xl font-black text-white">{formatCents(totalBet)}</div>
             <div className="text-[10px] text-white/30 mt-1">Hands: {hands.length}</div>
           </div>
         )}
