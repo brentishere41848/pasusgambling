@@ -568,7 +568,7 @@ export const BlackjackGame: React.FC = () => {
                     'text-xs font-black uppercase tracking-wider',
                     result.won ? 'text-[#00FF88]' : 'text-white/50'
                   )}>
-                    {result.text} {result.payout > 0 && `+$${result.payout.toFixed(2)}`}
+                    {result.text} {result.payout > 0 && `+${formatCents(result.payout)}`}
                   </div>
                 )}
 
