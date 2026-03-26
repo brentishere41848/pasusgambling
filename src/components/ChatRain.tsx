@@ -4,15 +4,18 @@ import { useBalance } from '../context/BalanceContext';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { apiFetch } from '../lib/api';
-import { Droplets, ChevronDown, Crown, ShieldCheck, X, Users } from 'lucide-react';
+import { Droplets, ChevronDown, Crown, ShieldCheck, X, Users, AtSign, Heart, Sparkles } from 'lucide-react';
 
 type ChatMessage = {
   id: number;
+  userId?: number;
   username: string;
   text: string;
   tone: string;
   role: string;
   avatarUrl?: string;
+  mentions?: string[];
+  reactions?: Array<{ emoji: string; count: number; reacted: boolean }>;
   createdAt: string;
 };
 
@@ -79,7 +82,8 @@ export const ChatRain: React.FC<{
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
   onClose?: () => void;
-}> = ({ isOpen, isMobileOpen, onCloseMobile, onClose }) => {
+  onOpenProfile?: (username: string) => void;
+}> = ({ isOpen, isMobileOpen, onCloseMobile, onClose, onOpenProfile }) => {
   const { refreshWallet } = useBalance();
   const { user, isAuthenticated } = useAuth();
 
@@ -117,11 +121,14 @@ export const ChatRain: React.FC<{
       if (Array.isArray(data.messages)) {
         setMessages(data.messages.map((m) => ({
           id: Number(m.id),
+          userId: (m as any).userId ? Number((m as any).userId) : undefined,
           username: String(m.username || ''),
           text: String(m.text || ''),
           tone: String(m.tone || 'normal'),
           role: String(m.role || 'user'),
           avatarUrl: m.avatarUrl,
+          mentions: Array.isArray((m as any).mentions) ? (m as any).mentions : [],
+          reactions: Array.isArray((m as any).reactions) ? (m as any).reactions : [],
           createdAt: String(m.createdAt || ''),
         })));
       }
@@ -395,9 +402,41 @@ export const ChatRain: React.FC<{
     role === 'owner' ? 'text-yellow-400' : role === 'moderator' ? 'text-sky-400' : 'text-white/70';
 
   const roleBadge = (role: string) => {
-    if (role === 'owner') return <span className="text-[8px] font-black uppercase tracking-[0.15em] text-yellow-400 flex items-center gap-0.5"><Crown size={8} /> Owner</span>;
-    if (role === 'moderator') return <span className="text-[8px] font-black uppercase tracking-[0.15em] text-sky-400 flex items-center gap-0.5"><ShieldCheck size={8} /> Mod</span>;
+    if (role === 'owner') return <span className="inline-flex items-center gap-1 rounded-full bg-yellow-400/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.15em] text-yellow-300"><Crown size={8} /> Owner</span>;
+    if (role === 'moderator') return <span className="inline-flex items-center gap-1 rounded-full bg-sky-400/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.15em] text-sky-300"><ShieldCheck size={8} /> Staff</span>;
     return null;
+  };
+
+  const reactToMessage = async (messageId: number, emoji: string) => {
+    if (!isAuthenticated) return;
+    try {
+      await apiFetch(`/api/chat/messages/${messageId}/react`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ emoji }),
+      });
+      await loadRoom(true);
+    } catch {}
+  };
+
+  const renderMessageText = (msg: ChatMessage) => {
+    const parts = msg.text.split(/(@[A-Za-z0-9_]+)/g);
+    return parts.map((part, index) => {
+      if (!part.startsWith('@')) {
+        return <React.Fragment key={`${msg.id}-part-${index}`}>{part}</React.Fragment>;
+      }
+      const target = part.slice(1).toLowerCase();
+      const isMention = msg.mentions?.includes(target);
+      const isMe = target === user?.username?.toLowerCase();
+      return (
+        <span key={`${msg.id}-part-${index}`} className={cn('font-black', isMe ? 'text-[#00FF88]' : isMention ? 'text-sky-300' : 'text-white/75')}>
+          {part}
+        </span>
+      );
+    });
   };
 
   return (
@@ -619,9 +658,9 @@ export const ChatRain: React.FC<{
                     {roleBadge(msg.role)}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className={cn('text-[11px] font-black', roleColor(msg.role))}>
+                    <button onClick={() => onOpenProfile?.(msg.username)} className={cn('text-[11px] font-black hover:text-[#00FF88] transition-colors', roleColor(msg.role))}>
                       {msg.username}
-                    </span>
+                    </button>
                     <span className="text-[9px] text-white/20">
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -630,7 +669,21 @@ export const ChatRain: React.FC<{
                     'text-[11px] leading-relaxed break-words',
                     msg.tone === 'win' ? 'text-[#00FF88]/90 font-medium' : 'text-white/75'
                   )}>
-                    {msg.text}
+                    {renderMessageText(msg)}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {msg.reactions?.map((reaction) => (
+                      <button
+                        key={`${msg.id}-${reaction.emoji}`}
+                        onClick={() => reactToMessage(msg.id, reaction.emoji)}
+                        className={cn('rounded-full px-2 py-1 text-[10px] font-black border transition-all', reaction.reacted ? 'border-[#00FF88]/35 bg-[#00FF88]/10 text-[#00FF88]' : 'border-white/5 bg-white/[0.03] text-white/45 hover:text-white')}
+                      >
+                        {reaction.emoji} {reaction.count}
+                      </button>
+                    ))}
+                    <button onClick={() => reactToMessage(msg.id, '🔥')} className="rounded-full p-1.5 border border-white/5 bg-white/[0.03] text-white/35 hover:text-white transition-all"><Sparkles size={10} /></button>
+                    <button onClick={() => reactToMessage(msg.id, '❤️')} className="rounded-full p-1.5 border border-white/5 bg-white/[0.03] text-white/35 hover:text-white transition-all"><Heart size={10} /></button>
+                    <button onClick={() => setDraft((prev) => `${prev ? `${prev} ` : ''}@${msg.username} `)} className="rounded-full p-1.5 border border-white/5 bg-white/[0.03] text-white/35 hover:text-white transition-all"><AtSign size={10} /></button>
                   </div>
                 </div>
               </div>

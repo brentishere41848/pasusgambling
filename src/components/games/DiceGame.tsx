@@ -4,7 +4,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, Zap, RotateCcw, Timer } from 'lucide-react';
 import { logBetActivity } from '../../lib/activity';
-import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
+import { useGameHotkeys, QuickBetButtons, MobileBetControls, AutoStrategyPanel, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET, type AutoStrategyPreset } from './GameHooks';
 
 export const DiceGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -19,6 +19,10 @@ export const DiceGame: React.FC = () => {
   const [remainingRounds, setRemainingRounds] = useState(0);
   const [displayRoll, setDisplayRoll] = useState(50);
   const [didWin, setDidWin] = useState<boolean | null>(null);
+  const [baseBet, setBaseBet] = useState(1);
+  const [autoPreset, setAutoPreset] = useState<AutoStrategyPreset>('flat');
+  const [onWinPercent, setOnWinPercent] = useState(0);
+  const [onLossPercent, setOnLossPercent] = useState(0);
   const isAutoRef = useRef(false);
   const remainingRoundsRef = useRef(0);
 
@@ -38,6 +42,26 @@ export const DiceGame: React.FC = () => {
 
   useEffect(() => { isAutoRef.current = isAuto; }, [isAuto]);
   useEffect(() => { remainingRoundsRef.current = remainingRounds; }, [remainingRounds]);
+
+  useEffect(() => {
+    setBaseBet((current) => (isAuto ? current : bet));
+  }, [bet, isAuto]);
+
+  useEffect(() => {
+    if (autoPreset === 'flat') {
+      setOnWinPercent(0);
+      setOnLossPercent(0);
+    } else if (autoPreset === 'martingale') {
+      setOnWinPercent(0);
+      setOnLossPercent(100);
+    } else if (autoPreset === 'paroli') {
+      setOnWinPercent(100);
+      setOnLossPercent(0);
+    } else if (autoPreset === 'reset') {
+      setOnWinPercent(0);
+      setOnLossPercent(0);
+    }
+  }, [autoPreset]);
 
   const roll = useCallback(() => {
     if (!subtractBalance(betCents)) { stopAuto(); return; }
@@ -59,6 +83,17 @@ export const DiceGame: React.FC = () => {
         logBetActivity({ gameKey: 'dice', wager: betCents, payout: 0, multiplier: 0, outcome: 'loss', detail: `Rolled ${result}` });
         recordBet(betCents, 0, false);
       }
+      if (isAutoRef.current) {
+        if ((autoPreset === 'reset' && !won) || (won && onWinPercent === 0 && autoPreset !== 'paroli' && autoPreset !== 'flat')) {
+          setBet(baseBet);
+        } else if (won && onWinPercent > 0) {
+          setBet((current) => Math.max(MIN_BET, Math.min(centsToDollars(balance + (won ? Math.round(betCents * Number(multiplier)) : 0)), Number((current * (1 + onWinPercent / 100)).toFixed(2)))));
+        } else if (!won && onLossPercent > 0) {
+          setBet((current) => Math.max(MIN_BET, Math.min(centsToDollars(balance), Number((current * (1 + onLossPercent / 100)).toFixed(2)))));
+        } else if (autoPreset === 'reset') {
+          setBet(baseBet);
+        }
+      }
       setIsRolling(false);
       if (isAutoRef.current && remainingRoundsRef.current > 1) {
         setRemainingRounds(prev => prev - 1);
@@ -79,6 +114,7 @@ export const DiceGame: React.FC = () => {
     if (isAuto) { stopAuto(); return; }
     setIsAuto(true);
     setRemainingRounds(autoRounds);
+    setBaseBet(bet);
     isAutoRef.current = true;
     remainingRoundsRef.current = autoRounds;
   };
@@ -103,6 +139,7 @@ export const DiceGame: React.FC = () => {
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
             />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
+            <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -125,6 +162,18 @@ export const DiceGame: React.FC = () => {
               <input type="number" value={autoRounds} onChange={(e) => setAutoRounds(Math.max(1, Number(e.target.value)))} disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#00FF88]/50" />
             </div>
           )}
+
+          {isAuto ? (
+            <AutoStrategyPanel
+              preset={autoPreset}
+              onPresetChange={setAutoPreset}
+              onWinPercent={onWinPercent}
+              onLossPercent={onLossPercent}
+              onWinPercentChange={setOnWinPercent}
+              onLossPercentChange={setOnLossPercent}
+              disabled={isRolling}
+            />
+          ) : null}
 
           <button onClick={handleMainAction} disabled={(balance < betCents && !isAuto) || (isRolling && !isAuto)} className={cn("w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50", isAuto ? "bg-red-500 text-white" : "bg-[#00FF88] text-black")}>
             {isAuto ? <><Timer size={18} />STOP AUTO</> : <><Play size={18} fill="currentColor" />ROLL DICE</>}

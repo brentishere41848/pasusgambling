@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
@@ -58,37 +58,38 @@ import {
   MapPin,
   BarChart3,
   Gamepad,
-  CircleDollarSign,
-  Smartphone,
-  Monitor,
-  Tablet,
-  Trash2,
-  Download,
-  History,
-  KeyRound,
-  QrCode,
-  MessageCircle,
-  Target,
-  Bell
-} from 'lucide-react';
+   CircleDollarSign,
+   Smartphone,
+   Monitor,
+   Tablet,
+   Trash2,
+   Download,
+   History,
+   KeyRound,
+   QrCode,
+   MessageCircle,
+   Target,
+   Bell,
+   Paperclip
+ } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BalanceProvider, useBalance } from './context/BalanceContext';
-import { CrashGame } from './components/games/CrashGame';
-import { MinesGame } from './components/games/MinesGame';
-import { CoinflipGame } from './components/games/CoinflipGame';
-import { DiceGame } from './components/games/DiceGame';
-import { BlackjackGame } from './components/games/BlackjackGame';
-import { HiloGame } from './components/games/HiloGame';
-import { BaccaratGame } from './components/games/BaccaratGame';
-import { WheelGame } from './components/games/WheelGame';
-import { PlinkoGame } from './components/games/PlinkoGame';
-import { RouletteGame } from './components/games/RouletteGame';
-import { LimboGame } from './components/games/LimboGame';
-import { KenoGame } from './components/games/KenoGame';
-import { ChatRain } from './components/ChatRain';
-import { SettingsPanel } from './components/SettingsPanel';
-import { ProvablyFairPanel } from './components/ProvablyFairPanel';
-import { ProfilePage } from './components/ProfilePage';
+const CrashGame = lazy(() => import('./components/games/CrashGame').then((m) => ({ default: m.CrashGame })));
+const MinesGame = lazy(() => import('./components/games/MinesGame').then((m) => ({ default: m.MinesGame })));
+const CoinflipGame = lazy(() => import('./components/games/CoinflipGame').then((m) => ({ default: m.CoinflipGame })));
+const DiceGame = lazy(() => import('./components/games/DiceGame').then((m) => ({ default: m.DiceGame })));
+const BlackjackGame = lazy(() => import('./components/games/BlackjackGame').then((m) => ({ default: m.BlackjackGame })));
+const HiloGame = lazy(() => import('./components/games/HiloGame').then((m) => ({ default: m.HiloGame })));
+const BaccaratGame = lazy(() => import('./components/games/BaccaratGame').then((m) => ({ default: m.BaccaratGame })));
+const WheelGame = lazy(() => import('./components/games/WheelGame').then((m) => ({ default: m.WheelGame })));
+const PlinkoGame = lazy(() => import('./components/games/PlinkoGame').then((m) => ({ default: m.PlinkoGame })));
+const RouletteGame = lazy(() => import('./components/games/RouletteGame').then((m) => ({ default: m.RouletteGame })));
+const LimboGame = lazy(() => import('./components/games/LimboGame').then((m) => ({ default: m.LimboGame })));
+const KenoGame = lazy(() => import('./components/games/KenoGame').then((m) => ({ default: m.KenoGame })));
+const ChatRain = lazy(() => import('./components/ChatRain').then((m) => ({ default: m.ChatRain })));
+const SettingsPanel = lazy(() => import('./components/SettingsPanel').then((m) => ({ default: m.SettingsPanel })));
+const ProvablyFairPanel = lazy(() => import('./components/ProvablyFairPanel').then((m) => ({ default: m.ProvablyFairPanel })));
+const ProfilePage = lazy(() => import('./components/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 import { apiFetch } from './lib/api';
 import { cn } from './lib/utils';
 
@@ -350,6 +351,70 @@ function formatNumberCompact(value: number) {
     return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
   }
   return num.toLocaleString();
+}
+
+type NotificationItem = {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  metadata?: Record<string, any>;
+};
+
+type TrendPoint = {
+  day: string;
+  users: number;
+  wagered: number;
+  revenue: number;
+};
+
+const chartToneClasses: Record<string, string> = {
+  emerald: 'bg-emerald-400/85',
+  blue: 'bg-sky-400/85',
+  amber: 'bg-amber-400/85',
+};
+
+function MiniTrendChart({
+  title,
+  data,
+  dataKey,
+  tone,
+  formatter = (value: number) => value.toLocaleString(),
+}: {
+  title: string;
+  data: TrendPoint[];
+  dataKey: keyof TrendPoint;
+  tone: 'emerald' | 'blue' | 'amber';
+  formatter?: (value: number) => string;
+}) {
+  const numericValues = data.map((item) => Number(item[dataKey] || 0));
+  const maxValue = Math.max(...numericValues, 1);
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="text-sm font-black uppercase tracking-tight">{title}</div>
+        <div className="text-xs text-white/35">7 days</div>
+      </div>
+      <div className="mt-5 flex items-end gap-2 h-32">
+        {data.map((item) => {
+          const value = Number(item[dataKey] || 0);
+          const height = `${Math.max(10, Math.round((value / maxValue) * 100))}%`;
+          return (
+            <div key={`${title}-${item.day}`} className="flex-1 flex flex-col items-center gap-2">
+              <div className="text-[10px] text-white/45">{formatter(value)}</div>
+              <div className="w-full h-full rounded-2xl bg-white/[0.03] flex items-end overflow-hidden">
+                <div className={cn('w-full rounded-2xl transition-all', chartToneClasses[tone])} style={{ height }} />
+              </div>
+              <div className="text-[10px] text-white/30">{item.day}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function formatDisplayCurrency(value: number, currency: string) {
@@ -1019,11 +1084,53 @@ type DepositTransaction = {
   invoiceUrl: string | null;
 };
 
+type WalletLedgerItem = {
+  id: string;
+  kind: 'deposit' | 'withdrawal' | 'promo' | 'affiliate' | 'tip_in' | 'tip_out';
+  amount: number;
+  status: string;
+  subtitle: string;
+  createdAt: string;
+  feeAmount?: number;
+  netAmount?: number;
+};
+
+type WalletBonusCampaign = {
+  id: number;
+  name: string;
+  bonusPercent: number;
+  maxBonusAmount: number;
+  minDepositAmount: number;
+  wageringMultiplier: number;
+  onlyFirstDeposit: boolean;
+};
+
+type WalletBonusStatus = {
+  id: number;
+  name: string;
+  depositAmount: number;
+  bonusAmount: number;
+  wageringRequired: number;
+  wageringRemaining: number;
+  status: string;
+  createdAt: string;
+};
+
+type WalletSnapshot = {
+  balance: number;
+  totalDeposited: number;
+  totalWithdrawn: number;
+  bonusBalance?: number;
+  vaultBalance?: number;
+  tipBalance?: number;
+  lockedBalance?: number;
+};
+
 const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const { user } = useAuth();
   const { balance, totalDeposited, refreshWallet } = useBalance();
   const [amount, setAmount] = useState('25');
-  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'redeem'>('deposit');
+  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'redeem' | 'ledger'>('deposit');
   const [selectedCrypto, setSelectedCrypto] = useState(SUPPORTED_CRYPTO[0]);
   const [withdrawAddress, setWithdrawAddress] = useState('');
   const [copied, setCopied] = useState(false);
@@ -1032,6 +1139,12 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
   const [success, setSuccess] = useState('');
   const [depositTransaction, setDepositTransaction] = useState<DepositTransaction | null>(null);
   const [promoCode, setPromoCode] = useState('');
+  const [ledger, setLedger] = useState<WalletLedgerItem[]>([]);
+  const [bonusCampaigns, setBonusCampaigns] = useState<WalletBonusCampaign[]>([]);
+  const [bonusStatuses, setBonusStatuses] = useState<WalletBonusStatus[]>([]);
+  const [walletSnapshot, setWalletSnapshot] = useState<WalletSnapshot | null>(null);
+  const [walletTransferAmount, setWalletTransferAmount] = useState('25');
+  const [isTransferring, setIsTransferring] = useState(false);
 
   useEffect(() => {
     if (!depositTransaction || ['finished', 'confirmed', 'sending', 'failed', 'expired'].includes(depositTransaction.paymentStatus)) {
@@ -1069,6 +1182,28 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 
     return () => window.clearInterval(poller);
   }, [depositTransaction, refreshWallet]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    Promise.all([
+      apiFetch('/api/wallet/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json()).catch(() => ({})),
+      apiFetch('/api/wallet/ledger', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json()).catch(() => ({})),
+      apiFetch('/api/wallet/bonuses', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json()).catch(() => ({})),
+    ]).then(([walletData, ledgerData, bonusData]) => {
+      setWalletSnapshot(walletData.wallet || null);
+      setLedger(Array.isArray(ledgerData.ledger) ? ledgerData.ledger : []);
+      setBonusCampaigns(Array.isArray(bonusData.campaigns) ? bonusData.campaigns : []);
+      setBonusStatuses(Array.isArray(bonusData.bonuses) ? bonusData.bonuses : []);
+    }).catch(() => undefined);
+  }, [isOpen, depositTransaction]);
 
   if (!isOpen) return null;
 
@@ -1178,6 +1313,37 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
     ? `${selectedCrypto.symbol}:${depositTransaction.payAddress}${depositTransaction.payAmount ? `?amount=${depositTransaction.payAmount}` : ''}`
     : '';
 
+  const runWalletTransfer = async (direction: 'main_to_vault' | 'vault_to_main' | 'main_to_tip' | 'tip_to_main') => {
+    const token = localStorage.getItem('pasus_auth_token');
+    const val = parseFloat(walletTransferAmount);
+    if (!token || Number.isNaN(val) || val <= 0) {
+      setError('Enter a valid transfer amount.');
+      return;
+    }
+    setIsTransferring(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await apiFetch('/api/wallet/transfer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ direction, amount: usdToCoins(val) }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Transfer failed.');
+      setWalletSnapshot(data.wallet || null);
+      await refreshWallet();
+      setSuccess('Wallet balances updated.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Transfer failed.');
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
       <motion.div
@@ -1203,6 +1369,35 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
         </div>
 
         <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-white/5 bg-black/30 p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Main</div><div className="mt-2 text-lg font-black">{formatMoneyFromCoins(walletSnapshot?.balance ?? balance)}</div></div>
+            <div className="rounded-2xl border border-white/5 bg-black/30 p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Vault</div><div className="mt-2 text-lg font-black">{formatMoneyFromCoins(walletSnapshot?.vaultBalance || 0)}</div></div>
+            <div className="rounded-2xl border border-white/5 bg-black/30 p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Tip Wallet</div><div className="mt-2 text-lg font-black">{formatMoneyFromCoins(walletSnapshot?.tipBalance || 0)}</div></div>
+            <div className="rounded-2xl border border-amber-400/10 bg-amber-400/5 p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-amber-200/60 font-black">Locked</div><div className="mt-2 text-lg font-black text-amber-200">{formatMoneyFromCoins(walletSnapshot?.lockedBalance || 0)}</div></div>
+          </div>
+
+          <div className="rounded-2xl border border-white/5 bg-black/30 p-4 space-y-4">
+            <div>
+              <div className="text-sm font-black uppercase tracking-wide">Wallet Buckets</div>
+              <div className="text-[11px] text-white/35 mt-1">Move funds into a vault for storage or into a dedicated tip wallet for friend/chat tipping.</div>
+            </div>
+            <input
+              type="number"
+              value={walletTransferAmount}
+              onChange={(e) => setWalletTransferAmount(e.target.value)}
+              min="0.01"
+              step="0.01"
+              className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm focus:outline-none"
+              placeholder="25.00"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => runWalletTransfer('main_to_vault')} disabled={isTransferring} className="rounded-2xl bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white/70 disabled:opacity-40">Main to Vault</button>
+              <button onClick={() => runWalletTransfer('vault_to_main')} disabled={isTransferring} className="rounded-2xl bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white/70 disabled:opacity-40">Vault to Main</button>
+              <button onClick={() => runWalletTransfer('main_to_tip')} disabled={isTransferring} className="rounded-2xl bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white/70 disabled:opacity-40">Main to Tip</button>
+              <button onClick={() => runWalletTransfer('tip_to_main')} disabled={isTransferring} className="rounded-2xl bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white/70 disabled:opacity-40">Tip to Main</button>
+            </div>
+          </div>
+
           <div className="flex p-1 bg-black/40 rounded-2xl">
             <button
               onClick={() => {
@@ -1242,6 +1437,19 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
               )}
             >
               <Gift size={14} /> Redeem
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('ledger');
+                setError('');
+                setSuccess('');
+              }}
+              className={cn(
+                'flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2',
+                activeTab === 'ledger' ? 'bg-white text-black' : 'text-white/40 hover:text-white'
+              )}
+            >
+              <History size={14} /> Ledger
             </button>
           </div>
 
@@ -1316,8 +1524,81 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             </div>
           )}
 
-          {activeTab !== 'redeem' && (
+          {activeTab === 'ledger' && (
+            <div className="bg-black/40 border border-white/5 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black uppercase tracking-wide">Transaction Ledger</div>
+                  <div className="text-[11px] text-white/35 mt-1">Deposits, withdrawals, promos, affiliate claims, and tips in one stream.</div>
+                </div>
+              </div>
+              <div className="space-y-2 max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
+                {ledger.length ? ledger.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-black uppercase tracking-[0.16em] text-white/70">{item.kind.replace('_', ' ')}</div>
+                        <div className="mt-1 text-sm text-white/45">{item.subtitle}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className={cn('text-sm font-black', item.amount >= 0 ? 'text-[#00FF88]' : 'text-red-300')}>
+                          {item.amount >= 0 ? '+' : '-'}{formatMoneyFromCoins(Math.abs(item.amount))}
+                        </div>
+                        <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/25">{item.status}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-white/25">
+                      <span>{new Date(item.createdAt).toLocaleString()}</span>
+                      {item.kind === 'withdrawal' && item.netAmount !== undefined ? <span>Net {formatMoneyFromCoins(item.netAmount || 0)}</span> : null}
+                    </div>
+                  </div>
+                )) : (
+                  <div className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-8 text-center text-sm text-white/35">No ledger entries yet.</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab !== 'redeem' && activeTab !== 'ledger' && (
             <div className="space-y-4">
+              {activeTab === 'deposit' && bonusCampaigns.length ? (
+                <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 p-4 space-y-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300/80">Deposit Bonus</div>
+                  {bonusCampaigns.slice(0, 1).map((campaign) => (
+                    <div key={campaign.id} className="space-y-1">
+                      <div className="text-sm font-black text-white">{campaign.name}</div>
+                      <div className="text-xs text-white/55">Get {campaign.bonusPercent}% extra up to {formatMoneyFromCoins(campaign.maxBonusAmount)} on deposits of {formatMoneyFromCoins(campaign.minDepositAmount)}+.</div>
+                      <div className="text-[11px] text-amber-200/75">Wagering requirement: {campaign.wageringMultiplier}x bonus amount{campaign.onlyFirstDeposit ? ' • first deposit only' : ''}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {bonusStatuses.filter((bonus) => bonus.status === 'active').length ? (
+                <div className="rounded-2xl border border-[#00FF88]/15 bg-[#00FF88]/5 p-4 space-y-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#00FF88]/80">Active Bonus Progress</div>
+                  {bonusStatuses.filter((bonus) => bonus.status === 'active').map((bonus) => {
+                    const progress = bonus.wageringRequired > 0 ? Math.max(0, Math.min(100, ((bonus.wageringRequired - bonus.wageringRemaining) / bonus.wageringRequired) * 100)) : 100;
+                    return (
+                      <div key={bonus.id} className="rounded-2xl border border-white/5 bg-black/20 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-black text-white">{bonus.name}</div>
+                            <div className="text-[11px] text-white/45">Bonus {formatMoneyFromCoins(bonus.bonusAmount)} from deposit {formatMoneyFromCoins(bonus.depositAmount)}</div>
+                          </div>
+                          <div className="text-right text-[11px] text-white/55">
+                            <div>{formatMoneyFromCoins(bonus.wageringRemaining)} left</div>
+                          </div>
+                        </div>
+                        <div className="mt-3 h-2 rounded-full bg-white/5 overflow-hidden">
+                          <div className="h-full rounded-full bg-[#00FF88]" style={{ width: `${progress}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
               <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Select Currency</label>
               <div className="grid grid-cols-5 gap-2">
                 {SUPPORTED_CRYPTO.map((crypto) => (
@@ -1447,7 +1728,7 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             </div>
           </div>
 
-          {activeTab !== 'redeem' && (
+          {activeTab !== 'redeem' && activeTab !== 'ledger' && (
             <button
               onClick={handleAction}
               disabled={isProcessing}
@@ -1964,7 +2245,79 @@ const Header = ({
   const { balance } = useBalance();
   const { user, logout, isAuthenticated } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showMobileBalance, setShowMobileBalance] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotificationsLoading, setIsNotificationsLoading] = useState(false);
+
+  const loadNotifications = useCallback(async (silent = false) => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token || !isAuthenticated) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    if (!silent) {
+      setIsNotificationsLoading(true);
+    }
+
+    try {
+      const response = await apiFetch('/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+        setUnreadCount(Number(data.unreadCount || 0));
+      }
+    } catch {
+    } finally {
+      if (!silent) {
+        setIsNotificationsLoading(false);
+      }
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    loadNotifications(true);
+    if (!isAuthenticated) {
+      return;
+    }
+    const timer = window.setInterval(() => loadNotifications(true), 15000);
+    return () => window.clearInterval(timer);
+  }, [isAuthenticated, loadNotifications]);
+
+  const markNotificationRead = async (id: number) => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    setNotifications((prev) => prev.map((item) => item.id === id ? { ...item, isRead: true } : item));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+    try {
+      await apiFetch(`/api/notifications/${id}/read`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      loadNotifications(true).catch(() => undefined);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
+    setUnreadCount(0);
+    try {
+      await apiFetch('/api/notifications/read-all', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      loadNotifications(true).catch(() => undefined);
+    }
+  };
   
   return (
     <header className="h-14 md:h-16 border-b border-white/5 bg-[linear-gradient(90deg,rgba(20,49,54,0.9),rgba(23,31,47,0.9))] backdrop-blur-xl sticky top-0 z-50">
@@ -2021,6 +2374,77 @@ const Header = ({
 
           {isAuthenticated ? (
             <>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    const next = !showNotifications;
+                    setShowNotifications(next);
+                    setShowUserMenu(false);
+                    if (next) {
+                      loadNotifications().catch(() => undefined);
+                    }
+                  }}
+                  className="relative w-9 h-9 md:w-10 md:h-10 rounded-full border border-white/10 bg-[#1a1d23] flex items-center justify-center hover:border-[#00FF88]/35 transition-all"
+                >
+                  <Bell size={16} className="text-white/70" />
+                  {unreadCount > 0 ? (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-[#00FF88] px-1 text-[10px] font-black text-black flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                <AnimatePresence>
+                  {showNotifications ? (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute right-0 mt-2 w-[360px] max-w-[calc(100vw-24px)] bg-[#1a1d23] border border-white/10 rounded-3xl overflow-hidden shadow-2xl z-50"
+                      >
+                        <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-white/5">
+                          <div>
+                            <div className="text-sm font-black uppercase tracking-[0.16em]">Notifications</div>
+                            <div className="text-[10px] text-white/35 mt-1">Wins, rain, promos, and support replies</div>
+                          </div>
+                          <button onClick={markAllNotificationsRead} className="text-[10px] font-black uppercase tracking-[0.16em] text-[#00FF88] hover:text-white transition-colors">
+                            Read all
+                          </button>
+                        </div>
+                        <div className="max-h-[420px] overflow-y-auto custom-scrollbar p-3 space-y-2">
+                          {isNotificationsLoading ? (
+                            <div className="px-3 py-8 text-center text-sm text-white/35">Loading notifications...</div>
+                          ) : notifications.length ? notifications.map((item) => (
+                            <button
+                              key={item.id}
+                              onClick={() => !item.isRead && markNotificationRead(item.id)}
+                              className={cn(
+                                'w-full rounded-2xl border px-4 py-3 text-left transition-all',
+                                item.isRead ? 'border-white/5 bg-white/[0.03]' : 'border-[#00FF88]/20 bg-[#00FF88]/8'
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <div className="text-xs font-black uppercase tracking-[0.14em] text-[#00FF88]">{item.type}</div>
+                                  <div className="mt-1 text-sm font-black text-white">{item.title}</div>
+                                  <div className="mt-1 text-xs text-white/55 leading-relaxed">{item.message}</div>
+                                </div>
+                                {!item.isRead ? <span className="w-2.5 h-2.5 rounded-full bg-[#00FF88] mt-1 shrink-0" /> : null}
+                              </div>
+                              <div className="mt-3 text-[10px] text-white/30">{new Date(item.createdAt).toLocaleString()}</div>
+                            </button>
+                          )) : (
+                            <div className="px-3 py-8 text-center text-sm text-white/35">No notifications yet.</div>
+                          )}
+                        </div>
+                      </motion.div>
+                    </>
+                  ) : null}
+                </AnimatePresence>
+              </div>
+
               <button 
                 onClick={onOpenWallet}
                 className="bg-[#00FF88] text-black text-sm font-black px-3 md:px-4 py-1.5 md:py-2 rounded-full hover:bg-[#00FF88]/90 transition-colors text-xs md:text-sm"
@@ -2149,10 +2573,21 @@ type ActivityFeedItem = {
   payout: number;
   multiplier: number;
   outcome: string;
+  detail?: string;
   createdAt: string;
 };
 
-const RecentActivity = () => {
+function getBetShareUrl(betId: number) {
+  return `${window.location.origin}/provably-fair?bet=${betId}`;
+}
+
+const lazyFallback = (
+  <div className="rounded-[28px] border border-white/10 bg-[#141821] px-6 py-10 text-center text-sm text-white/35">
+    Loading...
+  </div>
+);
+
+const RecentActivity = ({ onOpenProfile }: { onOpenProfile?: (username: string) => void }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'high' | 'lucky'>('all');
   const [activities, setActivities] = useState<ActivityFeedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -2251,18 +2686,23 @@ const RecentActivity = () => {
                 <th className="px-6 py-4">Wager</th>
                 <th className="px-6 py-4">Multiplier</th>
                 <th className="px-6 py-4 text-right">Payout</th>
+                <th className="px-6 py-4 text-right">Link</th>
               </tr>
             </thead>
             <tbody className="text-xs font-bold">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-white/30">Loading activity...</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-white/30">Loading activity...</td>
                 </tr>
               ) : activities.length ? (
                 activities.map((activity) => (
                   <tr key={activity.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-4 text-white/60 capitalize">{activity.gameKey}</td>
-                    <td className="px-6 py-4">{activity.username}</td>
+                    <td className="px-6 py-4">
+                      <button onClick={() => onOpenProfile?.(activity.username)} className="hover:text-[#00FF88] transition-colors">
+                        {activity.username}
+                      </button>
+                    </td>
                     <td className="px-6 py-4 text-white/20">{formatTimeAgo(activity.createdAt)}</td>
                     <td className="px-6 py-4 font-mono">{formatMoneyFromCoins(activity.wager)}</td>
                     <td className="px-6 py-4">
@@ -2278,11 +2718,16 @@ const RecentActivity = () => {
                         {formatMoneyFromCoins(activity.payout)}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-right">
+                      <button onClick={() => navigator.clipboard.writeText(getBetShareUrl(activity.id))} className="rounded-full bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white/55 hover:text-white">
+                        Share
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-white/30">No bet activity yet.</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-white/30">No bet activity yet.</td>
                 </tr>
               )}
             </tbody>
@@ -2377,7 +2822,7 @@ const LiveBetsStrip = () => {
   );
 };
 
-const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => {
+const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string) => void; onOpenProfile?: (username: string) => void }) => {
   const [stats, setStats] = useState({ playersOnline: 0, totalWageredToday: 0, biggestWin: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [showNewsModal, setShowNewsModal] = useState(false);
@@ -2529,7 +2974,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
       {/* Bottom Section */}
       <div className="px-4 md:px-6 pb-8 space-y-4">
         <LiveBetsStrip />
-        <RecentActivity />
+        <RecentActivity onOpenProfile={onOpenProfile} />
       </div>
 
       {/* News Modal */}
@@ -3685,7 +4130,7 @@ const SettingsView = () => {
 const AdminView = () => {
   const { user } = useAuth();
   const { refreshWallet } = useBalance();
-  const [adminSection, setAdminSection] = useState<'overview' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'tournaments' | 'rain'>('overview');
+  const [adminSection, setAdminSection] = useState<'overview' | 'users' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'tournaments' | 'rain'>('overview');
   const [selectedWithdrawalId, setSelectedWithdrawalId] = useState<number | null>(null);
   const [withdrawalStatusDraft, setWithdrawalStatusDraft] = useState<'pending' | 'processing' | 'completed'>('pending');
   const [isUpdatingWithdrawal, setIsUpdatingWithdrawal] = useState(false);
@@ -3703,15 +4148,22 @@ const AdminView = () => {
   const [supportTickets, setSupportTickets] = useState<SupportThread[]>([]);
   const [selectedSupportTicketId, setSelectedSupportTicketId] = useState<number | null>(null);
   const [supportReply, setSupportReply] = useState('');
+  const [supportReplyAttachmentUrl, setSupportReplyAttachmentUrl] = useState('');
   const [isReplyingToSupport, setIsReplyingToSupport] = useState(false);
-  const [promos, setPromos] = useState<Array<{ id: number; code: string; coinAmount: number; maxUses: number; currentUses: number; expiresAt: string | null; createdAt: string; createdBy: string }>>([]);
+  const [promos, setPromos] = useState<Array<{ id: number; code: string; coinAmount: number; maxUses: number; currentUses: number; expiresAt: string | null; minLevel: number; minTotalWagered: number; referredOnly: boolean; createdAt: string; createdBy: string }>>([]);
   const [newPromoCode, setNewPromoCode] = useState('');
   const [newPromoCoins, setNewPromoCoins] = useState('');
   const [newPromoMaxUses, setNewPromoMaxUses] = useState('1');
   const [newPromoExpires, setNewPromoExpires] = useState('');
-  const [broadcasts, setBroadcasts] = useState<Array<{ id: number; message: string; createdAt: string; expiresAt: string | null; isActive: boolean }>>([]);
+  const [newPromoMinLevel, setNewPromoMinLevel] = useState('1');
+  const [newPromoMinWagered, setNewPromoMinWagered] = useState('0');
+  const [newPromoReferredOnly, setNewPromoReferredOnly] = useState(false);
+  const [broadcasts, setBroadcasts] = useState<Array<{ id: number; message: string; createdAt: string; expiresAt: string | null; isActive: boolean; minLevel: number; minTotalWagered: number; referredOnly: boolean }>>([]);
   const [newBroadcastMessage, setNewBroadcastMessage] = useState('');
   const [newBroadcastExpires, setNewBroadcastExpires] = useState('');
+  const [newBroadcastMinLevel, setNewBroadcastMinLevel] = useState('1');
+  const [newBroadcastMinWagered, setNewBroadcastMinWagered] = useState('0');
+  const [newBroadcastReferredOnly, setNewBroadcastReferredOnly] = useState(false);
 
   const [moderationHistory, setModerationHistory] = useState<Array<{ id: number; userId: number; username: string; moderatorUsername: string; action: string; reason: string; durationMinutes: number | null; expiresAt: string | null; createdAt: string }>>([]);
   const [modUserId, setModUserId] = useState('');
@@ -3722,6 +4174,12 @@ const AdminView = () => {
   const [isModLoading, setIsModLoading] = useState(false);
 
   const [analytics, setAnalytics] = useState<any | null>(null);
+  const [adminUserQuery, setAdminUserQuery] = useState('');
+  const [adminUsers, setAdminUsers] = useState<Array<any>>([]);
+  const [selectedAdminUserId, setSelectedAdminUserId] = useState<number | null>(null);
+  const [selectedAdminUser, setSelectedAdminUser] = useState<any | null>(null);
+  const [isAdminUserLoading, setIsAdminUserLoading] = useState(false);
+  const [adminPreviewUsername, setAdminPreviewUsername] = useState<string | null>(null);
   const [adminTournaments, setAdminTournaments] = useState<Array<Tournament & { description?: string; gameKey?: string | null; minWager?: number; maxParticipants?: number | null; participantCount?: number }>>([]);
   const [newTournamentName, setNewTournamentName] = useState('');
   const [newTournamentDescription, setNewTournamentDescription] = useState('');
@@ -3799,6 +4257,7 @@ const AdminView = () => {
       payout: Number(entry.payout || 0),
       multiplier: Number(entry.multiplier || 0),
       outcome: String(entry.outcome || ''),
+      detail: String(entry.detail || ''),
       createdAt: String(entry.createdAt || entry.created_at || ''),
     })));
   }, [activityTab]);
@@ -3828,6 +4287,9 @@ const AdminView = () => {
         createdAt: b.createdAt || '',
         expiresAt: b.expiresAt || null,
         isActive: Boolean(b.isActive),
+        minLevel: Number(b.minLevel || 1),
+        minTotalWagered: Number(b.minTotalWagered || 0),
+        referredOnly: Boolean(b.referredOnly),
       })));
     }
   }, []);
@@ -3844,6 +4306,52 @@ const AdminView = () => {
         setAnalytics(data.analytics);
       }
     } catch {}
+  }, []);
+
+  const loadAdminUsers = useCallback(async (query = '') => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    setIsAdminUserLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (query.trim()) {
+        params.set('q', query.trim());
+      }
+      const response = await apiFetch(`/api/admin/users/search?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.users)) {
+        setAdminUsers(data.users);
+        if (!data.users.length) {
+          setSelectedAdminUserId(null);
+          setSelectedAdminUser(null);
+        } else if (!selectedAdminUserId || !data.users.some((entry: any) => Number(entry.id) === selectedAdminUserId)) {
+          setSelectedAdminUserId(Number(data.users[0].id));
+        }
+      }
+    } catch {
+    } finally {
+      setIsAdminUserLoading(false);
+    }
+  }, [selectedAdminUserId]);
+
+  const loadAdminUserDetail = useCallback(async (userId: number) => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token || !userId) return;
+    setIsAdminUserLoading(true);
+    try {
+      const response = await apiFetch(`/api/admin/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.user) {
+        setSelectedAdminUser(data);
+      }
+    } catch {
+    } finally {
+      setIsAdminUserLoading(false);
+    }
   }, []);
 
   const loadAdminTournaments = useCallback(async () => {
@@ -3863,6 +4371,9 @@ const AdminView = () => {
           endsAt: String(t.endsAt || t.endTime || ''),
           prize: Number(t.prize || t.prizePool || 0),
           status: (t.status || 'upcoming') as 'upcoming' | 'active' | 'ended',
+          prizes: Array.isArray(t.prizes) ? t.prizes : [],
+          winners: Array.isArray(t.winners) ? t.winners : [],
+          paidOutAt: t.paidOutAt || null,
           description: t.description || '',
           gameKey: t.gameKey || null,
           minWager: Number(t.minWager || 0),
@@ -3979,13 +4490,22 @@ const AdminView = () => {
     if (adminSection === 'analytics') {
       loadAnalytics().catch(() => undefined);
     }
+    if (adminSection === 'users') {
+      loadAdminUsers(adminUserQuery).catch(() => undefined);
+    }
     if (adminSection === 'tournaments') {
       loadAdminTournaments().catch(() => undefined);
     }
     if (adminSection === 'rain') {
       loadRainBotSchedules().catch(() => undefined);
     }
-  }, [adminSection, loadModerationHistory, loadAnalytics, loadAdminTournaments, loadRainBotSchedules]);
+  }, [adminSection, adminUserQuery, loadModerationHistory, loadAnalytics, loadAdminTournaments, loadAdminUsers, loadRainBotSchedules]);
+
+  useEffect(() => {
+    if (adminSection === 'users' && selectedAdminUserId) {
+      loadAdminUserDetail(selectedAdminUserId).catch(() => undefined);
+    }
+  }, [adminSection, selectedAdminUserId, loadAdminUserDetail]);
 
   const submitTournament = async () => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -4108,13 +4628,14 @@ const AdminView = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: supportReply.trim() }),
+        body: JSON.stringify({ message: supportReply.trim(), attachmentUrl: supportReplyAttachmentUrl }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Failed to send support reply.');
       }
       setSupportReply('');
+      setSupportReplyAttachmentUrl('');
       setStatus('Support reply sent.');
       await loadSupportTickets();
     } catch (error) {
@@ -4198,6 +4719,7 @@ const AdminView = () => {
       <div className="flex flex-wrap gap-3">
         {[
           ['overview', 'Overview'],
+          ['users', 'Users'],
           ['history', 'Game History'],
           ['payments', 'Payments'],
           ['support', 'Support'],
@@ -4210,7 +4732,7 @@ const AdminView = () => {
         ].map(([value, label]) => (
           <button
             key={value}
-            onClick={() => setAdminSection(value as 'overview' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'tournaments' | 'rain')}
+            onClick={() => setAdminSection(value as 'overview' | 'users' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'tournaments' | 'rain')}
             className={cn(
               'rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] transition-all',
               adminSection === value ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/55 hover:text-white'
@@ -4277,6 +4799,142 @@ const AdminView = () => {
         </div>
       </div>
       </>
+      ) : null}
+
+      {adminSection === 'users' ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[0.82fr_1.18fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div>
+            <div className="text-lg font-black uppercase tracking-tight">User Search</div>
+            <div className="text-sm text-white/45">Search by username or email and jump into actions fast.</div>
+          </div>
+          <input
+            value={adminUserQuery}
+            onChange={(e) => setAdminUserQuery(e.target.value)}
+            placeholder="Search users or email"
+            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none"
+          />
+          <div className="space-y-3 max-h-[560px] overflow-y-auto custom-scrollbar">
+            {isAdminUserLoading && !adminUsers.length ? (
+              <div className="rounded-2xl border border-white/5 bg-black/25 px-4 py-8 text-sm text-white/35">Loading users...</div>
+            ) : adminUsers.length ? adminUsers.map((entry) => (
+              <button
+                key={entry.id}
+                onClick={() => setSelectedAdminUserId(entry.id)}
+                className={cn(
+                  'w-full rounded-2xl border px-4 py-4 text-left transition-all',
+                  selectedAdminUserId === entry.id ? 'border-[#00FF88]/35 bg-[#00FF88]/10' : 'border-white/5 bg-black/25 hover:border-white/15'
+                )}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-white/5 shrink-0">
+                      {entry.avatarUrl ? <img src={entry.avatarUrl} alt="" className="w-full h-full object-cover" /> : null}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-black truncate">{entry.username}</div>
+                      <div className="text-[11px] text-white/35 truncate">{entry.email}</div>
+                    </div>
+                  </div>
+                  <div className="text-right text-[10px] uppercase tracking-[0.16em] text-white/30">
+                    <div>{entry.role}</div>
+                    <div className="mt-1 text-white/50 normal-case tracking-normal">{entry.activeSessions} live</div>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-3 text-[11px] text-white/40">
+                  <div><span className="block text-white/25">Balance</span>{formatMoneyFromCoins(entry.balance)}</div>
+                  <div><span className="block text-white/25">Wagered</span>{formatMoneyFromCoins(entry.totalWagered)}</div>
+                  <div><span className="block text-white/25">Biggest Win</span>{formatMoneyFromCoins(entry.biggestWin)}</div>
+                </div>
+              </button>
+            )) : (
+              <div className="rounded-2xl border border-white/5 bg-black/25 px-4 py-8 text-sm text-white/35">No users found.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-5">
+          {selectedAdminUser?.user ? (
+            <>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white/5">
+                    {selectedAdminUser.user.avatarUrl ? <img src={selectedAdminUser.user.avatarUrl} alt="" className="w-full h-full object-cover" /> : null}
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black">{selectedAdminUser.user.username}</div>
+                    <div className="text-sm text-white/35">{selectedAdminUser.user.email}</div>
+                    <div className="mt-2 inline-flex rounded-full bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/50">{selectedAdminUser.user.role}</div>
+                  </div>
+                </div>
+                <button onClick={() => setAdminPreviewUsername(selectedAdminUser.user.username)} className="rounded-2xl border border-[#00FF88]/35 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#00FF88]">
+                  Preview Profile
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-2xl border border-white/5 bg-black/25 p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Balance</div><div className="mt-2 text-lg font-black">{formatMoneyFromCoins(selectedAdminUser.user.balance)}</div></div>
+                <div className="rounded-2xl border border-white/5 bg-black/25 p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Total Wagered</div><div className="mt-2 text-lg font-black">{formatMoneyFromCoins(selectedAdminUser.user.totalWagered)}</div></div>
+                <div className="rounded-2xl border border-white/5 bg-black/25 p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Bets</div><div className="mt-2 text-lg font-black">{selectedAdminUser.user.totalBets}</div></div>
+                <div className="rounded-2xl border border-white/5 bg-black/25 p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Biggest Win</div><div className="mt-2 text-lg font-black text-[#00FF88]">{formatMoneyFromCoins(selectedAdminUser.user.biggestWin)}</div></div>
+              </div>
+
+              <div className="rounded-2xl border border-white/5 bg-black/25 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-black uppercase tracking-tight">Risk Flags</div>
+                  <div className={cn('rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]', (selectedAdminUser.risk?.score || 0) >= 6 ? 'bg-red-500/15 text-red-300' : (selectedAdminUser.risk?.score || 0) >= 3 ? 'bg-yellow-500/15 text-yellow-300' : 'bg-[#00FF88]/10 text-[#00FF88]')}>
+                    Score {selectedAdminUser.risk?.score || 0}
+                  </div>
+                </div>
+                {selectedAdminUser.risk?.riskFlags?.length ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedAdminUser.risk.riskFlags.map((flag: any) => (
+                      <div key={flag.key} className={cn('rounded-2xl border px-4 py-3', flag.severity === 'high' ? 'border-red-500/20 bg-red-500/8' : flag.severity === 'medium' ? 'border-yellow-500/20 bg-yellow-500/8' : 'border-white/5 bg-white/[0.03]')}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-black uppercase tracking-[0.16em]">{flag.label}</div>
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">{flag.severity}</div>
+                        </div>
+                        <div className="mt-2 text-xs text-white/55">{flag.detail}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-white/35">No elevated risk flags detected for this user.</div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button onClick={() => { setSelectedUserId(String(selectedAdminUser.user.id)); setAdminSection('overview'); }} className="rounded-2xl bg-[#00FF88] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-black">Adjust Wallet</button>
+                <button onClick={() => { setModUserId(String(selectedAdminUser.user.id)); setModAction('mute'); setAdminSection('moderation'); }} className="rounded-2xl border border-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Mute User</button>
+                <button onClick={() => { setModUserId(String(selectedAdminUser.user.id)); setModAction('ban'); setAdminSection('moderation'); }} className="rounded-2xl border border-red-400/25 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300">Ban User</button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-white/5 bg-black/25 p-4 space-y-3">
+                  <div className="text-sm font-black uppercase tracking-tight">Recent Sessions</div>
+                  {selectedAdminUser.sessions?.length ? selectedAdminUser.sessions.map((session: any) => (
+                    <div key={session.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-3 py-3 text-xs text-white/55">
+                      <div className="flex justify-between gap-3"><span>{session.device}</span><span>{session.ipAddress || 'Unknown IP'}</span></div>
+                      <div className="mt-1 text-white/30">Last active {session.lastActiveAt ? new Date(session.lastActiveAt).toLocaleString() : 'Unknown'}</div>
+                    </div>
+                  )) : <div className="text-sm text-white/35">No active sessions.</div>}
+                </div>
+                <div className="rounded-2xl border border-white/5 bg-black/25 p-4 space-y-3">
+                  <div className="text-sm font-black uppercase tracking-tight">Recent Bets</div>
+                  {selectedAdminUser.recentBets?.length ? selectedAdminUser.recentBets.map((bet: any) => (
+                    <div key={bet.id} className="rounded-2xl border border-white/5 bg-white/[0.03] px-3 py-3 text-xs text-white/55">
+                      <div className="flex justify-between gap-3"><span className="font-black capitalize text-white">{bet.gameKey}</span><span>{new Date(bet.createdAt).toLocaleString()}</span></div>
+                      <div className="mt-2 flex justify-between gap-3"><span>Wager {formatMoneyFromCoins(bet.wager)}</span><span className={bet.outcome === 'win' ? 'text-[#00FF88]' : 'text-red-300'}>{formatMoneyFromCoins(bet.payout)}</span></div>
+                    </div>
+                  )) : <div className="text-sm text-white/35">No bet history yet.</div>}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="h-full min-h-[420px] flex items-center justify-center text-sm text-white/35">Select a user to inspect wallet, sessions, bets, and moderation actions.</div>
+          )}
+        </div>
+      </div>
       ) : null}
 
       {adminSection === 'payments' ? (
@@ -4371,6 +5029,17 @@ const AdminView = () => {
                 <div><span className="text-white/35">Payout</span><div className="font-mono">{formatMoneyFromCoins(entry.payout)}</div></div>
                 <div><span className="text-white/35">Multiplier</span><div className="font-mono">{entry.multiplier.toFixed(2)}x</div></div>
               </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="text-[11px] text-white/35 truncate">{entry.detail || 'No replay details saved.'}</div>
+                <div className="flex gap-2 shrink-0">
+                  <a href={getBetShareUrl(entry.id)} target="_blank" rel="noreferrer" className="rounded-full bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white/55 hover:text-white">
+                    Open
+                  </a>
+                  <button onClick={() => navigator.clipboard.writeText(getBetShareUrl(entry.id))} className="rounded-full bg-[#00FF88]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#00FF88]">
+                    Share
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -4383,21 +5052,22 @@ const AdminView = () => {
           <div className="text-lg font-black uppercase tracking-tight">Support Inbox</div>
           <div className="space-y-3 max-h-[520px] overflow-y-auto custom-scrollbar">
             {supportTickets.length ? supportTickets.map((ticket) => (
-              <button
-                key={ticket.id}
-                onClick={() => setSelectedSupportTicketId(ticket.id)}
+                <button
+                  key={ticket.id}
+                  onClick={() => setSelectedSupportTicketId(ticket.id)}
                 className={cn(
                   'w-full rounded-2xl border px-4 py-4 text-left transition-all',
                   selectedSupportTicketId === ticket.id ? 'border-[#00FF88]/40 bg-[#00FF88]/10' : 'border-white/5 bg-black/25'
                 )}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-black">{ticket.subject}</div>
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{ticket.status}</div>
-                </div>
-                <div className="mt-2 text-xs text-white/45">{ticket.username}</div>
-                <div className="mt-2 text-[11px] text-white/25">{new Date(ticket.updatedAt).toLocaleString()}</div>
-              </button>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-black">{ticket.subject}</div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{ticket.status}</div>
+                  </div>
+                  <div className="mt-2 text-[10px] uppercase tracking-[0.16em] text-white/25">{ticket.category || 'general'}</div>
+                  <div className="mt-2 text-xs text-white/45">{ticket.username}</div>
+                  <div className="mt-2 text-[11px] text-white/25">{new Date(ticket.updatedAt).toLocaleString()}</div>
+                </button>
             )) : (
               <div className="rounded-2xl border border-white/5 bg-black/25 px-4 py-8 text-sm text-white/35">No support tickets yet.</div>
             )}
@@ -4419,6 +5089,12 @@ const AdminView = () => {
                   <div className="text-[10px] text-white/25">{new Date(entry.createdAt).toLocaleString()}</div>
                 </div>
                 <div className="mt-2 text-sm text-white/65 whitespace-pre-wrap">{entry.message}</div>
+                {entry.attachmentUrl ? (
+                  <a href={entry.attachmentUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#00FF88]">
+                    <Paperclip size={10} />
+                    {entry.attachmentName || 'Attachment'}
+                  </a>
+                ) : null}
               </div>
             )) : (
               <div className="h-full flex items-center justify-center text-sm text-white/35">Pick a ticket to view the support thread.</div>
@@ -4432,6 +5108,13 @@ const AdminView = () => {
               placeholder={selectedSupportTicket ? 'Reply to this ticket' : 'Select a ticket first'}
               disabled={!selectedSupportTicket}
               className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none disabled:opacity-50"
+            />
+            <input
+              value={supportReplyAttachmentUrl}
+              onChange={(e) => setSupportReplyAttachmentUrl(e.target.value)}
+              placeholder={selectedSupportTicket ? 'Attachment URL (optional)' : 'Select a ticket first'}
+              disabled={!selectedSupportTicket}
+              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none disabled:opacity-50"
             />
             <button
               onClick={submitSupportReply}
@@ -4490,6 +5173,20 @@ const AdminView = () => {
                 className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none"
               />
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Min Level</label>
+                <input type="number" value={newPromoMinLevel} onChange={(e) => setNewPromoMinLevel(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Min Wagered ($)</label>
+                <input type="number" value={newPromoMinWagered} onChange={(e) => setNewPromoMinWagered(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none" />
+              </div>
+            </div>
+            <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+              <input type="checkbox" checked={newPromoReferredOnly} onChange={(e) => setNewPromoReferredOnly(e.target.checked)} />
+              Referred users only
+            </label>
             <button
               onClick={async () => {
                 if (!newPromoCode.trim()) {
@@ -4506,6 +5203,9 @@ const AdminView = () => {
                       coinAmount: parseInt(newPromoCoins) || 0,
                       maxUses: parseInt(newPromoMaxUses) || 1,
                       expiresAt: newPromoExpires || null,
+                      minLevel: parseInt(newPromoMinLevel) || 1,
+                      minTotalWagered: usdToCoins(parseFloat(newPromoMinWagered) || 0),
+                      referredOnly: newPromoReferredOnly,
                     }),
                   });
                   const data = await response.json().catch(() => ({}));
@@ -4515,6 +5215,9 @@ const AdminView = () => {
                   setNewPromoCoins('');
                   setNewPromoMaxUses('1');
                   setNewPromoExpires('');
+                  setNewPromoMinLevel('1');
+                  setNewPromoMinWagered('0');
+                  setNewPromoReferredOnly(false);
                   loadPromos();
                 } catch (err) {
                   setStatus(err instanceof Error ? err.message : 'Failed to create promo code.');
@@ -4541,6 +5244,9 @@ const AdminView = () => {
                 <div className="mt-2 flex items-center justify-between text-xs text-white/35">
                   <span>{promo.currentUses} / {promo.maxUses} used</span>
                   <span>{promo.expiresAt ? `Exp: ${new Date(promo.expiresAt).toLocaleDateString()}` : 'Never expires'}</span>
+                </div>
+                <div className="mt-2 text-[11px] text-white/30">
+                  Lvl {promo.minLevel}+ • {formatMoneyFromCoins(promo.minTotalWagered)} wagered{promo.referredOnly ? ' • referred only' : ''}
                 </div>
                 <div className="mt-1 text-[10px] text-white/20">By {promo.createdBy}</div>
               </div>
@@ -4577,6 +5283,20 @@ const AdminView = () => {
                 className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none"
               />
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Min Level</label>
+                <input type="number" value={newBroadcastMinLevel} onChange={(e) => setNewBroadcastMinLevel(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Min Wagered ($)</label>
+                <input type="number" value={newBroadcastMinWagered} onChange={(e) => setNewBroadcastMinWagered(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none" />
+              </div>
+            </div>
+            <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+              <input type="checkbox" checked={newBroadcastReferredOnly} onChange={(e) => setNewBroadcastReferredOnly(e.target.checked)} />
+              Referred users only
+            </label>
             <button
               onClick={async () => {
                 if (!newBroadcastMessage.trim()) {
@@ -4591,6 +5311,9 @@ const AdminView = () => {
                     body: JSON.stringify({
                       message: newBroadcastMessage.trim(),
                       expiresAt: newBroadcastExpires || null,
+                      minLevel: parseInt(newBroadcastMinLevel) || 1,
+                      minTotalWagered: usdToCoins(parseFloat(newBroadcastMinWagered) || 0),
+                      referredOnly: newBroadcastReferredOnly,
                     }),
                   });
                   const data = await response.json().catch(() => ({}));
@@ -4598,6 +5321,9 @@ const AdminView = () => {
                   setStatus('Broadcast created successfully!');
                   setNewBroadcastMessage('');
                   setNewBroadcastExpires('');
+                  setNewBroadcastMinLevel('1');
+                  setNewBroadcastMinWagered('0');
+                  setNewBroadcastReferredOnly(false);
                   loadBroadcasts();
                 } catch (err) {
                   setStatus(err instanceof Error ? err.message : 'Failed to create broadcast.');
@@ -4642,6 +5368,9 @@ const AdminView = () => {
                 <div className="mt-2 text-[10px] text-white/35">
                   Created: {new Date(broadcast.createdAt).toLocaleString()}
                   {broadcast.expiresAt && ` • Expires: ${new Date(broadcast.expiresAt).toLocaleString()}`}
+                </div>
+                <div className="mt-1 text-[10px] text-white/25">
+                  Lvl {broadcast.minLevel}+ • {formatMoneyFromCoins(broadcast.minTotalWagered)} wagered{broadcast.referredOnly ? ' • referred only' : ''}
                 </div>
               </div>
             )) : (
@@ -4800,6 +5529,12 @@ const AdminView = () => {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <MiniTrendChart title="New Users" data={analytics?.trends || []} dataKey="users" tone="emerald" />
+          <MiniTrendChart title="Daily Wagered" data={analytics?.trends || []} dataKey="wagered" tone="blue" formatter={formatMoneyFromCoins} />
+          <MiniTrendChart title="Daily Revenue" data={analytics?.trends || []} dataKey="revenue" tone="amber" formatter={formatMoneyFromCoins} />
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5">
             <div className="text-sm font-black uppercase tracking-tight mb-4">User Acquisition</div>
@@ -4921,6 +5656,26 @@ const AdminView = () => {
                   <div>Players: <span className="text-white/75">{tournament.participantCount || 0}</span></div>
                   <div>Game: <span className="text-white/75">{tournament.gameKey || 'All games'}</span></div>
                 </div>
+                {tournament.prizes?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-white/45">
+                    {tournament.prizes.map((prize) => (
+                      <div key={`${tournament.id}-admin-prize-${prize.position}`} className="rounded-full bg-white/5 px-3 py-1">
+                        #{prize.position} {formatMoneyFromCoins(prize.amount)}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {tournament.winners?.length ? (
+                  <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.03] p-3 space-y-2 text-[11px] text-white/55">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/30">Winners</div>
+                    {tournament.winners.map((winner) => (
+                      <div key={`${tournament.id}-admin-winner-${winner.position}`} className="flex items-center justify-between gap-3">
+                        <span>#{winner.position} {winner.username}</span>
+                        <span className="text-[#00FF88] font-black">{formatMoneyFromCoins(winner.prize)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-4 flex justify-end">
                   <button onClick={() => startTournament(tournament.id)} disabled={isTournamentSaving || tournament.status !== 'upcoming'} className="rounded-2xl border border-[#00FF88]/35 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#00FF88] disabled:opacity-35">
                     Start Now
@@ -5003,8 +5758,8 @@ const AdminView = () => {
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                     body: JSON.stringify({
                       intervalMinutes: parseInt(newRainInterval) || 60,
-                      minPoolAmount: parseInt(newRainMinPool) || 100,
-                      rainAmount: parseInt(newRainAmount) || 500,
+                      minPoolAmount: Number(newRainMinPool) || 100,
+                      rainAmount: Number(newRainAmount) || 500,
                     }),
                   });
                   const data = await response.json().catch(() => ({}));
@@ -5153,6 +5908,12 @@ const AdminView = () => {
       </div>
       ) : null}
 
+      {adminPreviewUsername ? (
+        <Suspense fallback={lazyFallback}>
+          <ProfilePage username={adminPreviewUsername} onClose={() => setAdminPreviewUsername(null)} />
+        </Suspense>
+      ) : null}
+
       <AnimatePresence>
         {selectedWithdrawal ? (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -5297,6 +6058,8 @@ type SupportThreadMessage = {
   username: string;
   role: 'owner' | 'moderator' | 'user';
   message: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
   createdAt: string;
 };
 
@@ -5305,6 +6068,7 @@ type SupportThread = {
   userId: number;
   username: string;
   subject: string;
+  category?: string;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -5464,6 +6228,54 @@ const AffiliateView = () => {
         ))}
       </div>
 
+      {(overview?.conversionTrend || []).length ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-lg font-black uppercase tracking-tight">Signup Trend</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Last 7 days</div>
+            </div>
+            <div className="flex items-end gap-2 h-36">
+              {overview.conversionTrend.map((point: any) => {
+                const max = Math.max(...overview.conversionTrend.map((p: any) => Number(p.signups || 0)), 1);
+                const height = `${Math.max(10, (Number(point.signups || 0) / max) * 100)}%`;
+                return (
+                  <div key={`signups-${point.day}`} className="flex-1 flex flex-col items-center gap-2">
+                    <div className="text-[10px] text-white/45">{point.signups}</div>
+                    <div className="w-full h-full rounded-2xl bg-white/[0.03] flex items-end overflow-hidden">
+                      <div className="w-full rounded-2xl bg-[#00FF88]/85" style={{ height }} />
+                    </div>
+                    <div className="text-[10px] text-white/30">{point.day}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-lg font-black uppercase tracking-tight">Commission Trend</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Last 7 days</div>
+            </div>
+            <div className="flex items-end gap-2 h-36">
+              {overview.conversionTrend.map((point: any) => {
+                const max = Math.max(...overview.conversionTrend.map((p: any) => Number(p.commission || 0)), 1);
+                const height = `${Math.max(10, (Number(point.commission || 0) / max) * 100)}%`;
+                return (
+                  <div key={`commission-${point.day}`} className="flex-1 flex flex-col items-center gap-2">
+                    <div className="text-[10px] text-white/45">{formatMoneyFromCoins(point.commission)}</div>
+                    <div className="w-full h-full rounded-2xl bg-white/[0.03] flex items-end overflow-hidden">
+                      <div className="w-full rounded-2xl bg-sky-400/85" style={{ height }} />
+                    </div>
+                    <div className="text-[10px] text-white/30">{point.day}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {(activeTab === 'overview' || activeTab === 'assets') ? (
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
@@ -5619,6 +6431,8 @@ const FriendsView = () => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState<Record<number, number>>({});
   const [chatNotification, setChatNotification] = useState<{username: string; text: string} | null>(null);
+  const [inviteOverview, setInviteOverview] = useState<any | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const chatPollRef = useRef<number | null>(null);
   const notificationTimeoutRef = useRef<number | null>(null);
 
@@ -5643,6 +6457,18 @@ const FriendsView = () => {
   };
 
   useEffect(() => { loadFriends(); }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    apiFetch('/api/affiliate/overview', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json()).then((data) => {
+      if (data?.overview) {
+        setInviteOverview(data.overview);
+      }
+    }).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!searchQuery || searchQuery.length < 2) {
@@ -5948,6 +6774,56 @@ const FriendsView = () => {
 
       {activeTab === 'search' && (
         <div className="space-y-4">
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-black uppercase tracking-tight">Invite Friends</div>
+                <div className="mt-1 text-xs text-white/45">Share your referral link and earn rewards when invited friends sign up and win.</div>
+              </div>
+              <div className="rounded-full bg-[#00FF88]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#00FF88]">
+                {inviteOverview?.referredUsers || 0} joined
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-xs text-white/65 break-all">
+              {inviteOverview?.referralLink || `${window.location.origin}?ref=YOURCODE`}
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
+                <div className="text-white/30 uppercase tracking-[0.14em] text-[10px] font-black">Claimable</div>
+                <div className="mt-2 text-lg font-black text-[#00FF88]">{formatMoneyFromCoins(inviteOverview?.claimableCommission || 0)}</div>
+              </div>
+              <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
+                <div className="text-white/30 uppercase tracking-[0.14em] text-[10px] font-black">Tracked Volume</div>
+                <div className="mt-2 text-lg font-black">{formatMoneyFromCoins(inviteOverview?.trackedVolume || 0)}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={async () => {
+                  const link = inviteOverview?.referralLink || `${window.location.origin}?ref=YOURCODE`;
+                  await navigator.clipboard.writeText(link);
+                  setInviteCopied(true);
+                  window.setTimeout(() => setInviteCopied(false), 1500);
+                }}
+                className="rounded-2xl bg-[#00FF88] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-black"
+              >
+                {inviteCopied ? 'Copied' : 'Copy Invite Link'}
+              </button>
+              <button
+                onClick={async () => {
+                  const link = inviteOverview?.referralLink || `${window.location.origin}?ref=YOURCODE`;
+                  const text = `Join me on Pasus and use my invite link: ${link}`;
+                  await navigator.clipboard.writeText(text);
+                  setInviteCopied(true);
+                  window.setTimeout(() => setInviteCopied(false), 1500);
+                }}
+                className="rounded-2xl border border-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/70"
+              >
+                Copy Invite Message
+              </button>
+            </div>
+          </div>
+
           <input type="text" placeholder="Search users by username..." value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full bg-[#141821] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#00FF88]/50" />
@@ -6171,6 +7047,9 @@ type Tournament = {
   status: 'upcoming' | 'active' | 'ended';
   userRank?: number;
   userWagered?: number;
+  prizes?: Array<{ position: number; amount: number }>;
+  winners?: Array<{ position: number; userId: number; username: string; wagered: number; prize: number }>;
+  paidOutAt?: string | null;
 };
 
 type LeaderboardCategory = 'wagered' | 'deposited' | 'wins';
@@ -6191,7 +7070,12 @@ const TournamentsView = () => {
         if (!response.ok) {
           throw new Error(data.error || 'Failed to load tournaments.');
         }
-        setTournaments(Array.isArray(data.tournaments) ? data.tournaments : []);
+        setTournaments(Array.isArray(data.tournaments) ? data.tournaments.map((t: any) => ({
+          ...t,
+          prizes: Array.isArray(t.prizes) ? t.prizes : [],
+          winners: Array.isArray(t.winners) ? t.winners : [],
+          paidOutAt: t.paidOutAt || null,
+        })) : []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load tournaments.');
       } finally {
@@ -6284,6 +7168,38 @@ const TournamentsView = () => {
                   </div>
                 </div>
               )}
+              {tournament.prizes?.length ? (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black mb-3">Prize Breakdown</div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    {tournament.prizes.map((prize) => (
+                      <div key={`${tournament.id}-prize-${prize.position}`} className="rounded-xl border border-white/5 bg-black/20 px-3 py-3 text-center">
+                        <div className="text-white/35">#{prize.position}</div>
+                        <div className="mt-1 font-black text-[#00FF88]">{formatMoneyFromCoins(prize.amount)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {tournament.status === 'ended' && tournament.winners?.length ? (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Winners</div>
+                    <div className="text-[10px] text-white/35">{tournament.paidOutAt ? `Paid ${new Date(tournament.paidOutAt).toLocaleString()}` : 'Pending payout'}</div>
+                  </div>
+                  <div className="space-y-2">
+                    {tournament.winners.map((winner) => (
+                      <div key={`${tournament.id}-winner-${winner.position}`} className="rounded-xl border border-white/5 bg-black/20 px-3 py-3 flex items-center justify-between gap-3 text-xs">
+                        <div>
+                          <div className="font-black text-white">#{winner.position} {winner.username}</div>
+                          <div className="text-white/35">Wagered {formatMoneyFromCoins(winner.wagered)}</div>
+                        </div>
+                        <div className="font-black text-[#00FF88]">{formatMoneyFromCoins(winner.prize)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ))
         ) : (
@@ -6298,6 +7214,8 @@ const TournamentsView = () => {
 
 const LeaderboardView = () => {
   const [entries, setEntries] = useState<Array<{ rank: number; userId: number; username: string; value: number }>>([]);
+  const [season, setSeason] = useState<{ name: string; startsAt: string; endsAt: string; prizePool: number } | null>(null);
+  const [events, setEvents] = useState<Array<{ id: number; title: string; description: string; eventType: string; startsAt: string; endsAt: string; rewardLabel: string | null }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [category, setCategory] = useState<LeaderboardCategory>('wagered');
@@ -6313,6 +7231,8 @@ const LeaderboardView = () => {
           throw new Error(data.error || 'Failed to load leaderboard.');
         }
         setEntries(Array.isArray(data.leaderboard) ? data.leaderboard : []);
+        setSeason(data.season || null);
+        setEvents(Array.isArray(data.events) ? data.events : []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load leaderboard.');
       } finally {
@@ -6338,6 +7258,40 @@ const LeaderboardView = () => {
         <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Leaderboard</h1>
         <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Compete for prizes by wagering and depositing. Top players win weekly rewards!</p>
       </div>
+
+      {season ? (
+        <div className="rounded-[32px] border border-[#00FF88]/20 bg-[linear-gradient(135deg,rgba(0,255,136,0.12),rgba(20,24,33,0.9))] p-6">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-[#00FF88] font-black">Active Season</div>
+              <div className="mt-2 text-2xl md:text-3xl font-black italic uppercase tracking-tight">{season.name}</div>
+              <div className="mt-2 text-sm text-white/55">Ends {new Date(season.endsAt).toLocaleString()} • Current category: {getCategoryLabel(category)}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-white/30 font-black">Season Prize Pool</div>
+              <div className="mt-2 text-3xl font-black text-[#00FF88]">{formatMoneyFromCoins(season.prizePool)}</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {events.length ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {events.map((event) => (
+            <div key={event.id} className="rounded-[28px] border border-white/10 bg-[#141821] p-5 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-black uppercase tracking-tight">{event.title}</div>
+                <div className="rounded-full bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/45">{event.eventType}</div>
+              </div>
+              <div className="text-sm text-white/55">{event.description}</div>
+              <div className="flex items-center justify-between gap-3 text-[11px] text-white/35">
+                <span>Ends {new Date(event.endsAt).toLocaleString()}</span>
+                <span className="text-[#00FF88] font-black">{event.rewardLabel || 'Live reward'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div> : null}
 
@@ -6405,6 +7359,19 @@ const VipView = () => {
     wagered: 0,
     bets: 0,
     deposited: 0,
+    level: 1,
+    xp: 0,
+    xpToNextLevel: 0,
+    nextRewardLevel: 3,
+    nextRewardAmount: 0,
+    currentReward: 0,
+    canClaimReward: false,
+    reload: {
+      claimable: 0,
+      totalClaimed: 0,
+      canClaim: false,
+      availableAt: null as string | null,
+    },
     claimableRakeback: 0,
     claimedTotal: 0,
     rakeback: {
@@ -6435,6 +7402,14 @@ const VipView = () => {
           wagered: Number(vip.totalWagered || 0),
           bets: Number(vip.totalBets || 0),
           deposited: Number(vip.totalDeposited || 0),
+          level: Number(vip.level || 1),
+          xp: Number(vip.xp || 0),
+          xpToNextLevel: Number(vip.xpToNextLevel || 0),
+          nextRewardLevel: Number(vip.nextRewardLevel || 3),
+          nextRewardAmount: Number(vip.nextRewardAmount || 0),
+          currentReward: Number(vip.currentReward || 0),
+          canClaimReward: Boolean(vip.canClaimReward),
+          reload: vip.reload || { claimable: 0, totalClaimed: 0, canClaim: false, availableAt: null },
           claimableRakeback: Number(vip.claimableRakeback || 0),
           claimedTotal: Number(vip.rakebackClaimedTotal || 0),
           rakeback: vip.rakeback || {
@@ -6454,7 +7429,45 @@ const VipView = () => {
     return () => window.clearInterval(interval);
   }, [loadVipOverview]);
 
-  const vipTier = stats.wagered >= 200000 ? 'Diamond' : stats.wagered >= 50000 ? 'Gold' : stats.wagered >= 10000 ? 'Silver' : 'Bronze';
+  const vipTiers = [
+    { key: 'bronze', name: 'Bronze', minWagered: 0, perks: ['Base rakeback access', 'Daily reward streak XP', 'Promo entry access'] },
+    { key: 'silver', name: 'Silver', minWagered: 10000, perks: ['Higher rain priority', 'Weekly rakeback improves', 'Mid-tier level rewards'] },
+    { key: 'gold', name: 'Gold', minWagered: 50000, perks: ['Priority support queue', 'Exclusive promos and races', 'Higher cashback cadence'] },
+    { key: 'diamond', name: 'Diamond', minWagered: 200000, perks: ['VIP host routing', 'Private tournaments', 'Top-tier claim windows'] },
+  ];
+
+  const vipTier = vipTiers.reduce((current, tier) => (stats.wagered >= tier.minWagered ? tier.name : current), 'Bronze');
+  const currentTierIndex = vipTiers.findIndex((tier) => tier.name === vipTier);
+  const nextTier = currentTierIndex >= 0 ? vipTiers[currentTierIndex + 1] : null;
+  const wagerProgress = nextTier
+    ? Math.max(0, Math.min(100, (stats.wagered / nextTier.minWagered) * 100))
+    : 100;
+
+  const claimLevelReward = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      setIsClaiming('level');
+      const response = await apiFetch('/api/vip/level-reward/claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to claim VIP reward.');
+      }
+      setStatus(`Claimed ${formatMoneyFromCoins(Number(data.reward || 0))} for reaching level ${data.level}.`);
+      await refreshWallet();
+      await loadVipOverview();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Failed to claim VIP reward.');
+    } finally {
+      setIsClaiming(null);
+    }
+  };
 
   const claimRakeback = async (period: 'instant' | 'daily' | 'weekly' | 'monthly') => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -6486,22 +7499,123 @@ const VipView = () => {
     }
   };
 
+  const claimReload = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      setIsClaiming('reload');
+      const response = await apiFetch('/api/vip/reload/claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to claim reload reward.');
+      }
+      setStatus(`Claimed ${formatMoneyFromCoins(Number(data.claimed || 0))} from weekly reload.`);
+      await refreshWallet();
+      await loadVipOverview();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Failed to claim reload reward.');
+    } finally {
+      setIsClaiming(null);
+    }
+  };
+
   return (
     <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8">
       <div className="space-y-2">
         <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Loyalty</div>
         <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">VIP Club</h1>
-        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">This view now tracks a basic loyalty tier off recent wager history so the section feels like an actual product surface instead of filler.</p>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Track your tier climb, level reward milestones, and rakeback claim windows from one clearer VIP surface.</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Current Tier</div><div className="mt-3 text-3xl font-black italic">{vipTier}</div></div>
+        <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Current Level</div><div className="mt-3 text-3xl font-black italic">{stats.level}</div></div>
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Wager</div><div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(stats.wagered)}</div></div>
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Bets</div><div className="mt-3 text-3xl font-black italic">{stats.bets}</div></div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-black uppercase tracking-tight">Tier Progress</div>
+              <div className="text-sm text-white/40">{nextTier ? `Reach ${formatMoneyFromCoins(nextTier.minWagered)} wagered for ${nextTier.name}.` : 'Top tier unlocked.'}</div>
+            </div>
+            <div className="rounded-full bg-[#00FF88]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#00FF88]">{vipTier}</div>
+          </div>
+          <div className="h-3 rounded-full bg-white/5 overflow-hidden"><div className="h-full bg-[#00FF88] rounded-full" style={{ width: `${wagerProgress}%` }} /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {vipTiers.map((tier) => (
+              <div key={tier.key} className={cn('rounded-2xl border p-4', stats.wagered >= tier.minWagered ? 'border-[#00FF88]/25 bg-[#00FF88]/8' : 'border-white/5 bg-black/25')}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-black uppercase tracking-tight">{tier.name}</div>
+                  <div className="text-[10px] text-white/35">{formatMoneyFromCoins(tier.minWagered)}+</div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {tier.perks.map((perk) => <div key={perk} className="text-xs text-white/55">{perk}</div>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Level Rewards</div>
+          <div className="rounded-2xl border border-white/5 bg-black/25 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">XP To Next Level</div>
+                <div className="mt-2 text-2xl font-black">{stats.xpToNextLevel.toLocaleString()}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-white/25 font-black">Next Reward</div>
+                <div className="mt-2 text-lg font-black text-[#00FF88]">Lvl {stats.nextRewardLevel}</div>
+                <div className="text-sm text-white/45">{formatMoneyFromCoins(stats.nextRewardAmount)}</div>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-[#00FF88]/15 bg-[#00FF88]/5 p-4">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88]/80 font-black">Current Level Reward</div>
+            <div className="mt-2 text-2xl font-black">{formatMoneyFromCoins(stats.currentReward)}</div>
+            <div className="mt-1 text-sm text-white/45">Every 3 levels unlocks a new claim.</div>
+          </div>
+          <button onClick={claimLevelReward} disabled={isClaiming !== null || !stats.canClaimReward} className="w-full rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+            {isClaiming === 'level' ? 'Claiming...' : stats.canClaimReward ? `Claim Level ${stats.level} Reward` : 'No Level Reward Ready'}
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Tracked Deposit</div><div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(stats.deposited)}</div></div>
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimable Rakeback</div><div className="mt-3 text-3xl font-black italic text-[#00FF88]">{formatMoneyFromCoins(stats.claimableRakeback)}</div></div>
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] text-white/25 uppercase tracking-[0.18em] font-black">Claimed Rakeback</div><div className="mt-3 text-3xl font-black italic">{formatMoneyFromCoins(stats.claimedTotal)}</div></div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Weekly Reload</div>
+          <div className="rounded-2xl border border-[#00FF88]/15 bg-[#00FF88]/5 p-4">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88]/80 font-black">Claimable Reload</div>
+            <div className="mt-2 text-2xl font-black">{formatMoneyFromCoins(stats.reload.claimable)}</div>
+            <div className="mt-1 text-sm text-white/45">
+              {stats.reload.canClaim ? 'Ready now if you meet deposit and wager thresholds.' : stats.reload.availableAt ? `Available ${new Date(stats.reload.availableAt).toLocaleString()}` : 'Deposit and wager more to unlock reloads.'}
+            </div>
+          </div>
+          <button onClick={claimReload} disabled={isClaiming !== null || !stats.reload.canClaim || stats.reload.claimable <= 0} className="w-full rounded-2xl bg-[#00FF88] text-black px-4 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+            {isClaiming === 'reload' ? 'Claiming...' : 'Claim Weekly Reload'}
+          </button>
+        </div>
+        <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Reward Notes</div>
+          {[
+            'Instant, daily, weekly, and monthly rakeback buckets keep claims paced out.',
+            'Weekly reload rewards unlock after meaningful deposit and wager activity.',
+            'Level rewards remain milestone-based so climbing feels slower and more valuable.',
+            'All VIP claims are added directly to the wallet and mirrored in notifications.',
+          ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {([
@@ -6537,12 +7651,12 @@ const VipView = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
-          <div className="text-lg font-black uppercase tracking-tight">Tier Ladder</div>
+          <div className="text-lg font-black uppercase tracking-tight">VIP Perk Summary</div>
           {[
-            'Bronze: $0+ wagered',
-            'Silver: $10,000+ wagered',
-            'Gold: $50,000+ wagered',
-            'Diamond: $200,000+ wagered',
+            'Tier perks unlock based on tracked lifetime wager volume.',
+            'Level rewards unlock every 3 levels and claim directly into the wallet.',
+            'Higher tiers are designed to feel slower and more meaningful to reach.',
+            'Rakeback and promo access scale with long-term volume and consistency.',
           ].map((line) => <div key={line} className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-sm text-white/65">{line}</div>)}
         </div>
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
@@ -6569,6 +7683,8 @@ const ProvablyFairView = () => {
   const [clientSeed, setClientSeed] = useState(() => localStorage.getItem(CLIENT_SEED_STORAGE_KEY) || generateClientSeed());
   const [nonce, setNonce] = useState(() => Number(localStorage.getItem(CLIENT_NONCE_STORAGE_KEY) || 1));
   const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem(CLIENT_SEED_AUTO_STORAGE_KEY) !== 'false');
+  const [lookupBetId, setLookupBetId] = useState(() => new URLSearchParams(window.location.search).get('bet') || '');
+  const [lookupBet, setLookupBet] = useState<any | null>(null);
 
   useEffect(() => {
     localStorage.setItem(CLIENT_SEED_STORAGE_KEY, clientSeed);
@@ -6581,6 +7697,18 @@ const ProvablyFairView = () => {
   useEffect(() => {
     localStorage.setItem(CLIENT_SEED_AUTO_STORAGE_KEY, String(autoRefresh));
   }, [autoRefresh]);
+
+  useEffect(() => {
+    if (!lookupBetId.trim()) {
+      setLookupBet(null);
+      return;
+    }
+    apiFetch(`/api/activity/bets/${encodeURIComponent(lookupBetId.trim())}`).then((r) => r.json()).then((data) => {
+      if (data?.activity) {
+        setLookupBet(data.activity);
+      }
+    }).catch(() => undefined);
+  }, [lookupBetId]);
 
   useEffect(() => {
     const handleBetRecorded = () => {
@@ -6631,6 +7759,24 @@ const ProvablyFairView = () => {
         <div className="rounded-3xl border border-white/10 bg-[#141821] p-6"><div className="text-[10px] uppercase tracking-[0.18em] text-white/25 font-black">Nonce</div><div className="mt-3 text-3xl font-black italic">{nonce}</div></div>
       </div>
       <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
+        <div className="text-lg font-black uppercase tracking-tight">Replay / Share Lookup</div>
+        <div className="flex gap-3">
+          <input value={lookupBetId} onChange={(e) => setLookupBetId(e.target.value)} placeholder="Enter bet ID from a shared link" className="flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm font-mono focus:outline-none" />
+          <button onClick={() => navigator.clipboard.writeText(getBetShareUrl(Number(lookupBetId || 0)))} disabled={!lookupBetId.trim()} className="rounded-2xl bg-[#00FF88] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-black disabled:opacity-40">Copy</button>
+        </div>
+        {lookupBet ? (
+          <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-4 text-sm text-white/65">
+            <div className="flex items-center justify-between gap-3"><span className="font-black capitalize text-white">{lookupBet.gameKey}</span><span>{lookupBet.username}</span></div>
+            <div className="mt-2 text-white/40">{lookupBet.detail || 'No replay note saved.'}</div>
+            <div className="mt-3 flex flex-wrap gap-4 text-xs">
+              <span>Wager {formatMoneyFromCoins(lookupBet.wager)}</span>
+              <span>Payout {formatMoneyFromCoins(lookupBet.payout)}</span>
+              <span>{lookupBet.multiplier.toFixed(2)}x</span>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
         <div className="text-lg font-black uppercase tracking-tight">How It Should Work</div>
         {[
           'Each game round should use a hidden server seed and a visible server seed hash before play starts.',
@@ -6645,10 +7791,13 @@ const ProvablyFairView = () => {
 const SupportView = () => {
   const { user } = useAuth();
   const [subject, setSubject] = useState('');
+  const [ticketCategory, setTicketCategory] = useState('general');
+  const [ticketAttachmentUrl, setTicketAttachmentUrl] = useState('');
   const [message, setMessage] = useState('');
   const [tickets, setTickets] = useState<SupportThread[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
+  const [replyAttachmentUrl, setReplyAttachmentUrl] = useState('');
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -6697,7 +7846,7 @@ const SupportView = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ subject, message }),
+        body: JSON.stringify({ subject, category: ticketCategory, attachmentUrl: ticketAttachmentUrl, message }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -6705,6 +7854,8 @@ const SupportView = () => {
       }
       setStatus('Support ticket submitted.');
       setSubject('');
+      setTicketCategory('general');
+      setTicketAttachmentUrl('');
       setMessage('');
       setSelectedTicketId(Number(data.ticket?.id || 0) || null);
       await loadTickets();
@@ -6734,13 +7885,14 @@ const SupportView = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: replyMessage.trim() }),
+        body: JSON.stringify({ message: replyMessage.trim(), attachmentUrl: replyAttachmentUrl }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Failed to reply to support ticket.');
       }
       setReplyMessage('');
+      setReplyAttachmentUrl('');
       setStatus('Support reply sent.');
       await loadTickets();
     } catch (err) {
@@ -6772,6 +7924,15 @@ const SupportView = () => {
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Open Ticket</div>
           <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          <select value={ticketCategory} onChange={(e) => setTicketCategory(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none">
+            <option value="general">General</option>
+            <option value="payments">Payments</option>
+            <option value="account">Account</option>
+            <option value="technical">Technical</option>
+            <option value="affiliate">Affiliate</option>
+            <option value="vip">VIP</option>
+          </select>
+          <input value={ticketAttachmentUrl} onChange={(e) => setTicketAttachmentUrl(e.target.value)} placeholder="Attachment URL (optional)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
           <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe the issue" rows={6} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none" />
           <button onClick={submitTicket} disabled={isSubmitting || !subject.trim() || !message.trim()} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
             {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
@@ -6790,14 +7951,15 @@ const SupportView = () => {
                     'w-full rounded-2xl border px-4 py-4 text-left transition-all',
                     selectedTicketId === ticket.id ? 'border-[#00FF88]/40 bg-[#00FF88]/10' : 'border-white/5 bg-black/30'
                   )}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="text-sm font-black">{ticket.subject}</div>
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{ticket.status}</div>
-                  </div>
-                  <div className="mt-2 text-[11px] text-white/30">{new Date(ticket.updatedAt).toLocaleString()}</div>
-                  <div className="mt-1 text-[11px] text-white/40">{ticket.username}</div>
-                </button>
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="text-sm font-black">{ticket.subject}</div>
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-[#00FF88] font-black">{ticket.status}</div>
+                    </div>
+                    <div className="mt-2 text-[10px] uppercase tracking-[0.16em] text-white/25">{ticket.category || 'general'}</div>
+                    <div className="mt-2 text-[11px] text-white/30">{new Date(ticket.updatedAt).toLocaleString()}</div>
+                    <div className="mt-1 text-[11px] text-white/40">{ticket.username}</div>
+                  </button>
               )) : (
                 <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-8 text-sm text-white/35">No support tickets yet.</div>
               )}
@@ -6818,6 +7980,12 @@ const SupportView = () => {
                       <div className="text-[10px] text-white/25">{new Date(entry.createdAt).toLocaleString()}</div>
                     </div>
                     <div className="mt-2 text-sm text-white/65 whitespace-pre-wrap">{entry.message}</div>
+                    {entry.attachmentUrl ? (
+                      <a href={entry.attachmentUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#00FF88]">
+                        <Paperclip size={10} />
+                        {entry.attachmentName || 'Attachment'}
+                      </a>
+                    ) : null}
                   </div>
                 )) : (
                   <div className="h-full flex items-center justify-center text-sm text-white/35">Select a ticket to view the thread.</div>
@@ -6832,6 +8000,13 @@ const SupportView = () => {
                 }
                 disabled={!canReplyToSelectedTicket}
                 className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none disabled:opacity-50"
+              />
+              <input
+                value={replyAttachmentUrl}
+                onChange={(e) => setReplyAttachmentUrl(e.target.value)}
+                placeholder={!canReplyToSelectedTicket ? 'Select a ticket first' : 'Attachment URL (optional)'}
+                disabled={!canReplyToSelectedTicket}
+                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none disabled:opacity-50"
               />
               <button
                 onClick={submitReply}
@@ -7087,7 +8262,11 @@ const AppContent = () => {
                     </button>
                   </div>
                 </div>
-                {CurrentGame && <CurrentGame />}
+                {CurrentGame ? (
+                  <Suspense fallback={lazyFallback}>
+                    <CurrentGame />
+                  </Suspense>
+                ) : null}
               </motion.div>
             ) : currentView === 'profile' ? (
               <motion.div
@@ -7259,7 +8438,7 @@ const AppContent = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <Dashboard onSelectGame={handleSelectGame} />
+                <Dashboard onSelectGame={handleSelectGame} onOpenProfile={(username) => setProfileUsername(username)} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -7298,12 +8477,15 @@ const AppContent = () => {
         </main>
       </div>
 
-      <ChatRain 
-        isOpen={chatOpen} 
-        isMobileOpen={isRightRailOpen} 
-        onCloseMobile={() => setIsRightRailOpen(false)} 
-        onClose={() => setChatOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <ChatRain 
+          isOpen={chatOpen} 
+          isMobileOpen={isRightRailOpen} 
+          onCloseMobile={() => setIsRightRailOpen(false)} 
+          onClose={() => setChatOpen(false)}
+          onOpenProfile={(username) => setProfileUsername(username)}
+        />
+      </Suspense>
 
       {!chatOpen && (
         <button
@@ -7326,13 +8508,19 @@ const AppContent = () => {
           <DailyBonusModal isOpen={isDailyBonusOpen} onClose={() => setIsDailyBonusOpen(false)} />
         )}
         {isSettingsOpen && (
-          <SettingsPanel onClose={() => setIsSettingsOpen(false)} />
+          <Suspense fallback={lazyFallback}>
+            <SettingsPanel onClose={() => setIsSettingsOpen(false)} />
+          </Suspense>
         )}
         {isPFOpen && (
-          <ProvablyFairPanel onClose={() => setIsPFOpen(false)} />
+          <Suspense fallback={lazyFallback}>
+            <ProvablyFairPanel onClose={() => setIsPFOpen(false)} />
+          </Suspense>
         )}
         {profileUsername && (
-          <ProfilePage username={profileUsername} onClose={() => setProfileUsername(null)} />
+          <Suspense fallback={lazyFallback}>
+            <ProfilePage username={profileUsername} onClose={() => setProfileUsername(null)} />
+          </Suspense>
         )}
       </AnimatePresence>
 

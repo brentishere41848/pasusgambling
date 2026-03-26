@@ -5,7 +5,7 @@ import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
-import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
+import { useGameHotkeys, QuickBetButtons, MobileBetControls, AutoStrategyPanel, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET, type AutoStrategyPreset } from './GameHooks';
 
 const MIN_TARGET = 1.01;
 const MAX_TARGET = 1000;
@@ -35,6 +35,10 @@ export const LimboGame: React.FC = () => {
   const [autoRounds, setAutoRounds] = useState(10);
   const [remainingRounds, setRemainingRounds] = useState(0);
   const [displayValue, setDisplayValue] = useState(1);
+  const [baseBet, setBaseBet] = useState(1);
+  const [autoPreset, setAutoPreset] = useState<AutoStrategyPreset>('flat');
+  const [onWinPercent, setOnWinPercent] = useState(0);
+  const [onLossPercent, setOnLossPercent] = useState(0);
   const intervalRef = useRef<number | null>(null);
   const isAutoRef = useRef(false);
   const remainingRoundsRef = useRef(0);
@@ -49,6 +53,26 @@ export const LimboGame: React.FC = () => {
   const stopAuto = () => { setIsAuto(false); setRemainingRounds(0); isAutoRef.current = false; remainingRoundsRef.current = 0; };
   useEffect(() => { isAutoRef.current = isAuto; }, [isAuto]);
   useEffect(() => { remainingRoundsRef.current = remainingRounds; }, [remainingRounds]);
+
+  useEffect(() => {
+    setBaseBet((current) => (isAuto ? current : bet));
+  }, [bet, isAuto]);
+
+  useEffect(() => {
+    if (autoPreset === 'flat') {
+      setOnWinPercent(0);
+      setOnLossPercent(0);
+    } else if (autoPreset === 'martingale') {
+      setOnWinPercent(0);
+      setOnLossPercent(100);
+    } else if (autoPreset === 'paroli') {
+      setOnWinPercent(100);
+      setOnLossPercent(0);
+    } else if (autoPreset === 'reset') {
+      setOnWinPercent(0);
+      setOnLossPercent(0);
+    }
+  }, [autoPreset]);
 
   const runRound = () => {
     const resolvedTarget = clampTarget(target);
@@ -80,6 +104,17 @@ export const LimboGame: React.FC = () => {
         logBetActivity({ gameKey: 'limbo', wager: betCents, payout: 0, multiplier: 0, outcome: 'loss', detail: `Target ${resolvedTarget.toFixed(2)}x, landed ${landed.toFixed(2)}x` });
         recordBet(betCents, 0, false);
       }
+      if (isAutoRef.current) {
+        if ((autoPreset === 'reset' && !won) || (won && onWinPercent === 0 && autoPreset !== 'paroli' && autoPreset !== 'flat')) {
+          setBet(baseBet);
+        } else if (won && onWinPercent > 0) {
+          setBet((current) => Math.max(MIN_BET, Math.min(centsToDollars(balance + payout), Number((current * (1 + onWinPercent / 100)).toFixed(2)))));
+        } else if (!won && onLossPercent > 0) {
+          setBet((current) => Math.max(MIN_BET, Math.min(centsToDollars(balance), Number((current * (1 + onLossPercent / 100)).toFixed(2)))));
+        } else if (autoPreset === 'reset') {
+          setBet(baseBet);
+        }
+      }
       setIsRolling(false);
       if (isAutoRef.current && remainingRoundsRef.current > 1) setRemainingRounds(prev => prev - 1);
       else if (isAutoRef.current) stopAuto();
@@ -97,6 +132,7 @@ export const LimboGame: React.FC = () => {
     if (isAuto) { stopAuto(); return; }
     setIsAuto(true);
     setRemainingRounds(autoRounds);
+    setBaseBet(bet);
     isAutoRef.current = true;
     remainingRoundsRef.current = autoRounds;
   };
@@ -111,6 +147,7 @@ export const LimboGame: React.FC = () => {
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
             <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
+            <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
           </div>
 
           <div>
@@ -137,6 +174,18 @@ export const LimboGame: React.FC = () => {
           {isAuto && (
             <input type="number" value={autoRounds} onChange={(e) => setAutoRounds(Math.max(1, Number(e.target.value)))} disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#00FF88]/50" />
           )}
+
+          {isAuto ? (
+            <AutoStrategyPanel
+              preset={autoPreset}
+              onPresetChange={setAutoPreset}
+              onWinPercent={onWinPercent}
+              onLossPercent={onLossPercent}
+              onWinPercentChange={setOnWinPercent}
+              onLossPercentChange={setOnLossPercent}
+              disabled={isRolling}
+            />
+          ) : null}
 
           <button onClick={isAuto ? toggleAuto : runRound} disabled={(balance < betCents && !isAuto) || isRolling} className={cn('w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50', isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black')}>
             {isAuto ? <><Timer size={18} />STOP AUTO</> : <><Play size={18} fill="currentColor" />START LIMBO</>}

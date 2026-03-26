@@ -4,7 +4,7 @@ import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
 import { Play, RotateCcw, X, Zap, Award } from 'lucide-react';
 import { logBetActivity } from '../../lib/activity';
-import { useGameHotkeys, QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
+import { useGameHotkeys, QuickBetButtons, MobileBetControls, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 import confetti from 'canvas-confetti';
 
 type CoinSide = 'heads' | 'tails';
@@ -169,6 +169,7 @@ export const CoinflipGame: React.FC = () => {
               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50" 
             />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isFlipping || showGamble} />
+            <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isFlipping || showGamble} />
           </div>
 
           <div>

@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { Play, User, Copy, ArrowDownToLine, RotateCcw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
+import { QuickBetButtons, MobileBetControls, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 type Card = {
   suit: string;
@@ -427,6 +427,7 @@ export const BlackjackGame: React.FC = () => {
             disabled={phase !== 'betting' && phase !== 'ended'}
             pcts={[25, 50, 75, 100]}
           />
+          <MobileBetControls balance={balance} bet={betAmount} onSetBet={setBetAmount} disabled={phase !== 'betting' && phase !== 'ended'} />
         </div>
 
         {hands.length > 0 && (

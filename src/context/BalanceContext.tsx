@@ -17,6 +17,10 @@ interface WalletResponse {
     balance: number;
     totalDeposited: number;
     totalWithdrawn: number;
+    bonusBalance?: number;
+    vaultBalance?: number;
+    tipBalance?: number;
+    lockedBalance?: number;
   };
 }
 

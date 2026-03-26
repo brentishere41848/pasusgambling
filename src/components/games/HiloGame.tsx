@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { ArrowDown, ArrowUp, Play, RotateCcw, Wallet } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { logBetActivity } from '../../lib/activity';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
+import { QuickBetButtons, MobileBetControls, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 const SUITS = ['\u2660', '\u2663', '\u2665', '\u2666'] as const;
 const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
@@ -174,6 +174,8 @@ export const HiloGame: React.FC = () => {
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
           <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isResolving || isActiveRun} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+          <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isResolving || isActiveRun} />
+          <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isResolving || isActiveRun} />
           <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isResolving || isActiveRun} />
         </div>
 

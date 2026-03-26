@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { X, Trophy, TrendingUp, Clock, Calendar, Crown, ShieldCheck, Star } from 'lucide-react';
+import { X, Trophy, TrendingUp, Calendar, Crown, ShieldCheck, Star, Sparkles, Medal, Link2 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { cn } from '../lib/utils';
 
@@ -66,6 +66,27 @@ export const ProfilePage: React.FC<{ username: string; onClose: () => void }> = 
               {data?.profile?.streak > 0 && (
                 <div className="text-xs text-white/30 mt-0.5">{data.profile.streak} day streak</div>
               )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {data?.profile?.badges?.map((badge: any) => (
+                  <span
+                    key={badge.key}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]',
+                      badge.tone === 'gold' && 'bg-yellow-500/15 text-yellow-300',
+                      badge.tone === 'sky' && 'bg-sky-500/15 text-sky-300',
+                      badge.tone === 'amber' && 'bg-amber-500/15 text-amber-300',
+                      badge.tone === 'violet' && 'bg-violet-500/15 text-violet-300',
+                      badge.tone === 'emerald' && 'bg-emerald-500/15 text-emerald-300',
+                      badge.tone === 'rose' && 'bg-rose-500/15 text-rose-300',
+                      badge.tone === 'green' && 'bg-green-500/15 text-green-300',
+                      badge.tone === 'orange' && 'bg-orange-500/15 text-orange-300',
+                    )}
+                  >
+                    <Sparkles size={10} />
+                    {badge.label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -82,6 +103,7 @@ export const ProfilePage: React.FC<{ username: string; onClose: () => void }> = 
                   {[
                     { label: 'Total Bets', value: data.stats.totalBets, icon: Star },
                     { label: 'Win Rate', value: `${data.stats.winRate}%`, icon: Trophy },
+                    { label: 'Level', value: data.profile.level || 1, icon: Medal },
                     { label: 'Total Wagered', value: formatMoney(data.stats.totalWagered), icon: TrendingUp },
                     { label: 'Biggest Win', value: formatMoney(data.stats.biggestWin), icon: Trophy },
                     { label: 'Net Profit', value: formatMoney(data.stats.totalPayout - data.stats.totalWagered), icon: data.stats.totalPayout - data.stats.totalWagered >= 0 ? TrendingUp : TrendingUp, color: data.stats.totalPayout - data.stats.totalWagered >= 0 ? 'text-[#00FF88]' : 'text-red-400' },
@@ -105,12 +127,30 @@ export const ProfilePage: React.FC<{ username: string; onClose: () => void }> = 
                 </div>
               )}
 
+              {data?.profile?.favoriteGame && (
+                <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                  <div className="text-[10px] uppercase tracking-widest text-white/30 font-black mb-3">Favorite Game</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-black capitalize">{data.profile.favoriteGame.gameKey}</div>
+                      <div className="text-[11px] text-white/35 mt-1">{data.profile.favoriteGame.totalBets} bets placed</div>
+                    </div>
+                    <div className="text-right text-[11px] text-white/45">
+                      <div>Wagered {formatMoney(data.profile.favoriteGame.totalWagered)}</div>
+                      <div className={cn('mt-1 font-black', data.profile.favoriteGame.totalProfit >= 0 ? 'text-[#00FF88]' : 'text-red-400')}>
+                        {data.profile.favoriteGame.totalProfit >= 0 ? '+' : ''}{formatMoney(data.profile.favoriteGame.totalProfit)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {data?.recentBets?.length > 0 && (
                 <div>
                   <div className="text-[10px] uppercase tracking-widest text-white/30 font-black mb-2">Recent Bets</div>
                   <div className="space-y-1">
                     {data.recentBets.map((bet: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <div key={i} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
                         <div>
                           <span className="text-xs font-black capitalize">{bet.game}</span>
                           <span className="text-[10px] text-white/30 ml-2">{bet.multiplier.toFixed(2)}x</span>
@@ -121,6 +161,9 @@ export const ProfilePage: React.FC<{ username: string; onClose: () => void }> = 
                             {bet.payout > bet.wager ? '+' : ''}{formatMoney(bet.payout - bet.wager)}
                           </div>
                         </div>
+                        <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/provably-fair?bet=${bet.id}`)} className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#00FF88]">
+                          <Link2 size={10} />
+                        </button>
                       </div>
                     ))}
                   </div>

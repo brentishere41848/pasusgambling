@@ -13,6 +13,9 @@ export async function logBetActivity(input: LogBetActivityInput) {
     return;
   }
 
+  const clientSeed = localStorage.getItem('pasus_client_seed') || '';
+  const nonce = Number(localStorage.getItem('pasus_client_nonce') || 1);
+
   try {
     const response = await apiFetch('/api/activity/bets', {
       method: 'POST',
@@ -24,9 +27,12 @@ export async function logBetActivity(input: LogBetActivityInput) {
         ...input,
         wager: Math.round(input.wager),
         payout: Math.round(input.payout),
+        clientSeed,
+        nonce,
       }),
     });
     if (response.ok) {
+      localStorage.setItem('pasus_client_nonce', String(nonce + 1));
       window.dispatchEvent(new CustomEvent('pasus:bet-recorded'));
     }
   } catch {

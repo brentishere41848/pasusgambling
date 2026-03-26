@@ -5,7 +5,7 @@ import confetti from 'canvas-confetti';
 import { useBalance } from '../../context/BalanceContext';
 import { logBetActivity } from '../../lib/activity';
 import { cn } from '../../lib/utils';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
+import { QuickBetButtons, MobileBetControls, GameStatsBar, useLocalGameStats, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
 
 const GRID = Array.from({ length: 40 }, (_, index) => index + 1);
 
@@ -99,6 +99,8 @@ export const KenoGame: React.FC = () => {
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
             <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDrawing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isDrawing} />
+            <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isDrawing} />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isDrawing} />
           </div>
 
