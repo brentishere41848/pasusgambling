@@ -3441,8 +3441,8 @@ const ProfileView = () => {
               <AnimatedBalanceDisplay balance={balance} className="text-xl" />
             </div>
             <div className="bg-black/40 border border-white/5 rounded-2xl px-6 py-3">
-              <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Games Played</div>
-              <div className="font-mono font-bold text-white text-xl">1,248</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Live Games</div>
+              <div className="font-mono font-bold text-white text-xl">1</div>
             </div>
           </div>
         </div>
@@ -3456,10 +3456,10 @@ const ProfileView = () => {
           </h3>
           <div className="space-y-4">
             {[
-              { label: 'Total Wagered', value: '$90,400' },
-              { label: 'Total Won', value: '$96,300' },
-              { label: 'Net Profit', value: '+$5,900', color: 'text-[#00FF88]' },
-              { label: 'Highest Multiplier', value: '1,240x' },
+              { label: 'Account Data', value: 'Live' },
+              { label: 'Wallet Sync', value: 'Connected' },
+              { label: 'Game Availability', value: 'Jackpot only', color: 'text-[#00FF88]' },
+              { label: 'Integrity Status', value: 'Rebuild in progress' },
             ].map((stat, i) => (
               <div key={i} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
                 <span className="text-xs font-bold text-white/40">{stat.label}</span>
