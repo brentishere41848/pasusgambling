@@ -138,6 +138,8 @@ const NEWS_BANNER = {
   image: '/assets/hero.png',
 };
 
+const CLIENT_SIDE_UNAVAILABLE_GAMES = new Set(['coinflip', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'slots', 'wheel']);
+
 const GAMES = [
   {
     id: 'crash',
@@ -890,16 +892,18 @@ const Sidebar = ({
                 <div className="space-y-0.5 pl-3 pr-2 mt-1">
                   {GAMES.map((game, i) => {
                     const GameIcon = typeof game.icon === 'string' ? null : game.icon;
+                    const disabled = CLIENT_SIDE_UNAVAILABLE_GAMES.has(game.id);
                     return (
                       <motion.button
                         key={game.id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.03 }}
-                        whileHover={{ x: 6, backgroundColor: 'rgba(255,255,255,0.05)' }}
-                        onClick={() => handleNav(() => onSelectGame(game.id))}
+                        whileHover={disabled ? undefined : { x: 6, backgroundColor: 'rgba(255,255,255,0.05)' }}
+                        onClick={() => !disabled && handleNav(() => onSelectGame(game.id))}
+                        disabled={disabled}
                         className={cn(
-                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all group relative',
+                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all group relative disabled:opacity-45 disabled:cursor-not-allowed',
                           activeGame === game.id 
                             ? 'bg-white/10 text-white' 
                             : 'text-white/40 hover:text-white'
@@ -917,7 +921,11 @@ const Sidebar = ({
                           </div>
                         )}
                         <span className="truncate">{game.name}</span>
-                        {game.featured && (
+                        {disabled ? (
+                          <span className="ml-auto px-1.5 py-0.5 text-[7px] font-black uppercase bg-red-500/20 text-red-300 rounded">
+                            OFFLINE
+                          </span>
+                        ) : game.featured ? (
                           <motion.span 
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
@@ -925,7 +933,7 @@ const Sidebar = ({
                           >
                             HOT
                           </motion.span>
-                        )}
+                        ) : null}
                       </motion.button>
                     );
                   })}
@@ -2932,16 +2940,18 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
         </motion.div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {filteredGames.map((game, i) => {
+            const disabled = CLIENT_SIDE_UNAVAILABLE_GAMES.has(game.id);
             return (
               <motion.button
                 key={game.id}
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.7 + i * 0.1 }}
-                whileHover={{ y: -6, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => onSelectGame(game.id)}
-                className="relative rounded-2xl overflow-hidden border border-white/10 hover:border-[#00FF88]/50 transition-all duration-300 cursor-pointer group aspect-[9/16] max-h-[400px] shadow-lg shadow-black/20"
+                whileHover={disabled ? undefined : { y: -6, scale: 1.02 }}
+                whileTap={disabled ? undefined : { scale: 0.98 }}
+                onClick={() => !disabled && onSelectGame(game.id)}
+                disabled={disabled}
+                className="relative rounded-2xl overflow-hidden border border-white/10 hover:border-[#00FF88]/50 transition-all duration-300 cursor-pointer group aspect-[9/16] max-h-[400px] shadow-lg shadow-black/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a15] via-black/20 to-transparent z-10" />
                 <img
@@ -2958,7 +2968,9 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
                     <ChevronRight className="w-4 h-4 text-[#00FF88]" />
                   </motion.div>
                   <h3 className="text-xl font-black text-white uppercase tracking-tight drop-shadow-lg">{game.name}</h3>
-                  <p className="text-xs text-white/60 mt-1 line-clamp-2">{game.description}</p>
+                  <p className="text-xs text-white/60 mt-1 line-clamp-2">
+                    {disabled ? 'Temporarily disabled until server-authoritative game logic is implemented.' : game.description}
+                  </p>
                   <motion.div 
                     initial={{ width: 0 }}
                     whileHover={{ width: '60%' }}
