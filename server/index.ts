@@ -6454,32 +6454,17 @@ app.post('/api/admin/wallet/adjust', requireAuth, requireOwner, async (req: Auth
 
     await ensureWallet(pool, userId);
 
-    let result;
-    if (delta > 0) {
-      result = await pool.query(
-        `UPDATE wallets
-         SET balance = balance + $1::numeric,
-             updated_at = NOW()
-         WHERE user_id = $2
-         RETURNING balance::text AS balance,
-                   total_deposited::text AS total_deposited,
-                   total_withdrawn::text AS total_withdrawn`,
-        [delta, userId]
-      );
-    } else {
-      result = await pool.query(
-        `UPDATE wallets
-         SET balance = balance + $1::numeric,
-             total_withdrawn = total_withdrawn + (-$1::numeric),
-             updated_at = NOW()
-         WHERE user_id = $2
-           AND balance >= (-$1::numeric)
-         RETURNING balance::text AS balance,
-                   total_deposited::text AS total_deposited,
-                   total_withdrawn::text AS total_withdrawn`,
-        [delta, userId]
-      );
-    }
+    const result = await pool.query(
+      `UPDATE wallets
+       SET balance = balance + $1::numeric,
+           updated_at = NOW()
+       WHERE user_id = $2
+         AND ($1::numeric >= 0 OR balance >= (-$1::numeric))
+       RETURNING balance::text AS balance,
+                 total_deposited::text AS total_deposited,
+                 total_withdrawn::text AS total_withdrawn`,
+      [delta, userId]
+    );
 
     if (!result.rowCount) {
       return res.status(400).json({ error: delta < 0 ? 'Insufficient balance.' : 'Wallet not found.' });
