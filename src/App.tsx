@@ -344,6 +344,14 @@ function formatMoneyFromCoins(value: number) {
   return formatDollars(Number(value || 0));
 }
 
+function formatNumberCompact(value: number) {
+  const num = Number(value || 0);
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  }
+  return num.toLocaleString();
+}
+
 function formatDisplayCurrency(value: number, currency: string) {
   const safeCurrency = DISPLAY_CURRENCY_RATES[currency] ? currency : 'USD';
   const dollars = Number(value || 0) / 100;
@@ -2443,7 +2451,7 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
               className="grid grid-cols-3 gap-3 mt-6"
             >
               {[
-                { label: 'Online', value: isLoadingStats ? '...' : stats.playersOnline.toLocaleString(), color: 'text-[#00FF88]', icon: Users },
+                { label: 'Total Users', value: isLoadingStats ? '...' : formatNumberCompact(stats.playersOnline), color: 'text-[#00FF88]', icon: Users },
                 { label: 'Wagered Today', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.totalWageredToday), color: 'text-amber-400', icon: TrendingUp },
                 { label: 'Biggest Win', value: isLoadingStats ? '...' : formatMoneyFromCoins(stats.biggestWin), color: 'text-purple-400', icon: Trophy },
               ].map((stat, i) => (
@@ -2563,9 +2571,9 @@ const Dashboard = ({ onSelectGame }: { onSelectGame: (id: string) => void }) => 
               <div className="grid grid-cols-3 gap-4 mb-8">
                 <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
                   <div className="text-[#00FF88] text-2xl md:text-3xl font-black mb-1">
-                    {isLoadingStats ? '...' : stats.playersOnline.toLocaleString()}
+                    {isLoadingStats ? '...' : formatNumberCompact(stats.playersOnline)}
                   </div>
-                  <div className="text-white/40 text-xs uppercase tracking-wider">Players Online</div>
+                  <div className="text-white/40 text-xs uppercase tracking-wider">Total Users</div>
                 </div>
                 <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
                   <div className="text-amber-400 text-2xl md:text-3xl font-black mb-1">
