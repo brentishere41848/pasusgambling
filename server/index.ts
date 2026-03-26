@@ -5173,6 +5173,7 @@ app.post('/api/payments/nowpayments/ipn', async (req: RawBodyRequest, res) => {
 
 app.get('/api/admin/rain-bot', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
   try {
+    const currentRound = await ensureCurrentRainRound(pool);
     const result = await pool.query(
       `SELECT id, interval_minutes, min_pool_amount, rain_amount, is_active, created_by_user_id, created_at, last_triggered_at
        FROM rain_bot_schedules
@@ -5181,6 +5182,14 @@ app.get('/api/admin/rain-bot', requireAuth, requireOwner, async (_req: AuthedReq
     );
 
     return res.json({
+      currentRain: {
+        id: Number(currentRound.id),
+        poolAmount: Number(currentRound.pool_amount || 0),
+        startsAt: currentRound.starts_at,
+        joinOpensAt: currentRound.join_opens_at,
+        endsAt: currentRound.ends_at,
+        participantCount: Number(currentRound.participant_count || 0),
+      },
       schedules: result.rows.map((row) => ({
         id: Number(row.id),
         intervalMinutes: Number(row.interval_minutes),
@@ -5297,6 +5306,53 @@ app.put('/api/admin/rain-bot/:id', requireAuth, requireOwner, async (req: Authed
   }
 });
 
+app.put('/api/admin/rain/current', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const currentRound = await ensureCurrentRainRound(client);
+
+      const poolAmount = Math.max(1, normalizeCoins(req.body.poolAmount ?? currentRound.pool_amount));
+      const timerMinutes = Math.max(1, Math.min(1440, Number(req.body.timerMinutes || 1)));
+      const startsAt = new Date(currentRound.starts_at);
+      const endsAt = new Date(Date.now() + timerMinutes * 60 * 1000);
+      const joinOpensAt = new Date(Math.max(startsAt.getTime(), endsAt.getTime() - 2 * 60 * 1000));
+
+      const updated = await client.query(
+        `UPDATE rain_rounds
+         SET pool_amount = $2,
+             join_opens_at = $3,
+             ends_at = $4,
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING id, pool_amount, starts_at, join_opens_at, ends_at, status`,
+        [currentRound.id, poolAmount, joinOpensAt, endsAt]
+      );
+
+      await client.query('COMMIT');
+
+      return res.json({
+        currentRain: {
+          id: Number(updated.rows[0].id),
+          poolAmount: Number(updated.rows[0].pool_amount || 0),
+          startsAt: updated.rows[0].starts_at,
+          joinOpensAt: updated.rows[0].join_opens_at,
+          endsAt: updated.rows[0].ends_at,
+        },
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to update current rain.' });
+  }
+});
+
 app.delete('/api/admin/rain-bot/:id', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
   try {
     const id = Number(req.params.id);
@@ -5325,13 +5381,13 @@ app.get('/api/admin/analytics', requireAuth, requireOwner, async (_req: AuthedRe
     ] = await Promise.all([
       pool.query(`
         SELECT
-          COUNT(*)::int AS total_users,
-          COUNT(*) FILTER (WHERE created_at >= $1)::int AS users_today,
-          COUNT(*) FILTER (WHERE created_at >= $2)::int AS users_week,
-          COUNT(*) FILTER (WHERE created_at >= $3)::int AS users_month,
-          COUNT(DISTINCT us.user_id) FILTER (WHERE us.updated_at >= $1)::int AS active_today,
-          COUNT(DISTINCT us.user_id) FILTER (WHERE us.updated_at >= $2)::int AS active_week,
-          COUNT(DISTINCT us.user_id) FILTER (WHERE us.updated_at >= $3)::int AS active_month
+          COUNT(DISTINCT u.id)::int AS total_users,
+          COUNT(DISTINCT u.id) FILTER (WHERE u.created_at >= $1)::int AS users_today,
+          COUNT(DISTINCT u.id) FILTER (WHERE u.created_at >= $2)::int AS users_week,
+          COUNT(DISTINCT u.id) FILTER (WHERE u.created_at >= $3)::int AS users_month,
+          COUNT(DISTINCT us.user_id) FILTER (WHERE us.last_active_at >= $1)::int AS active_today,
+          COUNT(DISTINCT us.user_id) FILTER (WHERE us.last_active_at >= $2)::int AS active_week,
+          COUNT(DISTINCT us.user_id) FILTER (WHERE us.last_active_at >= $3)::int AS active_month
         FROM users u
         LEFT JOIN user_sessions us ON us.user_id = u.id AND (us.expires_at IS NULL OR us.expires_at > NOW())
       `, [dayStart, weekStart, monthStart]),
@@ -5342,7 +5398,9 @@ app.get('/api/admin/analytics', requireAuth, requireOwner, async (_req: AuthedRe
           COALESCE(SUM(wager) FILTER (WHERE created_at >= $2), 0)::bigint AS wagered_week,
           COALESCE(SUM(wager) FILTER (WHERE created_at >= $3), 0)::bigint AS wagered_month,
           COALESCE(SUM(payout) FILTER (WHERE created_at >= $1), 0)::bigint AS payout_today,
-          COALESCE(SUM(payout) FILTER (WHERE created_at >= $1), 0)::bigint AS payout_today
+          COALESCE(SUM(payout) FILTER (WHERE created_at >= $2), 0)::bigint AS payout_week,
+          COALESCE(SUM(payout) FILTER (WHERE created_at >= $3), 0)::bigint AS payout_month,
+          COALESCE(SUM(payout), 0)::bigint AS total_payout
         FROM bet_activities
       `, [dayStart, weekStart, monthStart]),
       pool.query(`
@@ -5393,8 +5451,8 @@ app.get('/api/admin/analytics', requireAuth, requireOwner, async (_req: AuthedRe
         },
         payouts: {
           today: Number(wStats.payout_today || 0),
-          week: Number(wStats.payout_today || 0),
-          month: Number(wStats.payout_today || 0),
+          week: Number(wStats.payout_week || 0),
+          month: Number(wStats.payout_month || 0),
         },
         deposits: {
           total: Number(dStats.total_deposited || 0),
@@ -5407,8 +5465,8 @@ app.get('/api/admin/analytics', requireAuth, requireOwner, async (_req: AuthedRe
         },
         revenue: {
           today: Math.max(0, Number(wStats.wagered_today || 0) - Number(wStats.payout_today || 0)),
-          week: Math.max(0, Number(wStats.wagered_week || 0) - Number(wStats.payout_today || 0)),
-          month: Math.max(0, Number(wStats.wagered_month || 0) - Number(wStats.payout_today || 0)),
+          week: Math.max(0, Number(wStats.wagered_week || 0) - Number(wStats.payout_week || 0)),
+          month: Math.max(0, Number(wStats.wagered_month || 0) - Number(wStats.payout_month || 0)),
         },
         games: gameStats.rows.map((row) => ({
           gameKey: row.game_key,
@@ -6078,7 +6136,11 @@ app.get('/api/tournaments', async (req, res) => {
         id: t.id,
         name: t.name,
         description: t.description,
+        type: 'wagered',
         gameKey: t.game_key,
+        startsAt: t.start_time,
+        endsAt: t.end_time,
+        prize: Number(t.prize_pool),
         startTime: t.start_time,
         endTime: t.end_time,
         minWager: Number(t.min_wager),
@@ -6120,6 +6182,35 @@ app.post('/api/tournaments', requireAuth, async (req: AuthedRequest, res) => {
   } catch (error) {
     console.error('Create tournament error:', error);
     res.status(500).json({ error: 'Failed to create tournament' });
+  }
+});
+
+app.post('/api/admin/tournaments/:id/start', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+  try {
+    const tournamentId = Number(req.params.id);
+    if (!tournamentId) {
+      return res.status(400).json({ error: 'Tournament ID is required.' });
+    }
+
+    const result = await pool.query(
+      `UPDATE tournaments
+       SET start_time = NOW(),
+           status = 'active'
+       WHERE id = $1
+         AND status = 'upcoming'
+         AND end_time > NOW()
+       RETURNING *`,
+      [tournamentId]
+    );
+
+    if (!result.rowCount) {
+      return res.status(400).json({ error: 'Tournament cannot be started.' });
+    }
+
+    return res.json({ success: true, tournament: result.rows[0] });
+  } catch (error) {
+    console.error('Start tournament error:', error);
+    return res.status(500).json({ error: 'Failed to start tournament.' });
   }
 });
 

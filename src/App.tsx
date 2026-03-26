@@ -3685,7 +3685,7 @@ const SettingsView = () => {
 const AdminView = () => {
   const { user } = useAuth();
   const { refreshWallet } = useBalance();
-  const [adminSection, setAdminSection] = useState<'overview' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'rainbot'>('overview');
+  const [adminSection, setAdminSection] = useState<'overview' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'tournaments' | 'rain'>('overview');
   const [selectedWithdrawalId, setSelectedWithdrawalId] = useState<number | null>(null);
   const [withdrawalStatusDraft, setWithdrawalStatusDraft] = useState<'pending' | 'processing' | 'completed'>('pending');
   const [isUpdatingWithdrawal, setIsUpdatingWithdrawal] = useState(false);
@@ -3722,6 +3722,19 @@ const AdminView = () => {
   const [isModLoading, setIsModLoading] = useState(false);
 
   const [analytics, setAnalytics] = useState<any | null>(null);
+  const [adminTournaments, setAdminTournaments] = useState<Array<Tournament & { description?: string; gameKey?: string | null; minWager?: number; maxParticipants?: number | null; participantCount?: number }>>([]);
+  const [newTournamentName, setNewTournamentName] = useState('');
+  const [newTournamentDescription, setNewTournamentDescription] = useState('');
+  const [newTournamentGameKey, setNewTournamentGameKey] = useState('');
+  const [newTournamentStartTime, setNewTournamentStartTime] = useState('');
+  const [newTournamentEndTime, setNewTournamentEndTime] = useState('');
+  const [newTournamentMinWager, setNewTournamentMinWager] = useState('0.01');
+  const [newTournamentPrize, setNewTournamentPrize] = useState('100');
+  const [newTournamentMaxParticipants, setNewTournamentMaxParticipants] = useState('');
+  const [isTournamentSaving, setIsTournamentSaving] = useState(false);
+  const [currentRain, setCurrentRain] = useState<{ id: number; poolAmount: number; startsAt: string; joinOpensAt: string; endsAt: string; participantCount?: number } | null>(null);
+  const [currentRainAmount, setCurrentRainAmount] = useState('');
+  const [currentRainTimerMinutes, setCurrentRainTimerMinutes] = useState('60');
   const [rainBotSchedules, setRainBotSchedules] = useState<Array<{
     id: number;
     intervalMinutes: number;
@@ -3833,6 +3846,33 @@ const AdminView = () => {
     } catch {}
   }, []);
 
+  const loadAdminTournaments = useCallback(async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    try {
+      const response = await apiFetch('/api/tournaments', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.tournaments)) {
+        setAdminTournaments(data.tournaments.map((t: any) => ({
+          id: Number(t.id),
+          name: String(t.name || ''),
+          type: 'wagered',
+          startsAt: String(t.startsAt || t.startTime || ''),
+          endsAt: String(t.endsAt || t.endTime || ''),
+          prize: Number(t.prize || t.prizePool || 0),
+          status: (t.status || 'upcoming') as 'upcoming' | 'active' | 'ended',
+          description: t.description || '',
+          gameKey: t.gameKey || null,
+          minWager: Number(t.minWager || 0),
+          maxParticipants: t.maxParticipants ?? null,
+          participantCount: Number(t.participantCount || 0),
+        })));
+      }
+    } catch {}
+  }, []);
+
   const loadRainBotSchedules = useCallback(async () => {
     const token = localStorage.getItem('pasus_auth_token');
     if (!token) return;
@@ -3841,6 +3881,19 @@ const AdminView = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json().catch(() => ({}));
+      if (response.ok && data.currentRain) {
+        setCurrentRain({
+          id: Number(data.currentRain.id),
+          poolAmount: Number(data.currentRain.poolAmount || 0),
+          startsAt: String(data.currentRain.startsAt || ''),
+          joinOpensAt: String(data.currentRain.joinOpensAt || ''),
+          endsAt: String(data.currentRain.endsAt || ''),
+          participantCount: Number(data.currentRain.participantCount || 0),
+        });
+        setCurrentRainAmount((Number(data.currentRain.poolAmount || 0) / 100).toFixed(2));
+        const remainingMinutes = Math.max(1, Math.ceil((new Date(data.currentRain.endsAt).getTime() - Date.now()) / 60000));
+        setCurrentRainTimerMinutes(String(remainingMinutes));
+      }
       if (response.ok && Array.isArray(data.schedules)) {
         setRainBotSchedules(data.schedules);
         setRainEditDrafts(Object.fromEntries(data.schedules.map((schedule: any) => [
@@ -3926,10 +3979,78 @@ const AdminView = () => {
     if (adminSection === 'analytics') {
       loadAnalytics().catch(() => undefined);
     }
-    if (adminSection === 'rainbot') {
+    if (adminSection === 'tournaments') {
+      loadAdminTournaments().catch(() => undefined);
+    }
+    if (adminSection === 'rain') {
       loadRainBotSchedules().catch(() => undefined);
     }
-  }, [adminSection, loadModerationHistory, loadAnalytics, loadRainBotSchedules]);
+  }, [adminSection, loadModerationHistory, loadAnalytics, loadAdminTournaments, loadRainBotSchedules]);
+
+  const submitTournament = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    if (!newTournamentName.trim() || !newTournamentStartTime || !newTournamentEndTime) {
+      setStatus('Tournament name, start time, and end time are required.');
+      return;
+    }
+
+    setIsTournamentSaving(true);
+    setStatus('');
+    try {
+      const response = await apiFetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: newTournamentName.trim(),
+          description: newTournamentDescription.trim(),
+          gameKey: newTournamentGameKey.trim() || null,
+          startTime: new Date(newTournamentStartTime).toISOString(),
+          endTime: new Date(newTournamentEndTime).toISOString(),
+          minWager: usdToCoins(Number(newTournamentMinWager || 0)),
+          prizePool: usdToCoins(Number(newTournamentPrize || 0)),
+          maxParticipants: newTournamentMaxParticipants ? Number(newTournamentMaxParticipants) : null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to create tournament.');
+      setStatus('Tournament created.');
+      setNewTournamentName('');
+      setNewTournamentDescription('');
+      setNewTournamentGameKey('');
+      setNewTournamentStartTime('');
+      setNewTournamentEndTime('');
+      setNewTournamentMinWager('0.01');
+      setNewTournamentPrize('100');
+      setNewTournamentMaxParticipants('');
+      await loadAdminTournaments();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to create tournament.');
+    } finally {
+      setIsTournamentSaving(false);
+    }
+  };
+
+  const startTournament = async (tournamentId: number) => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) return;
+    setIsTournamentSaving(true);
+    setStatus('');
+    try {
+      const response = await apiFetch(`/api/admin/tournaments/${tournamentId}/start`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to start tournament.');
+      setStatus('Tournament started.');
+      await loadAdminTournaments();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to start tournament.');
+    } finally {
+      setIsTournamentSaving(false);
+    }
+  };
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -4084,11 +4205,12 @@ const AdminView = () => {
           ['broadcasts', 'Broadcasts'],
           ['moderation', 'Moderation'],
           ['analytics', 'Analytics'],
-          ['rainbot', 'Rain Bot'],
+          ['tournaments', 'Tournaments'],
+          ['rain', 'Rain'],
         ].map(([value, label]) => (
           <button
             key={value}
-            onClick={() => setAdminSection(value as 'overview' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'rainbot')}
+            onClick={() => setAdminSection(value as 'overview' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'tournaments' | 'rain')}
             className={cn(
               'rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] transition-all',
               adminSection === value ? 'bg-[#00FF88] text-black' : 'bg-white/5 text-white/55 hover:text-white'
@@ -4756,11 +4878,109 @@ const AdminView = () => {
       </div>
       ) : null}
 
-      {adminSection === 'rainbot' ? (
+      {adminSection === 'tournaments' ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6">
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Create Tournament</div>
+          <input value={newTournamentName} onChange={(e) => setNewTournamentName(e.target.value)} placeholder="Weekend Wager Race" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          <textarea value={newTournamentDescription} onChange={(e) => setNewTournamentDescription(e.target.value)} placeholder="Optional description" rows={3} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none" />
+          <input value={newTournamentGameKey} onChange={(e) => setNewTournamentGameKey(e.target.value)} placeholder="Game key (optional)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input type="datetime-local" value={newTournamentStartTime} onChange={(e) => setNewTournamentStartTime(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+            <input type="datetime-local" value={newTournamentEndTime} onChange={(e) => setNewTournamentEndTime(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input type="number" min="0.01" step="0.01" value={newTournamentMinWager} onChange={(e) => setNewTournamentMinWager(e.target.value)} placeholder="Min wager ($)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+            <input type="number" min="0.01" step="0.01" value={newTournamentPrize} onChange={(e) => setNewTournamentPrize(e.target.value)} placeholder="Prize pool ($)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+            <input type="number" min="1" step="1" value={newTournamentMaxParticipants} onChange={(e) => setNewTournamentMaxParticipants(e.target.value)} placeholder="Max players" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+          </div>
+          <button onClick={submitTournament} disabled={isTournamentSaving} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+            {isTournamentSaving ? 'Saving...' : 'Create Tournament'}
+          </button>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
+          <div className="text-lg font-black uppercase tracking-tight">Tournament Queue</div>
+          <div className="space-y-3">
+            {adminTournaments.length ? adminTournaments.map((tournament) => (
+              <div key={tournament.id} className="rounded-2xl border border-white/5 bg-black/25 px-4 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-black">{tournament.name}</div>
+                    <div className="mt-1 text-[11px] text-white/35">{tournament.description || 'No description provided.'}</div>
+                  </div>
+                  <div className={cn('rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]', tournament.status === 'active' ? 'bg-green-500/15 text-green-400' : tournament.status === 'upcoming' ? 'bg-yellow-500/15 text-yellow-300' : 'bg-white/10 text-white/45')}>
+                    {tournament.status}
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-[11px] text-white/45">
+                  <div>Starts: <span className="text-white/75">{tournament.startsAt ? new Date(tournament.startsAt).toLocaleString() : '-'}</span></div>
+                  <div>Ends: <span className="text-white/75">{tournament.endsAt ? new Date(tournament.endsAt).toLocaleString() : '-'}</span></div>
+                  <div>Prize: <span className="text-white/75">{formatMoneyFromCoins(tournament.prize)}</span></div>
+                  <div>Min wager: <span className="text-white/75">{formatMoneyFromCoins(tournament.minWager || 0)}</span></div>
+                  <div>Players: <span className="text-white/75">{tournament.participantCount || 0}</span></div>
+                  <div>Game: <span className="text-white/75">{tournament.gameKey || 'All games'}</span></div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button onClick={() => startTournament(tournament.id)} disabled={isTournamentSaving || tournament.status !== 'upcoming'} className="rounded-2xl border border-[#00FF88]/35 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#00FF88] disabled:opacity-35">
+                    Start Now
+                  </button>
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-white/5 bg-black/25 px-4 py-8 text-sm text-white/35">No tournaments yet.</div>
+            )}
+          </div>
+        </div>
+      </div>
+      ) : null}
+
+      {adminSection === 'rain' ? (
       <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
         <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
-          <div className="text-lg font-black uppercase tracking-tight">Create Schedule</div>
+          <div className="text-lg font-black uppercase tracking-tight">Current Rain</div>
+          <div className="rounded-2xl border border-white/5 bg-black/25 p-4 space-y-2 text-sm text-white/65">
+            <div className="flex justify-between gap-3"><span>Current Pool</span><span className="font-mono text-white">{currentRain ? formatMoneyFromCoins(currentRain.poolAmount) : '...'}</span></div>
+            <div className="flex justify-between gap-3"><span>Participants</span><span className="font-mono text-white">{currentRain?.participantCount ?? 0}</span></div>
+            <div className="flex justify-between gap-3"><span>Join Opens</span><span className="font-mono text-white">{currentRain?.joinOpensAt ? new Date(currentRain.joinOpensAt).toLocaleString() : '...'}</span></div>
+            <div className="flex justify-between gap-3"><span>Ends</span><span className="font-mono text-white">{currentRain?.endsAt ? new Date(currentRain.endsAt).toLocaleString() : '...'}</span></div>
+          </div>
           <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Current Rain Amount ($)</label>
+              <input type="number" step="0.01" value={currentRainAmount} onChange={(e) => setCurrentRainAmount(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="500.00" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Current Timer (minutes)</label>
+              <input type="number" min="1" value={currentRainTimerMinutes} onChange={(e) => setCurrentRainTimerMinutes(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="60" />
+            </div>
+            <button
+              onClick={async () => {
+                const token = localStorage.getItem('pasus_auth_token');
+                if (!token) return;
+                try {
+                  const response = await apiFetch('/api/admin/rain/current', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                      poolAmount: Number(currentRainAmount || 0),
+                      timerMinutes: parseInt(currentRainTimerMinutes, 10) || 60,
+                    }),
+                  });
+                  const data = await response.json().catch(() => ({}));
+                  if (!response.ok) throw new Error(data.error || 'Failed to update current rain.');
+                  setStatus('Current rain updated.');
+                  loadRainBotSchedules();
+                } catch (err) {
+                  setStatus(err instanceof Error ? err.message : 'Failed to update current rain.');
+                }
+              }}
+              className="w-full rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em]"
+            >
+              Update Current Rain
+            </button>
+            <div className="pt-4 border-t border-white/5" />
+            <div className="text-lg font-black uppercase tracking-tight">Create Schedule</div>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Interval (minutes)</label>
               <input type="number" value={newRainInterval} onChange={(e) => setNewRainInterval(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" placeholder="60" />
@@ -4789,7 +5009,7 @@ const AdminView = () => {
                   });
                   const data = await response.json().catch(() => ({}));
                   if (!response.ok) throw new Error(data.error || 'Failed to create schedule.');
-                  setStatus('Rain bot schedule created!');
+                  setStatus('Rain schedule created!');
                   setNewRainInterval('60');
                   setNewRainMinPool('100');
                   setNewRainAmount('500');
@@ -4806,10 +5026,10 @@ const AdminView = () => {
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-lg font-black uppercase tracking-tight">Schedules ({rainBotSchedules.length})</div>
-            <button onClick={loadRainBotSchedules} className="px-3 py-1 bg-white/5 rounded-xl text-[10px] text-white/40 hover:text-white">Refresh</button>
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-black uppercase tracking-tight">Schedules ({rainBotSchedules.length})</div>
+              <button onClick={loadRainBotSchedules} className="px-3 py-1 bg-white/5 rounded-xl text-[10px] text-white/40 hover:text-white">Refresh</button>
           </div>
           <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
             {rainBotSchedules.length > 0 ? rainBotSchedules.map((schedule) => (
@@ -4893,7 +5113,7 @@ const AdminView = () => {
                             rainAmount: Number(draft?.rainAmount || String(schedule.rainAmount / 100)) || (schedule.rainAmount / 100),
                           }),
                         });
-                        setStatus('Rain bot schedule updated.');
+                        setStatus('Rain schedule updated.');
                         loadRainBotSchedules();
                       }}
                       className="px-3 py-1 rounded-xl text-[10px] font-black uppercase bg-[#00FF88]/15 text-[#00FF88]"
@@ -4926,7 +5146,7 @@ const AdminView = () => {
                 </div>
               </div>
             )) : (
-              <div className="text-sm text-white/35 text-center py-8">No rain bot schedules. Create one to auto-fund rain pools.</div>
+              <div className="text-sm text-white/35 text-center py-8">No rain schedules. Create one to auto-fund rain pools.</div>
             )}
           </div>
         </div>
