@@ -7570,7 +7570,7 @@ app.post('/api/friends/tip', requireAuth, async (req: AuthedRequest, res) => {
     
     // Deduct from sender tip wallet
     await client.query(`
-      UPDATE wallets SET tip_balance = tip_balance - $1::numeric, total_withdrawn = total_withdrawn + $1::numeric, updated_at = NOW() WHERE user_id = $2
+      UPDATE wallets SET tip_balance = tip_balance - $1::numeric, updated_at = NOW() WHERE user_id = $2
     `, [amountCoins, userId]);
     
     // Add to recipient
@@ -7646,13 +7646,25 @@ app.post('/api/friends/chat', requireAuth, async (req: AuthedRequest, res) => {
   try {
     const userId = req.auth!.user.id;
     const { friendId, text } = req.body;
+    const trimmedText = String(text || '').trim();
     
-    if (!friendId || !text || text.trim().length === 0) {
+    if (!friendId || trimmedText.length === 0) {
       return res.status(400).json({ error: 'Valid friend and message required' });
     }
     
-    if (text.length > 500) {
+    if (trimmedText.length > 500) {
       return res.status(400).json({ error: 'Message too long (max 500 characters)' });
+    }
+
+    const recentMessages = await pool.query(`
+      SELECT COUNT(*)::int AS count
+      FROM private_messages
+      WHERE sender_id = $1
+        AND created_at > NOW() - INTERVAL '30 seconds'
+    `, [userId]);
+
+    if (Number(recentMessages.rows[0]?.count || 0) >= 8) {
+      return res.status(429).json({ error: 'You are sending messages too quickly. Please slow down.' });
     }
     
     // Check if friends
@@ -7670,7 +7682,7 @@ app.post('/api/friends/chat', requireAuth, async (req: AuthedRequest, res) => {
       INSERT INTO private_messages (sender_id, recipient_id, text)
       VALUES ($1, $2, $3)
       RETURNING id, sender_id, text, created_at
-    `, [userId, friendId, text.trim()]);
+    `, [userId, friendId, trimmedText]);
     
     const row = result.rows[0];
     res.json({ message: {
@@ -7892,9 +7904,19 @@ app.get('*', (req, res, next) => {
 
 initDb()
   .then(() => {
-    setInterval(processRainBotSchedules, 60 * 1000);
-    setInterval(processJackpotRounds, 10 * 1000);
-    setInterval(processTournaments, 60 * 1000);
+    const settlementIntervals = [
+      setInterval(processRainBotSchedules, 60 * 1000),
+      setInterval(processJackpotRounds, 10 * 1000),
+      setInterval(processTournaments, 60 * 1000),
+    ];
+
+    const shutdown = () => {
+      settlementIntervals.forEach(clearInterval);
+      process.exit(0);
+    };
+
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
     app.listen(port, () => {
       console.log(`Pasus auth server running on http://localhost:${port}`);
     });
