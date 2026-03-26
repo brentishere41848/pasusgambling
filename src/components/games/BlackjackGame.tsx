@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
@@ -99,6 +99,16 @@ export const BlackjackGame: React.FC = () => {
   const betCents = dollarsToCents(betAmount);
 
   const deckRef = useRef<Card[]>([]);
+  const handsRef = useRef<PlayerHand[]>([]);
+  const dealerHandRef = useRef<Card[]>([]);
+
+  useEffect(() => {
+    handsRef.current = hands;
+  }, [hands]);
+
+  useEffect(() => {
+    dealerHandRef.current = dealerHand;
+  }, [dealerHand]);
 
   const shuffleDeck = useCallback(() => {
     deckRef.current = createDeck();
@@ -136,6 +146,8 @@ export const BlackjackGame: React.FC = () => {
 
     setHands([initialHand]);
     setDealerHand([dCard1, dCard2]);
+    handsRef.current = [initialHand];
+    dealerHandRef.current = [dCard1, dCard2];
     setResults([]);
     setDealerReveal(false);
 
@@ -153,25 +165,23 @@ export const BlackjackGame: React.FC = () => {
     if (idx === -1) return;
 
     const newCard = drawCard();
-    setHands((prev) => {
-      const updated = [...prev];
-      const newCards = [...updated[idx].cards, newCard];
-      const { score } = calculateScore(newCards);
-      
-      if (score > 21) {
-        updated[idx] = { ...updated[idx], cards: newCards, status: 'bust' };
-      } else if (score === 21) {
-        updated[idx] = { ...updated[idx], cards: newCards, status: 'stand' };
-      } else {
-        updated[idx] = { ...updated[idx], cards: newCards };
-      }
-      return updated;
-    });
+    const updated = [...handsRef.current];
+    const newCards = [...updated[idx].cards, newCard];
+    const { score } = calculateScore(newCards);
 
-    const { score } = calculateScore([...hands[idx].cards, newCard]);
+    if (score > 21) {
+      updated[idx] = { ...updated[idx], cards: newCards, status: 'bust' };
+    } else if (score === 21) {
+      updated[idx] = { ...updated[idx], cards: newCards, status: 'stand' };
+    } else {
+      updated[idx] = { ...updated[idx], cards: newCards };
+    }
+    handsRef.current = updated;
+    setHands(updated);
+
     if (score > 21 || score === 21) {
       const delay = score > 21 ? 1200 : 600;
-      setTimeout(() => advanceGame(), delay);
+      setTimeout(() => advanceGame(updated), delay);
     }
   };
 
@@ -179,13 +189,12 @@ export const BlackjackGame: React.FC = () => {
     const idx = hands.findIndex((h) => h.status === 'active');
     if (idx === -1) return;
 
-    setHands((prev) => {
-      const updated = [...prev];
-      updated[idx] = { ...updated[idx], status: 'stand' };
-      return updated;
-    });
+    const updated = [...handsRef.current];
+    updated[idx] = { ...updated[idx], status: 'stand' };
+    handsRef.current = updated;
+    setHands(updated);
 
-    setTimeout(() => advanceGame(), 400);
+    setTimeout(() => advanceGame(updated), 400);
   };
 
   const double = () => {
@@ -193,19 +202,18 @@ export const BlackjackGame: React.FC = () => {
     if (idx === -1 || !subtractBalance(hands[idx].bet)) return;
 
     const newCard = drawCard();
-    setHands((prev) => {
-      const updated = [...prev];
-      updated[idx] = {
-        ...updated[idx],
-        cards: [...updated[idx].cards, newCard],
-        bet: updated[idx].bet * 2,
-        doubled: true,
-        status: 'stand',
-      };
-      return updated;
-    });
+    const updated = [...handsRef.current];
+    updated[idx] = {
+      ...updated[idx],
+      cards: [...updated[idx].cards, newCard],
+      bet: updated[idx].bet * 2,
+      doubled: true,
+      status: 'stand',
+    };
+    handsRef.current = updated;
+    setHands(updated);
 
-    setTimeout(() => advanceGame(), 400);
+    setTimeout(() => advanceGame(updated), 400);
   };
 
   const split = () => {
@@ -217,61 +225,54 @@ export const BlackjackGame: React.FC = () => {
     const newCard1 = drawCard();
     const newCard2 = drawCard();
 
-    setHands((prev) => {
-      const updated = [...prev];
-      updated[idx] = {
-        ...updated[idx],
-        cards: [updated[idx].cards[0], newCard1],
-        status: calculateScore([updated[idx].cards[0], newCard1]).score === 21 ? 'blackjack' : 'active',
-      };
-      
-      const newHand: PlayerHand = {
-        cards: [card, newCard2],
-        bet: prev[idx].bet,
-        status: calculateScore([card, newCard2]).score === 21 ? 'blackjack' : 'active',
-        splitFrom: idx,
-      };
-      
-      updated.push(newHand);
-      return [...updated];
-    });
-
-    const newHands = [...hands];
+    const newHands = [...handsRef.current];
     newHands[idx] = {
       ...newHands[idx],
       cards: [newHands[idx].cards[0], newCard1],
       status: calculateScore([newHands[idx].cards[0], newCard1]).score === 21 ? 'blackjack' : 'active',
     };
+    const newHand: PlayerHand = {
+      cards: [card, newCard2],
+      bet: newHands[idx].bet,
+      status: calculateScore([card, newCard2]).score === 21 ? 'blackjack' : 'active',
+      splitFrom: idx,
+    };
+    newHands.push(newHand);
+    handsRef.current = newHands;
+    setHands([...newHands]);
     
     if (calculateScore([card, newCard2]).score === 21) {
-      setTimeout(() => advanceGame(), 400);
+      setTimeout(() => advanceGame(newHands), 400);
     }
   };
 
-  const advanceGame = () => {
-    const nextIdx = hands.findIndex((h, i) => i > hands.findIndex((x) => x.status === 'active') && h.status === 'active');
+  const advanceGame = (currentHands: PlayerHand[] = handsRef.current) => {
+    const activeIdx = currentHands.findIndex((x) => x.status === 'active');
+    const nextIdx = currentHands.findIndex((h, i) => i > activeIdx && h.status === 'active');
     
     if (nextIdx !== -1) return;
 
     setDealerReveal(true);
     setPhase('dealer_turn');
 
-    let currentDealerHand = [...dealerHand];
+    let currentDealerHand = [...dealerHandRef.current];
 
     const dealerPlay = () => {
       const { score: dealerScore, soft } = calculateScore(currentDealerHand);
       
       if (dealerScore > 21) {
         currentDealerHand = [...currentDealerHand];
+        dealerHandRef.current = currentDealerHand;
         setDealerHand(currentDealerHand);
-        setTimeout(() => resolveGame(hands, currentDealerHand), 400);
+        setTimeout(() => resolveGame(currentHands, currentDealerHand), 400);
       } else if (dealerScore < 17 || (dealerScore === 17 && soft)) {
         const newCard = drawCard();
         currentDealerHand = [...currentDealerHand, newCard];
+        dealerHandRef.current = currentDealerHand;
         setDealerHand(currentDealerHand);
         setTimeout(dealerPlay, 600);
       } else {
-        setTimeout(() => resolveGame(hands, currentDealerHand), 400);
+        setTimeout(() => resolveGame(currentHands, currentDealerHand), 400);
       }
     };
 

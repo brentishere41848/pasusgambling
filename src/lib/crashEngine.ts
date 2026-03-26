@@ -36,19 +36,6 @@ export type CrashSnapshot = {
 const PREP_TIME_MS = 5000;
 const BETWEEN_ROUNDS_MS = 1800;
 const HISTORY_SIZE = 20;
-const BOT_NAMES = [
-  'PasusRain',
-  'LuckyAce',
-  'MinesOnly',
-  'CrashPilot',
-  'HighRoller',
-  'BetStorm',
-  'RubyRush',
-  'BlueChip',
-  'TopSpin',
-  'GhostCash',
-];
-
 type InternalPlayerBet = {
   username: string;
   wager: number;
@@ -68,7 +55,6 @@ let countdownEndsAt = Date.now() + PREP_TIME_MS;
 let playerBet: InternalPlayerBet | null = null;
 let playerSecondaryBet: InternalPlayerBet | null = null;
 let playerOutcome: CrashOutcome | null = null;
-let botParticipants: CrashParticipant[] = [];
 const subscribers = new Set<(snapshot: CrashSnapshot) => void>();
 let tickInterval: number | null = null;
 let phaseTimeout: number | null = null;
@@ -83,23 +69,9 @@ function roundNumber(value: number) {
   return Number(value.toFixed(2));
 }
 
-function createBotParticipants() {
-  const names = [...BOT_NAMES].sort(() => Math.random() - 0.5).slice(0, 5 + Math.floor(Math.random() * 4));
-  return names.map((username, index) => {
-    const autoCashoutRoll = Math.random();
-    return {
-      id: `bot-${roundCounter}-${index}`,
-      username,
-      wager: Math.round(randomBetween(8, 250)),
-      status: 'pending' as const,
-      autoCashoutAt: autoCashoutRoll > 0.2 ? roundNumber(randomBetween(1.15, 4.8)) : undefined,
-    };
-  });
-}
-
 function toSnapshot(): CrashSnapshot {
   const countdown = phase === 'countdown' ? Math.max(0, roundNumber((countdownEndsAt - Date.now()) / 1000)) : 0;
-  const combinedParticipants = [...botParticipants];
+  const combinedParticipants: CrashParticipant[] = [];
 
   if (playerSecondaryBet) {
     combinedParticipants.unshift({
@@ -192,10 +164,6 @@ function startCountdown() {
   phase = 'countdown';
   multiplier = 1;
   countdownEndsAt = Date.now() + PREP_TIME_MS;
-  botParticipants = createBotParticipants();
-  botParticipants.forEach((participant) => {
-    participant.status = 'pending';
-  });
   if (playerBet?.status === 'pending') {
     playerBet = checkAutoCashout(playerBet);
   } else {
@@ -221,12 +189,6 @@ function finalizeCrash() {
   phase = 'crashed';
   multiplier = crashPoint;
   history = [roundNumber(crashPoint), ...history].slice(0, HISTORY_SIZE);
-
-  botParticipants = botParticipants.map((participant) =>
-    participant.status === 'active'
-      ? { ...participant, status: 'crashed' as const }
-      : participant
-  );
 
   if (playerBet?.status === 'active') {
     playerBet = { ...playerBet, status: 'crashed' };
@@ -262,7 +224,6 @@ function startRound() {
   crashPoint = Math.max(1.01, Math.floor(100 / (1 - r)) / 100) * (1 - houseEdge);
   playerOutcome = null;
 
-  botParticipants = botParticipants.map((participant) => ({ ...participant, status: 'active' }));
   if (playerBet?.status === 'pending') {
     playerBet = { ...playerBet, status: 'active' };
   }
@@ -277,20 +238,6 @@ function startRound() {
 
     let playerCashedOut = false;
     let secondaryCashedOut = false;
-
-    botParticipants = botParticipants.map((participant) => {
-      if (participant.status !== 'active' || !participant.autoCashoutAt) {
-        return participant;
-      }
-      if (nextMultiplier >= participant.autoCashoutAt) {
-        return {
-          ...participant,
-          status: 'cashed_out' as const,
-          payout: Math.round(participant.wager * participant.autoCashoutAt),
-        };
-      }
-      return participant;
-    });
 
     if (playerBet) {
       playerBet = checkAutoCashout(playerBet);

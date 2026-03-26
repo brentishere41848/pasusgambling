@@ -5714,18 +5714,40 @@ const AdminView = () => {
                 const token = localStorage.getItem('pasus_auth_token');
                 if (!token) return;
                 try {
+                  const nextAmount = Number(currentRainAmount || 0);
+                  const nextTimerMinutes = parseInt(currentRainTimerMinutes, 10) || 60;
+                  if (nextAmount <= 0) {
+                    throw new Error('Current rain amount must be greater than $0.00.');
+                  }
+                  if (nextTimerMinutes < 1) {
+                    throw new Error('Current rain timer must be at least 1 minute.');
+                  }
+
                   const response = await apiFetch('/api/admin/rain/current', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                     body: JSON.stringify({
-                      poolAmount: Number(currentRainAmount || 0),
-                      timerMinutes: parseInt(currentRainTimerMinutes, 10) || 60,
+                      poolAmount: nextAmount,
+                      timerMinutes: nextTimerMinutes,
                     }),
                   });
                   const data = await response.json().catch(() => ({}));
                   if (!response.ok) throw new Error(data.error || 'Failed to update current rain.');
+                  if (data.currentRain) {
+                    setCurrentRain({
+                      id: Number(data.currentRain.id),
+                      poolAmount: Number(data.currentRain.poolAmount || 0),
+                      startsAt: String(data.currentRain.startsAt || ''),
+                      joinOpensAt: String(data.currentRain.joinOpensAt || ''),
+                      endsAt: String(data.currentRain.endsAt || ''),
+                      participantCount: currentRain?.participantCount || 0,
+                    });
+                    setCurrentRainAmount((Number(data.currentRain.poolAmount || 0) / 100).toFixed(2));
+                    const remainingMinutes = Math.max(1, Math.ceil((new Date(data.currentRain.endsAt).getTime() - Date.now()) / 60000));
+                    setCurrentRainTimerMinutes(String(remainingMinutes));
+                  }
                   setStatus('Current rain updated.');
-                  loadRainBotSchedules();
+                  await loadRainBotSchedules();
                 } catch (err) {
                   setStatus(err instanceof Error ? err.message : 'Failed to update current rain.');
                 }

@@ -335,7 +335,7 @@ export const CrashGame: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-mono text-white">${participant.wager.toFixed(2)}</div>
+                    <div className="text-sm font-mono text-white">{formatCents(participant.wager)}</div>
                   <div className="text-[10px] text-white/40">
                     {participant.autoCashoutAt ? `Auto @ ${participant.autoCashoutAt.toFixed(2)}x` : 'Manual'}
                   </div>
