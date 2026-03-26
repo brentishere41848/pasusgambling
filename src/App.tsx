@@ -8048,6 +8048,79 @@ const LegalPage = ({
   </div>
 );
 
+const OnboardingTourModal = ({
+  isOpen,
+  onClose,
+  onOpenWallet,
+  onOpenVip,
+  onOpenAffiliate,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onOpenWallet: () => void;
+  onOpenVip: () => void;
+  onOpenAffiliate: () => void;
+}) => {
+  if (!isOpen) return null;
+
+  const steps = [
+    { icon: Wallet, title: 'Fund your wallet', body: 'Use deposits, promos, reloads, and bonus offers to get started fast.', action: 'Open Wallet', onClick: onOpenWallet },
+    { icon: Star, title: 'Climb VIP', body: 'Track tier progress, claim rakeback, and unlock level rewards as you wager.', action: 'Open VIP', onClick: onOpenVip },
+    { icon: Users, title: 'Invite friends', body: 'Share your referral link and grow affiliate earnings from invited players.', action: 'Open Affiliate', onClick: onOpenAffiliate },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-3xl rounded-[36px] border border-white/10 bg-[linear-gradient(145deg,#182028_0%,#11161d_100%)] p-6 md:p-8 space-y-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Welcome To Pasus</div>
+            <h2 className="mt-2 text-3xl md:text-4xl font-black italic uppercase tracking-tight">Quick Start Tour</h2>
+            <p className="mt-3 max-w-2xl text-sm text-white/55">Here are the fastest places to get value from your account right away.</p>
+          </div>
+          <button onClick={onClose} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-white/45 hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {steps.map((step) => {
+            const Icon = step.icon;
+            return (
+              <div key={step.title} className="rounded-[28px] border border-white/10 bg-black/25 p-5 space-y-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#00FF88]/10 text-[#00FF88]">
+                  <Icon size={22} />
+                </div>
+                <div>
+                  <div className="text-lg font-black uppercase tracking-tight">{step.title}</div>
+                  <div className="mt-2 text-sm text-white/50 leading-relaxed">{step.body}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    step.onClick();
+                    onClose();
+                  }}
+                  className="rounded-2xl bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white/70 hover:bg-white/10 hover:text-white"
+                >
+                  {step.action}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+          <div className="text-sm text-white/45">You can reopen these sections anytime from the sidebar or header.</div>
+          <button onClick={onClose} className="rounded-2xl bg-[#00FF88] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-black">
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AppContent = () => {
   consumeRedirectedPath();
   const initialRoute = resolveRoute(window.location.pathname);
@@ -8078,6 +8151,25 @@ const AppContent = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPFOpen, setIsPFOpen] = useState(false);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) {
+      setIsOnboardingOpen(false);
+      return;
+    }
+    const key = `pasus_onboarding_seen_${user.id}`;
+    if (localStorage.getItem(key) !== 'true') {
+      setIsOnboardingOpen(true);
+    }
+  }, [isAuthenticated, user?.id]);
+
+  const closeOnboarding = useCallback(() => {
+    if (user?.id) {
+      localStorage.setItem(`pasus_onboarding_seen_${user.id}`, 'true');
+    }
+    setIsOnboardingOpen(false);
+  }, [user?.id]);
 
   useEffect(() => {
     if (window.bootFeaturebase) {
@@ -8522,6 +8614,13 @@ const AppContent = () => {
             <ProfilePage username={profileUsername} onClose={() => setProfileUsername(null)} />
           </Suspense>
         )}
+        <OnboardingTourModal
+          isOpen={isOnboardingOpen}
+          onClose={closeOnboarding}
+          onOpenWallet={() => setIsWalletOpen(true)}
+          onOpenVip={() => openView('vip')}
+          onOpenAffiliate={() => openView('affiliate')}
+        />
       </AnimatePresence>
 
       {/* Global Background Texture */}
