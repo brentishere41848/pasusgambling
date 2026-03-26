@@ -2510,44 +2510,53 @@ async function processRainBotSchedules() {
   }
 }
 
+async function resolveAuthFromRequest(req: AuthedRequest) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+  if (!token) {
+    return null;
+  }
+
+  const payload = jwt.verify(token, jwtSecret) as { id: number };
+  const tokenHash = hashToken(token);
+
+  const result = await pool.query(
+    `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.custom_avatar_url, u.avatar_source, u.role,
+            u.roblox_user_id, u.roblox_username, u.roblox_display_name, u.roblox_avatar_url, u.roblox_verified_at,
+            u.discord_user_id, u.discord_username, u.discord_display_name, u.discord_avatar_url, u.discord_verified_at,
+            u.totp_enabled
+     FROM user_sessions s
+     JOIN users u ON u.id = s.user_id
+     WHERE s.user_id = $1
+       AND s.token_hash = $2
+       AND (s.expires_at IS NULL OR s.expires_at > NOW())
+     LIMIT 1`,
+    [payload.id, tokenHash]
+  );
+
+  if (!result.rowCount) {
+    return null;
+  }
+
+  await touchSessionActivity(pool, payload.id, tokenHash);
+
+  return {
+    token,
+    tokenHash,
+    user: sanitizeUser(result.rows[0]),
+  };
+}
+
 async function requireAuth(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const auth = await resolveAuthFromRequest(req);
 
-    if (!token) {
+    if (!auth) {
       return res.status(401).json({ error: 'Unauthorized.' });
     }
 
-    const payload = jwt.verify(token, jwtSecret) as { id: number };
-    const tokenHash = hashToken(token);
-
-    const result = await pool.query(
-      `SELECT u.id, u.username, u.email, u.currency, u.avatar, u.custom_avatar_url, u.avatar_source, u.role,
-              u.roblox_user_id, u.roblox_username, u.roblox_display_name, u.roblox_avatar_url, u.roblox_verified_at,
-              u.discord_user_id, u.discord_username, u.discord_display_name, u.discord_avatar_url, u.discord_verified_at,
-              u.totp_enabled
-       FROM user_sessions s
-       JOIN users u ON u.id = s.user_id
-       WHERE s.user_id = $1
-         AND s.token_hash = $2
-         AND (s.expires_at IS NULL OR s.expires_at > NOW())
-       LIMIT 1`,
-      [payload.id, tokenHash]
-    );
-
-    if (!result.rowCount) {
-      return res.status(401).json({ error: 'Unauthorized.' });
-    }
-
-    await touchSessionActivity(pool, payload.id, tokenHash);
-
-    req.auth = {
-      token,
-      tokenHash,
-      user: sanitizeUser(result.rows[0]),
-    };
-
+    req.auth = auth;
     return next();
   } catch {
     return res.status(401).json({ error: 'Unauthorized.' });
@@ -3185,11 +3194,55 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
     const outcome = String(req.body.outcome || '').trim().toLowerCase();
     const detail = String(req.body.detail || '').trim();
 
-    if (!gameKey || !wager || !outcome) {
-      return res.status(400).json({ error: 'Missing bet activity fields.' });
+    const allowedGames = new Set(['baccarat', 'blackjack', 'coinflip', 'crash', 'dice', 'hilo', 'jackpot', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'scratch', 'slots', 'wheel']);
+    const allowedOutcomes = new Set(['win', 'loss', 'push', 'cashout']);
+
+    if (!allowedGames.has(gameKey) || wager <= 0 || !allowedOutcomes.has(outcome)) {
+      return res.status(400).json({ error: 'Missing or invalid bet activity fields.' });
+    }
+
+    if (!Number.isFinite(multiplier) || multiplier < 0 || multiplier > 100000) {
+      return res.status(400).json({ error: 'Invalid multiplier.' });
+    }
+
+    if (detail.length > 280) {
+      return res.status(400).json({ error: 'Bet detail is too long.' });
+    }
+
+    const expectedPayout = Math.round(wager * multiplier);
+    const payoutDelta = Math.abs(expectedPayout - payout);
+    if (payoutDelta > 1) {
+      return res.status(400).json({ error: 'Payout does not match wager and multiplier.' });
+    }
+
+    if ((outcome === 'loss' && payout !== 0) || ((outcome === 'win' || outcome === 'cashout') && payout <= 0)) {
+      return res.status(400).json({ error: 'Outcome and payout are inconsistent.' });
     }
 
     await client.query('BEGIN');
+    await ensureWallet(client, req.auth!.user.id);
+
+    const walletResult = await client.query(
+      `SELECT balance
+       FROM wallets
+       WHERE user_id = $1
+       FOR UPDATE`,
+      [req.auth!.user.id]
+    );
+
+    if (!walletResult.rowCount || Number(walletResult.rows[0].balance || 0) < wager) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Insufficient balance for wager.' });
+    }
+
+    await client.query(
+      `UPDATE wallets
+       SET balance = balance - $1,
+           total_wagered = total_wagered + $1,
+           updated_at = NOW()
+       WHERE user_id = $2`,
+      [wager, req.auth!.user.id]
+    );
 
     const currentPfSeed = await ensureCurrentPfSeed(client, req.auth!.user.id);
     const pfClientSeed = String(currentPfSeed.client_seed || '');
@@ -3217,31 +3270,34 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
       [currentPfSeed.id, pfNonce + 1]
     );
 
-    await client.query(
-      `UPDATE wallets SET total_wagered = total_wagered + $1, updated_at = NOW() WHERE user_id = $2`,
-      [wager, req.auth!.user.id]
-    );
+    if (payout > 0) {
+      await client.query(
+        `UPDATE wallets
+         SET balance = balance + $1,
+             updated_at = NOW()
+         WHERE user_id = $2`,
+        [payout, req.auth!.user.id]
+      );
+    }
 
-    const rainUpdate = await addRainContributionFromWager(client, wager, payout, outcome);
-    if (outcome === 'win' && payout > 0) {
+    const rainUpdate = await addRainContributionFromWager(client, wager, payout, outcome === 'cashout' ? 'win' : outcome);
+    if ((outcome === 'win' || outcome === 'cashout') && payout > wager) {
       await applyAffiliateCommission(client, req.auth!.user.id, 'win', `bet:${inserted.rows[0]?.id || Date.now()}`, payout);
-      if (payout > wager) {
-        await createUserNotification(
-          client,
-          req.auth!.user.id,
-          'win',
-          `You won on ${gameKey}`,
-          `Profit: $${formatCoinsLabel(payout - wager)} at ${multiplier > 0 ? `${multiplier.toFixed(2)}x` : 'win'}.`,
-          {
-            betId: Number(inserted.rows[0]?.id || 0),
-            gameKey,
-            wager,
-            payout,
-            profit: payout - wager,
-            multiplier: multiplier || 0,
-          }
-        );
-      }
+      await createUserNotification(
+        client,
+        req.auth!.user.id,
+        'win',
+        `You won on ${gameKey}`,
+        `Profit: $${formatCoinsLabel(payout - wager)} at ${multiplier > 0 ? `${multiplier.toFixed(2)}x` : 'win'}.`,
+        {
+          betId: Number(inserted.rows[0]?.id || 0),
+          gameKey,
+          wager,
+          payout,
+          profit: payout - wager,
+          multiplier: multiplier || 0,
+        }
+      );
     }
     await client.query('COMMIT');
 
@@ -3250,6 +3306,7 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
       betId: Number(inserted.rows[0]?.id || 0),
       rainContribution: rainUpdate?.contribution || 0,
       rainPoolAmount: Number(rainUpdate?.round?.pool_amount || 0),
+      wallet: await getWallet(pool, req.auth!.user.id),
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -3750,7 +3807,7 @@ app.post('/api/vip/level-reward/claim', requireAuth, async (req: AuthedRequest, 
     
     // Add reward to wallet
     await client.query(
-      `UPDATE wallets SET balance = balance + $1::numeric, total_deposited = total_deposited + $1::numeric, updated_at = NOW() WHERE user_id = $2`,
+      `UPDATE wallets SET balance = balance + $1::numeric, updated_at = NOW() WHERE user_id = $2`,
       [reward, req.auth!.user.id]
     );
     
@@ -4831,7 +4888,7 @@ app.post('/api/auth/logout', requireAuth, async (req: AuthedRequest, res) => {
 app.get('/api/sessions', requireAuth, async (req: AuthedRequest, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, ip_address, user_agent, created_at, last_active_at, expires_at
+      `SELECT id, token_hash, ip_address, user_agent, created_at, last_active_at, expires_at
        FROM user_sessions
        WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())
        ORDER BY last_active_at DESC`,
@@ -4841,7 +4898,6 @@ app.get('/api/sessions', requireAuth, async (req: AuthedRequest, res) => {
     const sessions = result.rows.map((row) => ({
       id: Number(row.id),
       ipAddress: maskIp(row.ip_address || 'Unknown'),
-      ipAddressRaw: row.ip_address,
       deviceType: getDeviceType(row.user_agent || ''),
       userAgent: row.user_agent,
       createdAt: row.created_at,
@@ -4850,7 +4906,7 @@ app.get('/api/sessions', requireAuth, async (req: AuthedRequest, res) => {
       isCurrent: row.token_hash === req.auth!.tokenHash,
     }));
 
-    const currentSessionId = result.rows.find(r => r.token_hash === req.auth!.tokenHash)?.id;
+    const currentSessionId = result.rows.find(r => r.token_hash === req.auth!.tokenHash)?.id || null;
 
     return res.json({ sessions, currentSessionId });
   } catch (error) {
@@ -4913,93 +4969,12 @@ app.get('/api/wallet/me', requireAuth, async (req: AuthedRequest, res) => {
   }
 });
 
-app.post('/api/wallet/deposit', requireAuth, async (req: AuthedRequest, res) => {
-  try {
-    const amount = normalizeCoins(req.body.amount);
-
-    if (amount <= 0) {
-      return res.status(400).json({ error: 'Invalid amount.' });
-    }
-
-    const result = await pool.query(
-      `UPDATE wallets
-       SET balance = balance + $1,
-           total_deposited = total_deposited + $1,
-           updated_at = NOW()
-       WHERE user_id = $2
-       RETURNING balance, total_deposited, total_withdrawn`,
-      [amount, req.auth!.user.id]
-    );
-
-    return res.json({ wallet: sanitizeWallet(result.rows[0]) });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Failed to update wallet.' });
-  }
+app.post('/api/wallet/deposit', requireAuth, (_req: AuthedRequest, res) => {
+  return res.status(403).json({ error: 'Direct wallet credits are disabled. Use the payments deposit flow instead.' });
 });
 
-app.post('/api/wallet/adjust', requireAuth, async (req: AuthedRequest, res) => {
-  try {
-    const delta = normalizeCoins(req.body.delta);
-
-    if (delta === 0) {
-      return res.status(400).json({ error: 'Invalid adjustment.' });
-    }
-
-    const MAX_BALANCE = 99999999999999;
-
-    await ensureWallet(pool, req.auth!.user.id);
-
-    const current = await pool.query(
-      `SELECT balance FROM wallets WHERE user_id = $1`,
-      [req.auth!.user.id]
-    );
-    if (!current.rowCount) {
-      return res.status(400).json({ error: 'Wallet not found.' });
-    }
-
-    const currentBalance = Number(current.rows[0].balance);
-    if (delta > 0 && currentBalance + delta > MAX_BALANCE) {
-      return res.status(400).json({ error: `Balance cannot exceed ${MAX_BALANCE.toLocaleString()}.` });
-    }
-
-    let result;
-    if (delta > 0) {
-      result = await pool.query(
-        `UPDATE wallets
-         SET balance = balance + $1::numeric,
-             updated_at = NOW()
-         WHERE user_id = $2
-         RETURNING balance::text AS balance,
-                   total_deposited::text AS total_deposited,
-                   total_withdrawn::text AS total_withdrawn`,
-        [delta, req.auth!.user.id]
-      );
-    } else {
-      result = await pool.query(
-        `UPDATE wallets
-         SET balance = balance + $1::numeric,
-             total_withdrawn = total_withdrawn + (-$1::numeric),
-             updated_at = NOW()
-         WHERE user_id = $2
-           AND balance >= (-$1::numeric)
-         RETURNING balance::text AS balance,
-                   total_deposited::text AS total_deposited,
-                   total_withdrawn::text AS total_withdrawn`,
-        [delta, req.auth!.user.id]
-      );
-    }
-
-    if (!result.rowCount) {
-      return res.status(400).json({ error: delta < 0 ? 'Insufficient balance.' : 'Wallet not found.' });
-    }
-
-    return res.json({ wallet: sanitizeWallet(result.rows[0]) });
-  } catch (error) {
-    const err = error as Error;
-    console.error('Wallet adjust error:', err.message, err.stack);
-    return res.status(500).json({ error: 'Failed to update wallet.', details: err.message });
-  }
+app.post('/api/wallet/adjust', requireAuth, (_req: AuthedRequest, res) => {
+  return res.status(403).json({ error: 'Direct wallet adjustments are disabled.' });
 });
 
 app.post('/api/promo/claim', requireAuth, async (req: AuthedRequest, res) => {
@@ -7263,8 +7238,8 @@ app.get('/api/jackpot/current', async (req, res) => {
 app.post('/api/jackpot/join', requireAuth, async (req: AuthedRequest, res) => {
   const client = await pool.connect();
   try {
-const amount = Math.max(1, Number(req.body.amount) || 0);
-    if (amount < 1) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Minimum bet is $0.01' }); }
+    const amount = normalizeCoins(req.body.amount);
+    if (amount < 100) { return res.status(400).json({ error: 'Minimum jackpot entry is $1.00.' }); }
     await client.query('BEGIN');
     const balanceResult = await client.query(`SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE`, [req.auth!.user.id]);
     if (Number(balanceResult.rows[0]?.balance || 0) < amount) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Insufficient balance' }); }
@@ -7275,14 +7250,15 @@ const amount = Math.max(1, Number(req.body.amount) || 0);
     }
     const round = roundResult.rows[0];
     if (new Date(round.ends_at).getTime() <= Date.now()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Round has ended' }); }
-    const existing = await client.query(`SELECT id, tickets FROM jackpot_participants WHERE round_id = $1 AND user_id = $2`, [round.id, req.auth!.user.id]);
+    const existing = await client.query(`SELECT id, amount FROM jackpot_participants WHERE round_id = $1 AND user_id = $2`, [round.id, req.auth!.user.id]);
     if (existing.rowCount) {
-      await client.query(`UPDATE wallets SET balance = balance - $1 WHERE user_id = $2`, [amount, req.auth!.user.id]);
-      const newTickets = Math.floor((Number(existing.rows[0].tickets) + amount) / 100);
-      await client.query(`UPDATE jackpot_participants SET amount = amount + $1, tickets = $2 WHERE round_id = $3 AND user_id = $4`, [amount, newTickets, round.id, req.auth!.user.id]);
+      await client.query(`UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE user_id = $2`, [amount, req.auth!.user.id]);
+      const totalAmount = Number(existing.rows[0].amount || 0) + amount;
+      const newTickets = Math.floor(totalAmount / 100);
+      await client.query(`UPDATE jackpot_participants SET amount = $1, tickets = $2 WHERE round_id = $3 AND user_id = $4`, [totalAmount, newTickets, round.id, req.auth!.user.id]);
       await client.query(`UPDATE jackpot_rounds SET total_pool = total_pool + $1 WHERE id = $2`, [amount, round.id]);
     } else {
-      await client.query(`UPDATE wallets SET balance = balance - $1 WHERE user_id = $2`, [amount, req.auth!.user.id]);
+      await client.query(`UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE user_id = $2`, [amount, req.auth!.user.id]);
       const tickets = Math.floor(amount / 100);
       await client.query(`INSERT INTO jackpot_participants (round_id, user_id, amount, tickets) VALUES ($1,$2,$3,$4)`, [round.id, req.auth!.user.id, amount, tickets]);
       await client.query(`UPDATE jackpot_rounds SET total_pool = total_pool + $1 WHERE id = $2`, [amount, round.id]);
@@ -7599,7 +7575,7 @@ app.post('/api/friends/tip', requireAuth, async (req: AuthedRequest, res) => {
     
     // Add to recipient
     await client.query(`
-      UPDATE wallets SET balance = balance + $1::numeric, total_deposited = total_deposited + $1::numeric, updated_at = NOW() WHERE user_id = $2
+      UPDATE wallets SET balance = balance + $1::numeric, updated_at = NOW() WHERE user_id = $2
     `, [amountCoins, friendId]);
     
     // Create tip notification
@@ -7710,8 +7686,16 @@ app.post('/api/friends/chat', requireAuth, async (req: AuthedRequest, res) => {
 });
 
 // ==================== TOURNAMENTS API ====================
-app.get('/api/tournaments', async (req, res) => {
+app.get('/api/tournaments', async (req: AuthedRequest, res) => {
   try {
+    try {
+      const auth = await resolveAuthFromRequest(req);
+      if (auth) {
+        req.auth = auth;
+      }
+    } catch {
+      req.auth = undefined;
+    }
     // Check if tournaments table exists
     const tableCheck = await pool.query(`
       SELECT EXISTS (
@@ -7861,44 +7845,8 @@ app.post('/api/admin/tournaments/:id/start', requireAuth, requireOwner, async (r
   }
 });
 
-app.post('/api/tournaments/:id/record-wager', requireAuth, async (req: AuthedRequest, res) => {
-  try {
-    const tournamentId = parseInt(req.params.id);
-    const userId = req.auth!.user.id;
-    const { amount } = req.body;
-    
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valid amount required' });
-    }
-    
-    // Check tournament is active
-    const tourney = await pool.query(`
-      SELECT id, status, start_time, end_time FROM tournaments WHERE id = $1
-    `, [tournamentId]);
-    
-    if (!tourney.rowCount) {
-      return res.status(404).json({ error: 'Tournament not found' });
-    }
-    
-    const t = tourney.rows[0];
-    const now = new Date();
-    if (t.status !== 'active' || now < new Date(t.start_time) || now > new Date(t.end_time)) {
-      return res.status(400).json({ error: 'Tournament not active' });
-    }
-    
-    // Upsert participant wager
-    await pool.query(`
-      INSERT INTO tournament_participants (tournament_id, user_id, total_wagered)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (tournament_id, user_id) 
-      DO UPDATE SET total_wagered = tournament_participants.total_wagered + $3, updated_at = NOW()
-    `, [tournamentId, userId, amount]);
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Record tournament wager error:', error);
-    res.status(500).json({ error: 'Failed to record wager' });
-  }
+app.post('/api/tournaments/:id/record-wager', requireAuth, (_req: AuthedRequest, res) => {
+  return res.status(403).json({ error: 'Client-side tournament wager recording is disabled.' });
 });
 
 // Process tournament status changes

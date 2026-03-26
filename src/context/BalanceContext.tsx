@@ -109,32 +109,14 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const addBalance = (amount: number, isDeposit: boolean = false) => {
     const normalizedAmount = Math.max(0, normalizeAmount(Number(amount || 0)));
+    if (normalizedAmount <= 0) {
+      return;
+    }
+
     updateBalance(balanceRef.current + normalizedAmount);
     if (isDeposit) {
       updateTotalDeposited(totalDepositedRef.current + normalizedAmount);
     }
-
-    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (!token) {
-      return;
-    }
-
-    const url = isDeposit ? '/api/wallet/deposit' : '/api/wallet/adjust';
-    const body = isDeposit ? { amount: normalizedAmount } : { delta: normalizedAmount };
-
-    apiFetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    })
-      .then(parseApiResponse)
-      .then(() => undefined)
-      .catch(() => {
-        syncWallet().catch(() => undefined);
-      });
   };
 
   const subtractBalance = (amount: number) => {
@@ -145,26 +127,6 @@ export const BalanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     updateBalance(balanceRef.current - normalizedAmount);
-
-    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (!token) {
-      return false;
-    }
-
-    apiFetch('/api/wallet/adjust', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ delta: -normalizedAmount }),
-    })
-      .then(parseApiResponse)
-      .then(() => undefined)
-      .catch(() => {
-        syncWallet().catch(() => undefined);
-      });
-
     return true;
   };
 

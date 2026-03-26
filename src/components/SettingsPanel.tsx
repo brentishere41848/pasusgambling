@@ -15,7 +15,14 @@ export const SettingsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    apiFetch('/api/settings').then(r => r.json()).then(data => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
+    apiFetch('/api/settings', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.json()).then(data => {
       if (data.theme) setTheme(data.theme);
       setSoundEnabled(data.soundEnabled ?? true);
       setNotificationsEnabled(data.notificationsEnabled ?? true);
@@ -26,11 +33,16 @@ export const SettingsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   }, []);
 
   const save = async () => {
+    const token = localStorage.getItem('pasus_auth_token');
+    if (!token) {
+      return;
+    }
+
     setSaving(true);
     try {
       await apiFetch('/api/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           theme,
           soundEnabled,
