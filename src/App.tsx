@@ -138,7 +138,7 @@ const NEWS_BANNER = {
   image: '/assets/hero.png',
 };
 
-const CLIENT_SIDE_UNAVAILABLE_GAMES = new Set(['coinflip', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'slots', 'wheel']);
+const CLIENT_SIDE_UNAVAILABLE_GAMES = new Set(['baccarat', 'blackjack', 'coinflip', 'crash', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'scratch', 'slots', 'wheel']);
 
 const GAMES = [
   {

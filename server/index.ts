@@ -3194,8 +3194,8 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
     const outcome = String(req.body.outcome || '').trim().toLowerCase();
     const detail = String(req.body.detail || '').trim();
 
-    const allowedGames = new Set(['baccarat', 'blackjack', 'crash', 'jackpot', 'scratch']);
-    const blockedClientGames = new Set(['coinflip', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'slots', 'wheel']);
+    const allowedGames = new Set(['jackpot']);
+    const blockedClientGames = new Set(['baccarat', 'blackjack', 'coinflip', 'crash', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'scratch', 'slots', 'wheel']);
     const allowedOutcomes = new Set(['win', 'loss', 'push', 'cashout']);
 
     if (blockedClientGames.has(gameKey)) {
