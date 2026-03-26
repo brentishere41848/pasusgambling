@@ -106,28 +106,10 @@ function CurrencyIcon({ className = '', size = 18 }: { className?: string; size?
 
 const HOME_GAMES = [
   {
-    id: 'crash',
-    name: 'Crash',
-    description: 'Predict the multiplier and cash out before it crashes.',
-    image: '/assets/crash2.png',
-  },
-  {
-    id: 'blackjack',
-    name: 'Blackjack',
-    description: 'Classic card game. Get closer to 21 than the dealer.',
-    image: '/assets/blackjack.png',
-  },
-  {
-    id: 'mines',
-    name: 'Mines',
-    description: 'Find the gems and avoid the hidden bombs.',
-    image: '/assets/mines2.png',
-  },
-  {
-    id: 'coinflip',
-    name: 'Dice',
-    description: 'Call heads or tails and double up on the flip.',
-    image: '/assets/dice2.png',
+    id: 'jackpot',
+    name: 'Jackpot',
+    description: 'Server-settled jackpot rounds with live pool tracking.',
+    image: '/assets/casino.png',
   },
 ];
 
@@ -626,8 +608,8 @@ const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Games</div>
-                <div className="mt-3 text-3xl font-black text-[#00FF88]">8</div>
-                <div className="mt-2 text-xs text-white/45">Crash, blackjack, mines, HiLo, baccarat, wheel, and more.</div>
+                <div className="mt-3 text-3xl font-black text-[#00FF88]">1</div>
+                <div className="mt-2 text-xs text-white/45">Jackpot is currently live. Other games are temporarily offline pending rebuilds.</div>
               </div>
               <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Mode</div>
@@ -2935,7 +2917,7 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
           transition={{ duration: 0.5, delay: 0.6 }}
           className="flex items-center justify-between mb-4"
         >
-          <h2 className="text-lg font-black uppercase tracking-tight text-white/90">Popular Games</h2>
+          <h2 className="text-lg font-black uppercase tracking-tight text-white/90">Live Games</h2>
           <span className="text-xs text-white/30 tracking-widest">Swipe to explore</span>
         </motion.div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -3021,7 +3003,7 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
               </h2>
               
               <p className="text-white/70 text-lg mb-8 leading-relaxed">
-                Welcome to Pasus - the ultimate gambling platform. We're excited to bring you an unparalleled gaming experience with fair play, instant payouts, and incredible rewards.
+                Welcome to Pasus. Jackpot is currently live, while the rest of the game catalog is temporarily offline until server-authoritative rebuilds are complete.
               </p>
 
               {/* Stats */}
@@ -3048,27 +3030,30 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
 
               {/* Games */}
               <h3 className="text-xl font-black text-white mb-4 uppercase tracking-tight">
-                Our Games
+                Current Availability
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
                 {[
-                  { name: 'Crash', desc: 'Multipliers up to 1000x' },
-                  { name: 'Blackjack', desc: 'Classic 21 action' },
-                  { name: 'Mines', desc: 'Find gems, avoid bombs' },
-                  { name: 'Dice', desc: 'Predict the roll' },
-                  { name: 'Hilo', desc: 'Higher or lower?' },
-                  { name: 'Plinko', desc: 'Drop & win big' },
+                  { name: 'Jackpot', desc: 'Live now with server-side round settlement', live: true, gameId: 'jackpot' },
+                  { name: 'Originals & table games', desc: 'Temporarily offline until server-authoritative rebuilds are complete', live: false, gameId: null },
                 ].map((game) => (
                   <button
                     key={game.name}
                     onClick={() => {
-                      const gameId = game.name.toLowerCase().replace(' ', '');
-                      onSelectGame(gameId === 'dice' ? 'coinflip' : gameId);
-                      setShowNewsModal(false);
+                      if (game.gameId) {
+                        onSelectGame(game.gameId);
+                        setShowNewsModal(false);
+                      }
                     }}
-                    className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-4 text-left transition-all group"
+                    disabled={!game.gameId}
+                    className="bg-white/5 hover:bg-white/10 disabled:hover:bg-white/5 border border-white/10 rounded-xl p-4 text-left transition-all group disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <div className="text-white font-bold mb-1 group-hover:text-[#00FF88] transition-colors">{game.name}</div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-white font-bold group-hover:text-[#00FF88] transition-colors">{game.name}</div>
+                      <span className={cn('text-[10px] font-black uppercase px-2 py-0.5 rounded', game.live ? 'bg-[#00FF88]/20 text-[#00FF88]' : 'bg-red-500/20 text-red-300')}>
+                        {game.live ? 'Live' : 'Offline'}
+                      </span>
+                    </div>
                     <div className="text-white/40 text-xs">{game.desc}</div>
                   </button>
                 ))}
@@ -3080,8 +3065,8 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
               </h3>
               <div className="space-y-3 mb-6">
                 {[
-                  { icon: Shield, title: 'Provably Fair', desc: 'Every game is verifiable fair using cryptography' },
-                  { icon: Zap, title: 'Instant Payouts', desc: 'Withdraw your winnings instantly with no delays' },
+                  { icon: Shield, title: 'Fairness Controls', desc: 'Fairness and integrity features are being rebuilt around server-side game settlement' },
+                  { icon: Zap, title: 'Payout Processing', desc: 'Deposits, withdrawals, and wallet flows remain available subject to platform review' },
                   { icon: Users, title: 'VIP Club', desc: 'Climb the ranks and unlock exclusive rewards' },
                   { icon: MessageCircle, title: '24/7 Support', desc: 'Our team is always here to help via Featurebase' },
                 ].map((feature) => (
