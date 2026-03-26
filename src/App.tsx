@@ -111,6 +111,30 @@ const HOME_GAMES = [
     description: 'Server-settled jackpot rounds with live pool tracking.',
     image: '/assets/hero.png',
   },
+  {
+    id: 'blackjack',
+    name: 'Blackjack',
+    description: 'Classic card game. Get closer to 21 than the dealer.',
+    image: '/assets/blackjack.png',
+  },
+  {
+    id: 'mines',
+    name: 'Mines',
+    description: 'Find the gems and avoid the hidden bombs.',
+    image: '/assets/mines2.png',
+  },
+  {
+    id: 'dice',
+    name: 'Dices',
+    description: 'Classic high or low dice game with custom odds.',
+    image: '/assets/dice2.png',
+  },
+  {
+    id: 'crash',
+    name: 'Crash',
+    description: 'Predict the multiplier and cash out before it crashes.',
+    image: '/assets/crash2.png',
+  },
 ];
 
 const NEWS_BANNER = {
@@ -120,7 +144,7 @@ const NEWS_BANNER = {
   image: '/assets/hero.png',
 };
 
-const CLIENT_SIDE_UNAVAILABLE_GAMES = new Set(['baccarat', 'blackjack', 'coinflip', 'crash', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'scratch', 'slots', 'wheel']);
+const CLIENT_SIDE_UNAVAILABLE_GAMES = new Set<string>();
 
 const GAMES = [
   {
@@ -608,8 +632,8 @@ const SiteAccessGate = ({ children }: { children: React.ReactNode }) => {
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Games</div>
-                <div className="mt-3 text-3xl font-black text-[#00FF88]">1</div>
-                <div className="mt-2 text-xs text-white/45">Jackpot is currently live. Other games are temporarily offline pending rebuilds.</div>
+                <div className="mt-3 text-3xl font-black text-[#00FF88]">5</div>
+                <div className="mt-2 text-xs text-white/45">Jackpot, Blackjack, Mines, Dices, and Crash are currently live.</div>
               </div>
               <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-white/25 font-black">Mode</div>
@@ -3003,7 +3027,7 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
               </h2>
               
               <p className="text-white/70 text-lg mb-8 leading-relaxed">
-                Welcome to Pasus. Jackpot is currently live, while the rest of the game catalog is temporarily offline until server-authoritative rebuilds are complete.
+                Welcome to Pasus. Jackpot, Blackjack, Mines, Dices, and Crash are currently live.
               </p>
 
               {/* Stats */}
@@ -3035,7 +3059,10 @@ const Dashboard = ({ onSelectGame, onOpenProfile }: { onSelectGame: (id: string)
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
                 {[
                   { name: 'Jackpot', desc: 'Live now with server-side round settlement', live: true, gameId: 'jackpot' },
-                  { name: 'Originals & table games', desc: 'Temporarily offline until server-authoritative rebuilds are complete', live: false, gameId: null },
+                  { name: 'Blackjack', desc: 'Classic 21 table game', live: true, gameId: 'blackjack' },
+                  { name: 'Mines', desc: 'Pick gems and avoid the bombs', live: true, gameId: 'mines' },
+                  { name: 'Dices', desc: 'High and low dice with custom odds', live: true, gameId: 'dice' },
+                  { name: 'Crash', desc: 'Cash out before the multiplier crashes', live: true, gameId: 'crash' },
                 ].map((game) => (
                   <button
                     key={game.name}
