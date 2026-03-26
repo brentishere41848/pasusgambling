@@ -109,7 +109,7 @@ const HOME_GAMES = [
     id: 'jackpot',
     name: 'Jackpot',
     description: 'Server-settled jackpot rounds with live pool tracking.',
-    image: '/assets/casino.png',
+    image: '/assets/hero.png',
   },
 ];
 
@@ -176,7 +176,7 @@ const GAMES = [
     bg: 'bg-orange-400/10',
     component: DiceGame,
     featured: false,
-    image: '/assets/dice.svg'
+    image: '/assets/dice2.png'
   },
   {
     id: 'limbo',
@@ -187,7 +187,7 @@ const GAMES = [
     bg: 'bg-orange-300/10',
     component: LimboGame,
     featured: true,
-    image: '/assets/limbo.svg'
+    image: '/assets/hero.png'
   },
   {
     id: 'keno',
@@ -198,7 +198,7 @@ const GAMES = [
     bg: 'bg-emerald-300/10',
     component: KenoGame,
     featured: true,
-    image: '/assets/keno.svg'
+    image: '/assets/mines_hero.png'
   },
   {
     id: 'hilo',
@@ -209,7 +209,7 @@ const GAMES = [
     bg: 'bg-red-400/10',
     component: HiloGame,
     featured: false,
-    image: '/assets/hilo.svg'
+    image: '/assets/hilo_hero.png'
   },
   {
     id: 'baccarat',
@@ -220,7 +220,7 @@ const GAMES = [
     bg: 'bg-cyan-300/10',
     component: BaccaratGame,
     featured: false,
-    image: '/assets/baccarat.svg'
+    image: '/assets/blackjack_hero.png'
   },
   {
     id: 'plinko',
@@ -231,7 +231,7 @@ const GAMES = [
     bg: 'bg-sky-300/10',
     component: PlinkoGame,
     featured: true,
-    image: '/assets/plinko.svg'
+    image: '/assets/hero.png'
   },
   {
     id: 'roulette',
@@ -242,7 +242,7 @@ const GAMES = [
     bg: 'bg-rose-300/10',
     component: RouletteGame,
     featured: true,
-    image: '/assets/roulette.svg'
+    image: '/assets/hero.png'
   },
   {
     id: 'wheel',
@@ -253,7 +253,7 @@ const GAMES = [
     bg: 'bg-purple-400/10',
     component: WheelGame,
     featured: false,
-    image: '/assets/wheel.svg'
+    image: '/assets/hero.png'
   },
 ];
 

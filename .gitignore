@@ -8,3 +8,7 @@ coverage/
 wasmer-static-deploy-*/
 wasmer-frontend-deploy-*/
 wasmer-static-template/
+.agents/
+skills-lock.json
+lint.out
+lint.err

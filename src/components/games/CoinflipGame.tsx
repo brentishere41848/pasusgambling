@@ -276,7 +276,7 @@ export const CoinflipGame: React.FC = () => {
             <div className="bg-yellow-500/20 border border-yellow-500/50 backdrop-blur-md px-8 py-4 rounded-2xl text-center">
               <div className="text-yellow-400 text-sm font-black uppercase tracking-wider mb-1">Current Win</div>
                <div className="text-3xl font-black text-white">{formatCents(pendingWin)}</div>
-              <div className="text-yellow-400 text-xs mt-1">Streak: {streak + 1}x → {currentMultiplier}x</div>
+              <div className="text-yellow-400 text-xs mt-1">Streak: {streak + 1}x {'->'} {currentMultiplier}x</div>
             </div>
           </motion.div>
         )}
@@ -318,12 +318,10 @@ export const CoinflipGame: React.FC = () => {
               className="absolute inset-0 rounded-full shadow-[0_30px_90px_rgba(0,0,0,0.5)]"
               style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
             >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <img
-                  src="/assets/heads.png"
-                  alt="Heads"
-                  className="h-full w-full object-contain drop-shadow-[0_0_28px_rgba(160,255,230,0.22)]"
-                />
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#fff6bf_0%,#f4d35e_30%,#b88718_65%,#6e4a0a_100%)] ring-1 ring-white/20">
+                <div className="flex h-52 w-52 items-center justify-center rounded-full border border-black/10 bg-black/10 text-4xl font-black uppercase tracking-[0.28em] text-[#241400] shadow-[inset_0_0_32px_rgba(255,255,255,0.18)]">
+                  Heads
+                </div>
               </div>
             </div>
 
@@ -335,12 +333,10 @@ export const CoinflipGame: React.FC = () => {
                 WebkitBackfaceVisibility: 'hidden',
               }}
             >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <img
-                  src="/assets/tails.png"
-                  alt="Tails"
-                  className="h-full w-full object-contain drop-shadow-[0_0_28px_rgba(160,255,230,0.22)]"
-                />
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#e7f2ff_0%,#9fc2ff_30%,#456bc7_65%,#1a275e_100%)] ring-1 ring-white/20">
+                <div className="flex h-52 w-52 items-center justify-center rounded-full border border-white/10 bg-black/10 text-4xl font-black uppercase tracking-[0.28em] text-white shadow-[inset_0_0_32px_rgba(255,255,255,0.12)]">
+                  Tails
+                </div>
               </div>
             </div>
           </motion.div>

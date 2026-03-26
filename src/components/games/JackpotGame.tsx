@@ -188,7 +188,7 @@ export const JackpotGame: React.FC = () => {
       <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 space-y-2">
         <div className="text-[10px] uppercase tracking-widest text-white/30 font-black">How it works</div>
         <div className="text-[11px] text-white/40 space-y-1">
-          <p>1. Enter any amount (min $1.00). Each $1.00 = 1 ticket.</p>
+          <p>1. Enter any amount (min $0.01). Each $1.00 = 1 ticket.</p>
           <p>2. More tickets = higher chance to win.</p>
           <p>3. When the timer runs out, a random winner is selected.</p>
           <p>4. The winner gets the entire pot instantly!</p>
