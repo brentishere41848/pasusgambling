@@ -670,92 +670,190 @@ const Sidebar = ({
   ];
 
   const sidebar = (
-    <div className="w-[240px] shrink-0 flex flex-col h-full bg-[#0a0f1a]/95 backdrop-blur-xl border-r border-white/5">
-      <div className="px-5 pt-6 pb-4">
-        <button onClick={onHome} className="flex items-center gap-3 group">
-          <div className="w-9 h-9 rounded-xl overflow-hidden shadow-lg shadow-[#00FF88]/20">
+    <div className="w-[260px] shrink-0 flex flex-col h-full bg-gradient-to-b from-[#0a0f1a] via-[#0d1220] to-[#080c14] backdrop-blur-xl border-r border-white/5 relative overflow-hidden">
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute top-0 left-0 w-32 h-32 bg-[#00FF88]/10 rounded-full blur-[60px]" />
+        <div className="absolute bottom-0 right-0 w-40 h-40 bg-blue-500/10 rounded-full blur-[80px]" />
+      </div>
+      
+      {/* Logo */}
+      <div className="relative px-5 pt-6 pb-5 border-b border-white/5">
+        <motion.button 
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onHome} 
+          className="flex items-center gap-3 group w-full"
+        >
+          <motion.div 
+            whileHover={{ rotate: 5, scale: 1.05 }}
+            className="w-10 h-10 rounded-2xl overflow-hidden shadow-lg shadow-[#00FF88]/30 ring-2 ring-white/10 group-hover:ring-[#00FF88]/50 transition-all"
+          >
             <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
+          </motion.div>
+          <div className="flex flex-col">
+            <span className="text-xl font-black uppercase italic tracking-tight text-white group-hover:text-[#00FF88] transition-colors">Pasus</span>
+            <span className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-medium">Casino</span>
           </div>
-          <span className="text-xl font-black uppercase italic tracking-tight text-white group-hover:text-[#00FF88] transition-colors">Pasus</span>
-        </button>
+        </motion.button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-0.5">
-        {navItems.map((item, i) => (
-          <motion.button
-            key={item.label}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: i * 0.05 }}
-            onClick={() => handleNav(() => onOpenView(item.view))}
-            className={cn(
-              'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all relative overflow-hidden group',
-              item.active ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'text-white/40 hover:text-white hover:bg-white/5'
-            )}
-          >
-            {item.active && (
-              <motion.div
-                layoutId="navIndicator"
-                className="absolute left-0 top-0 bottom-0 w-1 bg-[#00FF88] rounded-r-full"
-              />
-            )}
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-              <item.icon size={17} />
-            </motion.div>
-            <span>{item.label}</span>
-          </motion.button>
-        ))}
-
-        <button onClick={onOpenPF}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-white/40 hover:text-white hover:bg-white/5">
-          <ShieldCheck size={17} />
-          <span>Provably Fair</span>
-        </button>
-
-        {user?.role === 'owner' && (
-          <button onClick={() => handleNav(() => onOpenView('admin'))}
-            className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-              currentView === 'admin' ? 'bg-[#00FF88]/10 text-[#00FF88]' : 'text-white/40 hover:text-white hover:bg-white/5')}>
-            <Shield size={17} />
-            <span>Admin</span>
-          </button>
-        )}
-
-        <div className="pt-3 pb-1">
-          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
-            <div className="flex items-center gap-2"><UsersRound size={11} /> Social</div>
-          </div>
-          <div className="space-y-0.5 pl-2">
-            <button onClick={() => handleNav(() => onOpenView('friends'))}
-              className={cn('w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all',
-                currentView === 'friends' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white hover:bg-white/5')}>
-              <UserPlus size={13} />
-              <span>Friends</span>
-              <span className="ml-auto text-[7px] font-black uppercase text-[#00FF88] tracking-wider">Soon</span>
-            </button>
-          </div>
+      <nav className="relative flex-1 overflow-y-auto custom-scrollbar px-3 py-4 space-y-1">
+        {/* Main Navigation */}
+        <div className="space-y-1 mb-6">
+          {navItems.map((item, i) => (
+            <motion.button
+              key={item.label}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: i * 0.05 }}
+              whileHover={{ x: 4 }}
+              onClick={() => handleNav(() => onOpenView(item.view))}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all relative group overflow-hidden',
+                item.active 
+                  ? 'bg-gradient-to-r from-[#00FF88]/15 to-transparent text-[#00FF88]' 
+                  : 'text-white/50 hover:text-white hover:bg-white/5'
+              )}
+            >
+              {item.active && (
+                <motion.div
+                  layoutId="activeNav"
+                  className="absolute left-0 top-0 bottom-0 w-1 bg-[#00FF88] rounded-r-full"
+                />
+              )}
+              <motion.div 
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                className={cn(
+                  'p-1.5 rounded-lg',
+                  item.active ? 'bg-[#00FF88]/20' : 'bg-white/5 group-hover:bg-white/10'
+                )}
+              >
+                <item.icon size={18} className={item.active ? 'text-[#00FF88]' : 'text-white/40 group-hover:text-white'} />
+              </motion.div>
+              <span className={cn('font-medium', item.active && 'font-semibold')}>{item.label}</span>
+              {item.active && (
+                <motion.div 
+                  layoutId="navGlow"
+                  className="absolute right-2 w-1.5 h-1.5 rounded-full bg-[#00FF88] shadow-[0_0_8px_#00FF88]"
+                />
+              )}
+            </motion.button>
+          ))}
         </div>
 
-        <div className="pt-3 pb-1">
-          <button onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
-            className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors">
-            <div className="flex items-center gap-2"><LayoutGrid size={11} /> Originals</div>
-            <ChevronDown size={11} className={cn('transition-transform', isOriginalsExpanded && 'rotate-180')} />
-          </button>
+        {/* Quick Actions */}
+        <div className="space-y-1 mb-6">
+          <motion.button
+            whileHover={{ x: 4 }}
+            onClick={onOpenPF}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/50 hover:text-white hover:bg-white/5 transition-all group"
+          >
+            <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10">
+              <ShieldCheck size={18} className="text-white/40 group-hover:text-white" />
+            </div>
+            <span>Provably Fair</span>
+            <ChevronRight size={14} className="ml-auto text-white/20 group-hover:text-white/40" />
+          </motion.button>
+
+          {user?.role === 'owner' && (
+            <motion.button
+              whileHover={{ x: 4 }}
+              onClick={() => handleNav(() => onOpenView('admin'))}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all group',
+                currentView === 'admin' 
+                  ? 'bg-gradient-to-r from-purple-500/15 to-transparent text-purple-400' 
+                  : 'text-white/50 hover:text-white hover:bg-white/5'
+              )}
+            >
+              <div className={cn(
+                'p-1.5 rounded-lg',
+                currentView === 'admin' ? 'bg-purple-500/20' : 'bg-white/5 group-hover:bg-white/10'
+              )}>
+                <Shield size={18} className={currentView === 'admin' ? 'text-purple-400' : 'text-white/40 group-hover:text-white'} />
+              </div>
+              <span className={currentView === 'admin' ? 'font-semibold' : ''}>Admin Panel</span>
+            </motion.button>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 px-4 py-2">
+          <div className="h-px flex-1 bg-white/5" />
+          <span className="text-[9px] uppercase tracking-widest text-white/15 font-bold">Games</span>
+          <div className="h-px flex-1 bg-white/5" />
+        </div>
+
+        {/* Originals Section */}
+        <div className="pt-2 pb-1">
+          <motion.button 
+            whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
+            onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.15em] text-white/30 hover:text-white/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#00FF88]/20 to-[#00FF88]/5 flex items-center justify-center">
+                <LayoutGrid size={12} className="text-[#00FF88]" />
+              </div>
+              <span>Originals</span>
+            </div>
+            <motion.div
+              animate={{ rotate: isOriginalsExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown size={12} />
+            </motion.div>
+          </motion.button>
           <AnimatePresence>
             {isOriginalsExpanded && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <div className="space-y-0.5 pl-2">
-                  {GAMES.map((game) => {
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-0.5 pl-3 pr-2 mt-1">
+                  {GAMES.map((game, i) => {
                     const GameIcon = typeof game.icon === 'string' ? null : game.icon;
                     return (
-                      <button key={game.id} onClick={() => handleNav(() => onSelectGame(game.id))}
-                        className={cn('w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all',
-                          activeGame === game.id ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white hover:bg-white/5')}>
-                        {GameIcon && <GameIcon size={13} className={game.color} />}
+                      <motion.button
+                        key={game.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        whileHover={{ x: 6, backgroundColor: 'rgba(255,255,255,0.05)' }}
+                        onClick={() => handleNav(() => onSelectGame(game.id))}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all group relative',
+                          activeGame === game.id 
+                            ? 'bg-white/10 text-white' 
+                            : 'text-white/40 hover:text-white'
+                        )}
+                      >
+                        {activeGame === game.id && (
+                          <motion.div 
+                            layoutId="activeGame"
+                            className="absolute left-0 top-0 bottom-0 w-0.5 bg-[#00FF88] rounded-full"
+                          />
+                        )}
+                        {GameIcon && (
+                          <div className={cn('p-1 rounded-md bg-white/5', game.color.split(' ')[0])}>
+                            <GameIcon size={12} className={game.color} />
+                          </div>
+                        )}
                         <span className="truncate">{game.name}</span>
-                        {game.featured && <span className="ml-auto text-[7px] font-black uppercase text-[#00FF88] tracking-wider">Hot</span>}
-                      </button>
+                        {game.featured && (
+                          <motion.span 
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="ml-auto px-1.5 py-0.5 text-[7px] font-black uppercase bg-[#00FF88]/20 text-[#00FF88] rounded"
+                          >
+                            HOT
+                          </motion.span>
+                        )}
+                      </motion.button>
                     );
                   })}
                 </div>
@@ -764,25 +862,60 @@ const Sidebar = ({
           </AnimatePresence>
         </div>
 
+        {/* Table Games Section */}
         <div className="pt-1 pb-1">
-          <button onClick={() => setIsTableExpanded(!isTableExpanded)}
-            className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 transition-colors">
-            <div className="flex items-center gap-2"><Disc size={11} /> Table Games</div>
-            <ChevronDown size={11} className={cn('transition-transform', isTableExpanded && 'rotate-180')} />
-          </button>
+          <motion.button 
+            whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
+            onClick={() => setIsTableExpanded(!isTableExpanded)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.15em] text-white/30 hover:text-white/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-500/5 flex items-center justify-center">
+                <Disc size={12} className="text-blue-400" />
+              </div>
+              <span>Table Games</span>
+            </div>
+            <motion.div
+              animate={{ rotate: isTableExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown size={12} />
+            </motion.div>
+          </motion.button>
           <AnimatePresence>
             {isTableExpanded && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <div className="space-y-0.5 pl-2">
-                  {GAMES.filter(g => g.image?.startsWith('http')).map((game) => {
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-0.5 pl-3 pr-2 mt-1">
+                  {GAMES.filter(g => g.image?.startsWith('http')).map((game, i) => {
                     const GameIcon = typeof game.icon === 'string' ? null : game.icon;
                     return (
-                      <button key={game.id} onClick={() => handleNav(() => onSelectGame(game.id))}
-                        className={cn('w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all',
-                          activeGame === game.id ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white hover:bg-white/5')}>
-                        {GameIcon && <GameIcon size={13} className={game.color} />}
+                      <motion.button
+                        key={game.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        whileHover={{ x: 6, backgroundColor: 'rgba(255,255,255,0.05)' }}
+                        onClick={() => handleNav(() => onSelectGame(game.id))}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all',
+                          activeGame === game.id 
+                            ? 'bg-white/10 text-white' 
+                            : 'text-white/40 hover:text-white'
+                        )}
+                      >
+                        {GameIcon && (
+                          <div className={cn('p-1 rounded-md bg-white/5', game.color.split(' ')[0])}>
+                            <GameIcon size={12} className={game.color} />
+                          </div>
+                        )}
                         <span className="truncate">{game.name}</span>
-                      </button>
+                      </motion.button>
                     );
                   })}
                 </div>
@@ -790,7 +923,43 @@ const Sidebar = ({
             )}
           </AnimatePresence>
         </div>
+
+        {/* Social Section */}
+        <div className="pt-4 pb-1">
+          <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-white/20 flex items-center gap-2">
+            <UsersRound size={10} />
+            <span>Social</span>
+          </div>
+          <div className="space-y-0.5 pl-3 pr-2 mt-1">
+            <motion.button
+              whileHover={{ x: 6, backgroundColor: 'rgba(255,255,255,0.05)' }}
+              onClick={() => handleNav(() => onOpenView('friends'))}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-white/40 hover:text-white transition-all"
+            >
+              <div className="p-1.5 rounded-lg bg-white/5">
+                <UserPlus size={12} className="text-white/40" />
+              </div>
+              <span>Friends</span>
+              <motion.span 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="ml-auto px-2 py-0.5 text-[8px] font-black uppercase bg-amber-500/20 text-amber-400 rounded"
+              >
+                SOON
+              </motion.span>
+            </motion.button>
+          </div>
+        </div>
       </nav>
+
+      {/* Footer */}
+      <div className="relative p-4 border-t border-white/5">
+        <div className="flex items-center justify-center gap-2 text-[9px] text-white/20 uppercase tracking-widest">
+          <span>© 2025 Pasus</span>
+          <span className="w-1 h-1 rounded-full bg-white/10" />
+          <span>v1.0</span>
+        </div>
+      </div>
     </div>
   );
 
