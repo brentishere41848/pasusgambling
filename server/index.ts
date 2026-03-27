@@ -4862,7 +4862,7 @@ app.get('/api/moderation/my-history', requireAuth, async (req: AuthedRequest, re
   }
 });
 
-app.get('/api/admin/overview', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
+app.get('/api/admin/overview', requireAuth, requireStaff, async (_req: AuthedRequest, res) => {
   try {
     const [statsResult, usersResult, withdrawalsResult] = await Promise.all([
       pool.query(
@@ -4922,7 +4922,7 @@ app.get('/api/admin/overview', requireAuth, requireOwner, async (_req: AuthedReq
   }
 });
 
-app.get('/api/admin/users/search', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+app.get('/api/admin/users/search', requireAuth, requireStaff, async (req: AuthedRequest, res) => {
   try {
     const query = String(req.query.q || '').trim();
     const searchValue = query ? `%${query}%` : '%';
@@ -4989,7 +4989,7 @@ app.get('/api/admin/users/search', requireAuth, requireOwner, async (req: Authed
   }
 });
 
-app.get('/api/admin/users/:id', requireAuth, requireOwner, async (req: AuthedRequest, res) => {
+app.get('/api/admin/users/:id', requireAuth, requireStaff, async (req: AuthedRequest, res) => {
   try {
     const userId = Number(req.params.id);
     if (!userId) {
@@ -5525,7 +5525,7 @@ app.delete('/api/admin/rain-bot/:id', requireAuth, requireOwner, async (req: Aut
   }
 });
 
-app.get('/api/admin/analytics', requireAuth, requireOwner, async (_req: AuthedRequest, res) => {
+app.get('/api/admin/analytics', requireAuth, requireStaff, async (_req: AuthedRequest, res) => {
   try {
     const now = new Date();
     const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));

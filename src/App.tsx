@@ -831,7 +831,7 @@ const Sidebar = ({
             <ChevronRight size={14} className="ml-auto text-white/20 group-hover:text-white/40" />
           </motion.button>
 
-          {user?.role === 'owner' && (
+          {(user?.role === 'owner' || user?.role === 'moderator') && (
             <motion.button
               whileHover={{ x: 4 }}
               onClick={() => handleNav(() => onOpenView('admin'))}
@@ -848,7 +848,7 @@ const Sidebar = ({
               )}>
                 <Shield size={18} className={currentView === 'admin' ? 'text-purple-400' : 'text-white/40 group-hover:text-white'} />
               </div>
-              <span className={currentView === 'admin' ? 'font-semibold' : ''}>Admin Panel</span>
+              <span className={currentView === 'admin' ? 'font-semibold' : ''}>{user?.role === 'moderator' ? 'Staff Panel' : 'Admin Panel'}</span>
             </motion.button>
           )}
         </div>
@@ -2501,12 +2501,12 @@ const Header = ({
                           >
                             <Settings size={14} /> Settings
                           </button>
-                          {user?.role === 'owner' ? (
+                          {(user?.role === 'owner' || user?.role === 'moderator') ? (
                             <button
                               onClick={() => { onOpenAdmin(); setShowUserMenu(false); }}
                               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all"
                             >
-                              <Shield size={14} /> Admin
+                              <Shield size={14} /> {user?.role === 'moderator' ? 'Staff' : 'Admin'}
                             </button>
                           ) : null}
                           <button 
@@ -4147,6 +4147,8 @@ const SettingsView = () => {
 const AdminView = () => {
   const { user } = useAuth();
   const { refreshWallet } = useBalance();
+  const isOwner = user?.role === 'owner';
+  const isStaff = isOwner || user?.role === 'moderator';
   const [adminSection, setAdminSection] = useState<'overview' | 'users' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'tournaments' | 'rain'>('overview');
   const [selectedWithdrawalId, setSelectedWithdrawalId] = useState<number | null>(null);
   const [withdrawalStatusDraft, setWithdrawalStatusDraft] = useState<'pending' | 'processing' | 'completed'>('pending');
@@ -4223,6 +4225,27 @@ const AdminView = () => {
   const [newRainMinPool, setNewRainMinPool] = useState('100');
   const [newRainAmount, setNewRainAmount] = useState('500');
   const [rainEditDrafts, setRainEditDrafts] = useState<Record<number, { intervalMinutes: string; minPoolAmount: string; rainAmount: string }>>({});
+
+  const availableAdminSections = isOwner
+    ? ([
+        ['overview', 'Overview'],
+        ['users', 'Users'],
+        ['history', 'Game History'],
+        ['payments', 'Payments'],
+        ['support', 'Support'],
+        ['promos', 'Promo Codes'],
+        ['broadcasts', 'Broadcasts'],
+        ['moderation', 'Moderation'],
+        ['analytics', 'Analytics'],
+        ['tournaments', 'Tournaments'],
+        ['rain', 'Rain'],
+      ] as const)
+    : ([
+        ['overview', 'Overview'],
+        ['users', 'Users'],
+        ['analytics', 'Analytics'],
+        ['tournaments', 'Tournaments'],
+      ] as const);
 
   const loadOverview = useCallback(async () => {
     const token = localStorage.getItem('pasus_auth_token');
@@ -4495,10 +4518,25 @@ const AdminView = () => {
   };
 
   useEffect(() => {
-    Promise.all([loadOverview(), loadSupportTickets(), loadActivity(activityTab), loadPromos(), loadBroadcasts()]).catch((error) => {
-      setStatus(error instanceof Error ? error.message : 'Failed to load admin overview.');
+    if (!isStaff) {
+      return;
+    }
+
+    const initialLoads = [loadOverview(), loadBroadcasts()];
+    if (isOwner) {
+      initialLoads.push(loadSupportTickets(), loadActivity(activityTab), loadPromos());
+    }
+
+    Promise.all(initialLoads).catch((error) => {
+      setStatus(error instanceof Error ? error.message : 'Failed to load panel data.');
     });
-  }, [activityTab, loadActivity, loadOverview, loadPromos, loadBroadcasts, loadSupportTickets]);
+  }, [activityTab, isOwner, isStaff, loadActivity, loadOverview, loadPromos, loadBroadcasts, loadSupportTickets]);
+
+  useEffect(() => {
+    if (!availableAdminSections.some(([value]) => value === adminSection)) {
+      setAdminSection('overview');
+    }
+  }, [adminSection, availableAdminSections]);
 
   useEffect(() => {
     if (adminSection === 'moderation') {
@@ -4590,11 +4628,15 @@ const AdminView = () => {
   };
 
   useEffect(() => {
+    if (!isOwner) {
+      return;
+    }
+
     const timer = window.setInterval(() => {
       loadSupportTickets().catch(() => undefined);
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [loadSupportTickets]);
+  }, [isOwner, loadSupportTickets]);
 
   const submitAdjustment = async () => {
     try {
@@ -4712,16 +4754,20 @@ const AdminView = () => {
     }
   };
 
-  if (user?.role !== 'owner') {
-    return <InfoView eyebrow="Access" title="Admin" description="Owner access is required for the admin panel." cards={[{ title: 'Restricted', body: 'This panel is only available to the owner account.', icon: Shield }]} />;
+  if (!isStaff) {
+    return <InfoView eyebrow="Access" title="Staff" description="Staff access is required for this panel." cards={[{ title: 'Restricted', body: 'This panel is only available to owner and moderator accounts.', icon: Shield }]} />;
   }
 
   return (
     <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8">
       <div className="space-y-2">
         <div className="text-[10px] uppercase tracking-[0.24em] text-[#00FF88] font-black">Operations</div>
-        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Admin Panel</h1>
-        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">Manage balances, review recent users, and monitor withdrawal pressure from one owner-only surface.</p>
+        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">{isOwner ? 'Admin Panel' : 'Staff Panel'}</h1>
+        <p className="text-sm text-white/50 max-w-2xl leading-relaxed">
+          {isOwner
+            ? 'Manage balances, review recent users, and monitor withdrawal pressure from one owner-only surface.'
+            : 'Review platform overview, inspect users, watch analytics, and monitor tournaments from one staff surface.'}
+        </p>
       </div>
 
       {status ? <div className="rounded-2xl border border-white/10 bg-[#141821] px-4 py-3 text-sm text-white/70">{status}</div> : null}
@@ -4734,19 +4780,7 @@ const AdminView = () => {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        {[
-          ['overview', 'Overview'],
-          ['users', 'Users'],
-          ['history', 'Game History'],
-          ['payments', 'Payments'],
-          ['support', 'Support'],
-          ['promos', 'Promo Codes'],
-          ['broadcasts', 'Broadcasts'],
-          ['moderation', 'Moderation'],
-          ['analytics', 'Analytics'],
-          ['tournaments', 'Tournaments'],
-          ['rain', 'Rain'],
-        ].map(([value, label]) => (
+        {availableAdminSections.map(([value, label]) => (
           <button
             key={value}
             onClick={() => setAdminSection(value as 'overview' | 'users' | 'history' | 'payments' | 'support' | 'promos' | 'broadcasts' | 'moderation' | 'analytics' | 'tournaments' | 'rain')}
@@ -4764,17 +4798,32 @@ const AdminView = () => {
       <>
       <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6">
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
-          <div className="text-lg font-black uppercase tracking-tight">Wallet Adjustment</div>
-          <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none">
-            <option value="">Select user</option>
-            {(overview?.users || []).map((entry) => (
-              <option key={entry.id} value={entry.id}>{entry.username} ({formatMoneyFromCoins(entry.balance)})</option>
-            ))}
-          </select>
-          <input value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} placeholder="Use positive or negative dollars" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
-          <button onClick={submitAdjustment} disabled={isSubmitting || !selectedUserId || !adjustAmount} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
-            {isSubmitting ? 'Updating...' : 'Apply Adjustment'}
-          </button>
+          {isOwner ? (
+            <>
+              <div className="text-lg font-black uppercase tracking-tight">Wallet Adjustment</div>
+              <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none">
+                <option value="">Select user</option>
+                {(overview?.users || []).map((entry) => (
+                  <option key={entry.id} value={entry.id}>{entry.username} ({formatMoneyFromCoins(entry.balance)})</option>
+                ))}
+              </select>
+              <input value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} placeholder="Use positive or negative dollars" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+              <button onClick={submitAdjustment} disabled={isSubmitting || !selectedUserId || !adjustAmount} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+                {isSubmitting ? 'Updating...' : 'Apply Adjustment'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-lg font-black uppercase tracking-tight">Staff Snapshot</div>
+              <div className="rounded-2xl border border-white/5 bg-black/25 p-5 space-y-3">
+                <div className="text-sm text-white/55">Moderators can monitor platform balances and withdrawal pressure here, but wallet and payment changes remain owner-only.</div>
+                <div className="grid grid-cols-2 gap-3 text-[11px] text-white/45">
+                  <div><span className="block text-white/25">Latest Users</span>{overview?.users.length ?? 0}</div>
+                  <div><span className="block text-white/25">Withdrawals Listed</span>{overview?.withdrawals.length ?? 0}</div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="rounded-[32px] border border-white/10 bg-[#141821] p-6 space-y-4">
@@ -4920,11 +4969,13 @@ const AdminView = () => {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <button onClick={() => { setSelectedUserId(String(selectedAdminUser.user.id)); setAdminSection('overview'); }} className="rounded-2xl bg-[#00FF88] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-black">Adjust Wallet</button>
-                <button onClick={() => { setModUserId(String(selectedAdminUser.user.id)); setModAction('mute'); setAdminSection('moderation'); }} className="rounded-2xl border border-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Mute User</button>
-                <button onClick={() => { setModUserId(String(selectedAdminUser.user.id)); setModAction('ban'); setAdminSection('moderation'); }} className="rounded-2xl border border-red-400/25 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300">Ban User</button>
-              </div>
+              {isOwner ? (
+                <div className="flex flex-wrap gap-3">
+                  <button onClick={() => { setSelectedUserId(String(selectedAdminUser.user.id)); setAdminSection('overview'); }} className="rounded-2xl bg-[#00FF88] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-black">Adjust Wallet</button>
+                  <button onClick={() => { setModUserId(String(selectedAdminUser.user.id)); setModAction('mute'); setAdminSection('moderation'); }} className="rounded-2xl border border-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Mute User</button>
+                  <button onClick={() => { setModUserId(String(selectedAdminUser.user.id)); setModAction('ban'); setAdminSection('moderation'); }} className="rounded-2xl border border-red-400/25 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300">Ban User</button>
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="rounded-2xl border border-white/5 bg-black/25 p-4 space-y-3">
@@ -5632,24 +5683,33 @@ const AdminView = () => {
 
       {adminSection === 'tournaments' ? (
       <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6">
-        <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
-          <div className="text-lg font-black uppercase tracking-tight">Create Tournament</div>
-          <input value={newTournamentName} onChange={(e) => setNewTournamentName(e.target.value)} placeholder="Weekend Wager Race" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
-          <textarea value={newTournamentDescription} onChange={(e) => setNewTournamentDescription(e.target.value)} placeholder="Optional description" rows={3} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none" />
-          <input value={newTournamentGameKey} onChange={(e) => setNewTournamentGameKey(e.target.value)} placeholder="Game key (optional)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input type="datetime-local" value={newTournamentStartTime} onChange={(e) => setNewTournamentStartTime(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
-            <input type="datetime-local" value={newTournamentEndTime} onChange={(e) => setNewTournamentEndTime(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+        {isOwner ? (
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
+            <div className="text-lg font-black uppercase tracking-tight">Create Tournament</div>
+            <input value={newTournamentName} onChange={(e) => setNewTournamentName(e.target.value)} placeholder="Weekend Wager Race" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+            <textarea value={newTournamentDescription} onChange={(e) => setNewTournamentDescription(e.target.value)} placeholder="Optional description" rows={3} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none resize-none" />
+            <input value={newTournamentGameKey} onChange={(e) => setNewTournamentGameKey(e.target.value)} placeholder="Game key (optional)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input type="datetime-local" value={newTournamentStartTime} onChange={(e) => setNewTournamentStartTime(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+              <input type="datetime-local" value={newTournamentEndTime} onChange={(e) => setNewTournamentEndTime(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input type="number" min="0.01" step="0.01" value={newTournamentMinWager} onChange={(e) => setNewTournamentMinWager(e.target.value)} placeholder="Min wager ($)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+              <input type="number" min="0.01" step="0.01" value={newTournamentPrize} onChange={(e) => setNewTournamentPrize(e.target.value)} placeholder="Prize pool ($)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+              <input type="number" min="1" step="1" value={newTournamentMaxParticipants} onChange={(e) => setNewTournamentMaxParticipants(e.target.value)} placeholder="Max players" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+            </div>
+            <button onClick={submitTournament} disabled={isTournamentSaving} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
+              {isTournamentSaving ? 'Saving...' : 'Create Tournament'}
+            </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input type="number" min="0.01" step="0.01" value={newTournamentMinWager} onChange={(e) => setNewTournamentMinWager(e.target.value)} placeholder="Min wager ($)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
-            <input type="number" min="0.01" step="0.01" value={newTournamentPrize} onChange={(e) => setNewTournamentPrize(e.target.value)} placeholder="Prize pool ($)" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
-            <input type="number" min="1" step="1" value={newTournamentMaxParticipants} onChange={(e) => setNewTournamentMaxParticipants(e.target.value)} placeholder="Max players" className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none" />
+        ) : (
+          <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
+            <div className="text-lg font-black uppercase tracking-tight">Tournament Monitor</div>
+            <div className="rounded-2xl border border-white/5 bg-black/25 p-5 text-sm leading-relaxed text-white/55">
+              This view is read-only for moderators. You can monitor tournament status, timing, prize pools, and winners here.
+            </div>
           </div>
-          <button onClick={submitTournament} disabled={isTournamentSaving} className="rounded-2xl bg-[#00FF88] text-black px-5 py-3 text-xs font-black uppercase tracking-[0.16em] disabled:opacity-40">
-            {isTournamentSaving ? 'Saving...' : 'Create Tournament'}
-          </button>
-        </div>
+        )}
 
         <div className="rounded-[28px] border border-white/10 bg-[#141821] p-6 space-y-4">
           <div className="text-lg font-black uppercase tracking-tight">Tournament Queue</div>
@@ -5693,11 +5753,13 @@ const AdminView = () => {
                     ))}
                   </div>
                 ) : null}
-                <div className="mt-4 flex justify-end">
-                  <button onClick={() => startTournament(tournament.id)} disabled={isTournamentSaving || tournament.status !== 'upcoming'} className="rounded-2xl border border-[#00FF88]/35 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#00FF88] disabled:opacity-35">
-                    Start Now
-                  </button>
-                </div>
+                {isOwner ? (
+                  <div className="mt-4 flex justify-end">
+                    <button onClick={() => startTournament(tournament.id)} disabled={isTournamentSaving || tournament.status !== 'upcoming'} className="rounded-2xl border border-[#00FF88]/35 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#00FF88] disabled:opacity-35">
+                      Start Now
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )) : (
               <div className="rounded-2xl border border-white/5 bg-black/25 px-4 py-8 text-sm text-white/35">No tournaments yet.</div>
@@ -6007,42 +6069,50 @@ const AdminView = () => {
                 </div>
 
                 <div className="rounded-2xl border border-white/5 bg-black/25 p-4 space-y-4">
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Change Status</div>
-                    <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                      <select
-                        value={withdrawalStatusDraft}
-                        onChange={(e) => setWithdrawalStatusDraft(e.target.value as 'pending' | 'processing' | 'completed')}
-                        disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
-                        className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none disabled:opacity-50"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="completed">Completed</option>
-                      </select>
-                      <button
-                        onClick={() => updateWithdrawalStatus(withdrawalStatusDraft)}
-                        disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
-                        className="rounded-2xl bg-[#00FF88] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-black disabled:opacity-40"
-                      >
-                        {isUpdatingWithdrawal ? 'Saving...' : 'Save Status'}
-                      </button>
-                    </div>
-                  </div>
+                  {isOwner ? (
+                    <>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/25">Change Status</div>
+                        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                          <select
+                            value={withdrawalStatusDraft}
+                            onChange={(e) => setWithdrawalStatusDraft(e.target.value as 'pending' | 'processing' | 'completed')}
+                            disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
+                            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm focus:outline-none disabled:opacity-50"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="processing">Processing</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                          <button
+                            onClick={() => updateWithdrawalStatus(withdrawalStatusDraft)}
+                            disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
+                            className="rounded-2xl bg-[#00FF88] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-black disabled:opacity-40"
+                          >
+                            {isUpdatingWithdrawal ? 'Saving...' : 'Save Status'}
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="rounded-2xl border border-red-500/15 bg-red-500/8 p-4">
-                    <div className="text-sm font-black uppercase tracking-tight text-red-200">Decline And Refund</div>
-                    <div className="mt-2 text-xs leading-relaxed text-red-100/70">
-                      This returns the full requested amount to the user wallet and reverses the platform fee from the owner wallet.
+                      <div className="rounded-2xl border border-red-500/15 bg-red-500/8 p-4">
+                        <div className="text-sm font-black uppercase tracking-tight text-red-200">Decline And Refund</div>
+                        <div className="mt-2 text-xs leading-relaxed text-red-100/70">
+                          This returns the full requested amount to the user wallet and reverses the platform fee from the owner wallet.
+                        </div>
+                        <button
+                          onClick={() => updateWithdrawalStatus('declined')}
+                          disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
+                          className="mt-4 rounded-2xl border border-red-400/20 bg-red-500 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white disabled:opacity-40"
+                        >
+                          {isUpdatingWithdrawal ? 'Updating...' : 'Decline Withdrawal'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-white/55">
+                      Moderators can review withdrawal details here, but status changes and refunds remain owner-only.
                     </div>
-                    <button
-                      onClick={() => updateWithdrawalStatus('declined')}
-                      disabled={isUpdatingWithdrawal || selectedWithdrawal.status === 'declined' || selectedWithdrawal.status === 'completed'}
-                      className="mt-4 rounded-2xl border border-red-400/20 bg-red-500 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white disabled:opacity-40"
-                    >
-                      {isUpdatingWithdrawal ? 'Updating...' : 'Decline Withdrawal'}
-                    </button>
-                  </div>
+                  )}
                 </div>
               </div>
             </motion.div>
