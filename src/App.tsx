@@ -1772,8 +1772,6 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen) return null;
-
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -1786,6 +1784,8 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
       setAffiliateCode(ref);
     }
   }, [isOpen]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
