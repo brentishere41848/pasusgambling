@@ -13,19 +13,19 @@ const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
 const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    low: [1.5, 1.1, 0.8, 0.45, 0.15, 0.45, 0.8, 1.1, 1.5],
-    medium: [2.5, 1.3, 0.75, 0.3, 0.08, 0.3, 0.75, 1.3, 2.5],
-    high: [4, 1.8, 0.9, 0.25, 0.03, 0.25, 0.9, 1.8, 4],
+    low: [1.25, 0.85, 0.55, 0.25, 0.08, 0.25, 0.55, 0.85, 1.25],
+    medium: [1.8, 1, 0.45, 0.16, 0.04, 0.16, 0.45, 1, 1.8],
+    high: [2.6, 1.15, 0.5, 0.14, 0.02, 0.14, 0.5, 1.15, 2.6],
   },
   10: {
-    low: [2.8, 1.6, 1.1, 0.75, 0.45, 0.2, 0.45, 0.75, 1.1, 1.6, 2.8],
-    medium: [5, 2.2, 1.1, 0.55, 0.2, 0.08, 0.2, 0.55, 1.1, 2.2, 5],
-    high: [10, 3.2, 1.4, 0.55, 0.18, 0.05, 0.18, 0.55, 1.4, 3.2, 10],
+    low: [1.8, 1.1, 0.7, 0.42, 0.2, 0.08, 0.2, 0.42, 0.7, 1.1, 1.8],
+    medium: [3, 1.45, 0.7, 0.28, 0.1, 0.03, 0.1, 0.28, 0.7, 1.45, 3],
+    high: [5.5, 2, 0.95, 0.32, 0.11, 0.02, 0.11, 0.32, 0.95, 2, 5.5],
   },
   12: {
-    low: [4, 2, 1.2, 0.8, 0.5, 0.3, 0.12, 0.3, 0.5, 0.8, 1.2, 2, 4],
-    medium: [8, 3, 1.4, 0.7, 0.3, 0.14, 0.05, 0.14, 0.3, 0.7, 1.4, 3, 8],
-    high: [16, 4.8, 1.8, 0.75, 0.25, 0.1, 0.03, 0.1, 0.25, 0.75, 1.8, 4.8, 16],
+    low: [2.5, 1.3, 0.8, 0.5, 0.28, 0.12, 0.05, 0.12, 0.28, 0.5, 0.8, 1.3, 2.5],
+    medium: [4.5, 1.9, 0.85, 0.36, 0.14, 0.06, 0.02, 0.06, 0.14, 0.36, 0.85, 1.9, 4.5],
+    high: [8, 2.8, 1.1, 0.42, 0.16, 0.06, 0.015, 0.06, 0.16, 0.42, 1.1, 2.8, 8],
   },
   14: {
     low: [10, 4, 2.2, 1.3, 0.9, 0.65, 0.4, 0.25, 0.4, 0.65, 0.9, 1.3, 2.2, 4, 10],
@@ -42,14 +42,14 @@ const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
 const PEG_COLOR = '#ffffff';
 const BALL_RADIUS = 8;
 const PEG_RADIUS = 4;
-const GRAVITY = 0.58;
-const BOUNCE = 0.42;
-const FRICTION = 0.965;
-const START_DRIFT = 0.8;
-const PEG_RANDOM_KICK = 0.45;
-const SIDEWAYS_DAMPING = 0.72;
-const CENTER_PULL = 0.018;
-const MAX_SIDEWAYS_SPEED = 2.1;
+const GRAVITY = 0.46;
+const BOUNCE = 0.34;
+const FRICTION = 0.94;
+const START_DRIFT = 0.5;
+const PEG_RANDOM_KICK = 0.22;
+const SIDEWAYS_DAMPING = 0.56;
+const CENTER_PULL = 0.03;
+const MAX_SIDEWAYS_SPEED = 1.45;
 
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -78,12 +78,34 @@ export const PlinkoGame: React.FC = () => {
   const physicsProfile = useMemo(() => {
     if (rows === 8) {
       return {
-        bounce: 0.34,
-        startDrift: 0.35,
-        pegRandomKick: 0.16,
-        sidewaysDamping: 0.45,
-        centerPull: 0.032,
-        maxSidewaysSpeed: 1.05,
+        bounce: 0.24,
+        startDrift: 0.16,
+        pegRandomKick: 0.06,
+        sidewaysDamping: 0.24,
+        centerPull: 0.052,
+        maxSidewaysSpeed: 0.58,
+      };
+    }
+
+    if (rows === 10) {
+      return {
+        bounce: 0.28,
+        startDrift: 0.22,
+        pegRandomKick: 0.08,
+        sidewaysDamping: 0.3,
+        centerPull: 0.044,
+        maxSidewaysSpeed: 0.8,
+      };
+    }
+
+    if (rows === 12) {
+      return {
+        bounce: 0.31,
+        startDrift: 0.28,
+        pegRandomKick: 0.12,
+        sidewaysDamping: 0.4,
+        centerPull: 0.038,
+        maxSidewaysSpeed: 1,
       };
     }
 
