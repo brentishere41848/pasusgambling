@@ -13,38 +13,43 @@ const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
 const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    low: [5, 2.5, 1.5, 1.2, 0.8, 1.2, 1.5, 2.5, 5],
-    medium: [10, 4, 2, 1.1, 0.5, 1.1, 2, 4, 10],
-    high: [25, 7, 3, 1.3, 0.3, 1.3, 3, 7, 25],
+    low: [2, 1.4, 1, 0.7, 0.3, 0.7, 1, 1.4, 2],
+    medium: [3.5, 1.8, 1, 0.45, 0.12, 0.45, 1, 1.8, 3.5],
+    high: [6, 2.4, 1.2, 0.4, 0.08, 0.4, 1.2, 2.4, 6],
   },
   10: {
-    low: [8, 3, 2, 1.3, 0.9, 0.6, 0.9, 1.3, 2, 3, 8],
-    medium: [15, 5, 2.5, 1.5, 0.7, 0.4, 0.7, 1.5, 2.5, 5, 15],
-    high: [50, 10, 4, 1.8, 0.5, 0.2, 0.5, 1.8, 4, 10, 50],
+    low: [2.8, 1.6, 1.1, 0.75, 0.45, 0.2, 0.45, 0.75, 1.1, 1.6, 2.8],
+    medium: [5, 2.2, 1.1, 0.55, 0.2, 0.08, 0.2, 0.55, 1.1, 2.2, 5],
+    high: [10, 3.2, 1.4, 0.55, 0.18, 0.05, 0.18, 0.55, 1.4, 3.2, 10],
   },
   12: {
-    low: [12, 4.5, 2.5, 1.5, 1.1, 0.8, 0.5, 0.8, 1.1, 1.5, 2.5, 4.5, 12],
-    medium: [25, 7, 3.2, 1.8, 0.9, 0.5, 0.3, 0.5, 0.9, 1.8, 3.2, 7, 25],
-    high: [100, 15, 5, 2, 0.8, 0.4, 0.15, 0.4, 0.8, 2, 5, 15, 100],
+    low: [4, 2, 1.2, 0.8, 0.5, 0.3, 0.12, 0.3, 0.5, 0.8, 1.2, 2, 4],
+    medium: [8, 3, 1.4, 0.7, 0.3, 0.14, 0.05, 0.14, 0.3, 0.7, 1.4, 3, 8],
+    high: [16, 4.8, 1.8, 0.75, 0.25, 0.1, 0.03, 0.1, 0.25, 0.75, 1.8, 4.8, 16],
   },
   14: {
-    low: [18, 6, 3.2, 2, 1.3, 1, 0.7, 0.5, 0.7, 1, 1.3, 2, 3.2, 6, 18],
-    medium: [40, 10, 4.5, 2.2, 1.2, 0.7, 0.4, 0.25, 0.4, 0.7, 1.2, 2.2, 4.5, 10, 40],
-    high: [200, 25, 8, 3, 1.2, 0.6, 0.3, 0.12, 0.3, 0.6, 1.2, 3, 8, 25, 200],
+    low: [10, 4, 2.2, 1.3, 0.9, 0.65, 0.4, 0.25, 0.4, 0.65, 0.9, 1.3, 2.2, 4, 10],
+    medium: [22, 6.5, 2.8, 1.3, 0.65, 0.35, 0.18, 0.08, 0.18, 0.35, 0.65, 1.3, 2.8, 6.5, 22],
+    high: [60, 12, 4.2, 1.5, 0.6, 0.28, 0.12, 0.05, 0.12, 0.28, 0.6, 1.5, 4.2, 12, 60],
   },
   16: {
-    low: [25, 8, 4.5, 2.5, 1.6, 1.2, 0.9, 0.6, 0.4, 0.6, 0.9, 1.2, 1.6, 2.5, 4.5, 8, 25],
-    medium: [65, 14, 6, 3, 1.6, 1, 0.6, 0.35, 0.2, 0.35, 0.6, 1, 1.6, 3, 6, 14, 65],
-    high: [500, 45, 12, 4.5, 1.8, 0.8, 0.35, 0.15, 0.08, 0.15, 0.35, 0.8, 1.8, 4.5, 12, 45, 500],
+    low: [14, 5, 2.6, 1.4, 1, 0.7, 0.45, 0.28, 0.18, 0.28, 0.45, 0.7, 1, 1.4, 2.6, 5, 14],
+    medium: [32, 8.5, 3.5, 1.5, 0.75, 0.4, 0.2, 0.1, 0.05, 0.1, 0.2, 0.4, 0.75, 1.5, 3.5, 8.5, 32],
+    high: [100, 20, 6, 2.4, 1, 0.5, 0.22, 0.1, 0.03, 0.1, 0.22, 0.5, 1, 2.4, 6, 20, 100],
   },
 };
 
 const PEG_COLOR = '#ffffff';
 const BALL_RADIUS = 8;
 const PEG_RADIUS = 4;
-const GRAVITY = 0.5;
-const BOUNCE = 0.6;
-const FRICTION = 0.995;
+const GRAVITY = 0.58;
+const BOUNCE = 0.42;
+const FRICTION = 0.965;
+const START_DRIFT = 0.8;
+const PEG_RANDOM_KICK = 0.45;
+const SIDEWAYS_DAMPING = 0.72;
+const CENTER_PULL = 0.018;
+const MAX_SIDEWAYS_SPEED = 2.1;
 
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -205,7 +210,7 @@ export const PlinkoGame: React.FC = () => {
     ballRef.current = {
       x: startX,
       y: 20,
-      vx: (Math.random() - 0.5) * 2,
+      vx: (Math.random() - 0.5) * START_DRIFT,
       vy: 0,
     };
 
@@ -218,7 +223,9 @@ export const PlinkoGame: React.FC = () => {
       if (!ball || bucketHitRef.current) return;
 
       ball.vy += GRAVITY;
+      ball.vx += (canvasWidth / 2 - ball.x) * CENTER_PULL;
       ball.vx *= FRICTION;
+      ball.vx = Math.max(-MAX_SIDEWAYS_SPEED, Math.min(MAX_SIDEWAYS_SPEED, ball.vx));
       ball.x += ball.vx;
       ball.y += ball.vy;
 
@@ -239,9 +246,12 @@ export const PlinkoGame: React.FC = () => {
         if (dist < BALL_RADIUS + PEG_RADIUS) {
           const angle = Math.atan2(dy, dx);
           const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+          const outwardX = Math.cos(angle) * speed * BOUNCE;
+          const outwardY = Math.sin(angle) * speed * BOUNCE;
           
-          ball.vx = Math.cos(angle) * speed * BOUNCE + (Math.random() - 0.5) * 2;
-          ball.vy = Math.sin(angle) * speed * BOUNCE;
+          ball.vx = outwardX * SIDEWAYS_DAMPING + (Math.random() - 0.5) * PEG_RANDOM_KICK;
+          ball.vy = Math.max(0.8, outwardY + GRAVITY * 0.35);
+          ball.vx = Math.max(-MAX_SIDEWAYS_SPEED, Math.min(MAX_SIDEWAYS_SPEED, ball.vx));
           
           const overlap = BALL_RADIUS + PEG_RADIUS - dist;
           ball.x += Math.cos(angle) * overlap;
