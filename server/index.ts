@@ -1073,8 +1073,8 @@ async function settleFinishedRainRounds(client: Pool | PoolClient) {
           Number(participant.user_id),
           'rain',
           'Rain claimed',
-          `You received $${formatCoinsLabel(share)} from the hourly rain.`,
-          { roundId: Number(round.id), amount: share, participantCount: count }
+          `You received $${formatCoinsLabel(share)} from the hourly rain pool of $${formatCoinsLabel(totalPool)} shared across ${count} player${count === 1 ? '' : 's'}.`,
+          { roundId: Number(round.id), amount: share, totalPool, participantCount: count }
         );
       }
     }
@@ -1428,8 +1428,8 @@ async function settleFinishedCustomRains(client: Pool | PoolClient) {
           Number(participant.user_id),
           'rain',
           'Custom rain claimed',
-          `You received $${formatCoinsLabel(share)} from a custom rain drop.`,
-          { customRainId: Number(rain.id), amount: share, participantCount: count }
+          `You received $${formatCoinsLabel(share)} from a custom rain pool of $${formatCoinsLabel(totalPool)} shared across ${count} player${count === 1 ? '' : 's'}.`,
+          { customRainId: Number(rain.id), amount: share, totalPool, participantCount: count }
         );
       }
     }
@@ -2726,7 +2726,7 @@ app.post('/api/activity/bets', requireAuth, async (req: AuthedRequest, res) => {
         req.auth!.user.id,
         'win',
         `You won on ${gameKey}`,
-        `Profit: $${formatCoinsLabel(payout - wager)} at ${multiplier > 0 ? `${multiplier.toFixed(2)}x` : 'win'}.`,
+        `Wagered $${formatCoinsLabel(wager)}, paid out $${formatCoinsLabel(payout)}, net profit $${formatCoinsLabel(payout - wager)}${multiplier > 0 ? ` at ${multiplier.toFixed(2)}x` : ''}.`,
         {
           betId: Number(inserted.rows[0]?.id || 0),
           gameKey,

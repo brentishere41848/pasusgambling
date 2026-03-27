@@ -13,9 +13,9 @@ const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
 const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    low: [2, 1.4, 1, 0.7, 0.3, 0.7, 1, 1.4, 2],
-    medium: [3.5, 1.8, 1, 0.45, 0.12, 0.45, 1, 1.8, 3.5],
-    high: [6, 2.4, 1.2, 0.4, 0.08, 0.4, 1.2, 2.4, 6],
+    low: [1.5, 1.1, 0.8, 0.45, 0.15, 0.45, 0.8, 1.1, 1.5],
+    medium: [2.5, 1.3, 0.75, 0.3, 0.08, 0.3, 0.75, 1.3, 2.5],
+    high: [4, 1.8, 0.9, 0.25, 0.03, 0.25, 0.9, 1.8, 4],
   },
   10: {
     low: [2.8, 1.6, 1.1, 0.75, 0.45, 0.2, 0.45, 0.75, 1.1, 1.6, 2.8],
@@ -75,6 +75,27 @@ export const PlinkoGame: React.FC = () => {
   const stats = getStats();
 
   const multipliers = useMemo(() => MULTIPLIERS[rows][risk], [rows, risk]);
+  const physicsProfile = useMemo(() => {
+    if (rows === 8) {
+      return {
+        bounce: 0.34,
+        startDrift: 0.35,
+        pegRandomKick: 0.16,
+        sidewaysDamping: 0.45,
+        centerPull: 0.032,
+        maxSidewaysSpeed: 1.05,
+      };
+    }
+
+    return {
+      bounce: BOUNCE,
+      startDrift: START_DRIFT,
+      pegRandomKick: PEG_RANDOM_KICK,
+      sidewaysDamping: SIDEWAYS_DAMPING,
+      centerPull: CENTER_PULL,
+      maxSidewaysSpeed: MAX_SIDEWAYS_SPEED,
+    };
+  }, [rows]);
   const betCoins = useMemo(() => dollarsToCents(bet), [bet]);
   const canDrop = !isDropping && balance >= betCoins;
 
@@ -210,7 +231,7 @@ export const PlinkoGame: React.FC = () => {
     ballRef.current = {
       x: startX,
       y: 20,
-      vx: (Math.random() - 0.5) * START_DRIFT,
+      vx: (Math.random() - 0.5) * physicsProfile.startDrift,
       vy: 0,
     };
 
@@ -223,19 +244,19 @@ export const PlinkoGame: React.FC = () => {
       if (!ball || bucketHitRef.current) return;
 
       ball.vy += GRAVITY;
-      ball.vx += (canvasWidth / 2 - ball.x) * CENTER_PULL;
+      ball.vx += (canvasWidth / 2 - ball.x) * physicsProfile.centerPull;
       ball.vx *= FRICTION;
-      ball.vx = Math.max(-MAX_SIDEWAYS_SPEED, Math.min(MAX_SIDEWAYS_SPEED, ball.vx));
+      ball.vx = Math.max(-physicsProfile.maxSidewaysSpeed, Math.min(physicsProfile.maxSidewaysSpeed, ball.vx));
       ball.x += ball.vx;
       ball.y += ball.vy;
 
       if (ball.x < BALL_RADIUS) {
         ball.x = BALL_RADIUS;
-        ball.vx = -ball.vx * BOUNCE;
+        ball.vx = -ball.vx * physicsProfile.bounce;
       }
       if (ball.x > canvasWidth - BALL_RADIUS) {
         ball.x = canvasWidth - BALL_RADIUS;
-        ball.vx = -ball.vx * BOUNCE;
+        ball.vx = -ball.vx * physicsProfile.bounce;
       }
 
       for (const peg of pegsRef.current) {
@@ -246,12 +267,12 @@ export const PlinkoGame: React.FC = () => {
         if (dist < BALL_RADIUS + PEG_RADIUS) {
           const angle = Math.atan2(dy, dx);
           const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-          const outwardX = Math.cos(angle) * speed * BOUNCE;
-          const outwardY = Math.sin(angle) * speed * BOUNCE;
+          const outwardX = Math.cos(angle) * speed * physicsProfile.bounce;
+          const outwardY = Math.sin(angle) * speed * physicsProfile.bounce;
           
-          ball.vx = outwardX * SIDEWAYS_DAMPING + (Math.random() - 0.5) * PEG_RANDOM_KICK;
+          ball.vx = outwardX * physicsProfile.sidewaysDamping + (Math.random() - 0.5) * physicsProfile.pegRandomKick;
           ball.vy = Math.max(0.8, outwardY + GRAVITY * 0.35);
-          ball.vx = Math.max(-MAX_SIDEWAYS_SPEED, Math.min(MAX_SIDEWAYS_SPEED, ball.vx));
+          ball.vx = Math.max(-physicsProfile.maxSidewaysSpeed, Math.min(physicsProfile.maxSidewaysSpeed, ball.vx));
           
           const overlap = BALL_RADIUS + PEG_RADIUS - dist;
           ball.x += Math.cos(angle) * overlap;
@@ -383,7 +404,7 @@ export const PlinkoGame: React.FC = () => {
     };
 
     animate();
-  }, [canDrop, betCoins, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet, canvasWidth, canvasHeight]);
+  }, [canDrop, betCoins, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet, canvasWidth, canvasHeight, physicsProfile]);
 
   useEffect(() => {
     return () => {
