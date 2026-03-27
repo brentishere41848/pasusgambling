@@ -8362,18 +8362,43 @@ const AppContent = () => {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   useEffect(() => {
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason as { code?: number; message?: string } | null;
-      const code = Number(reason?.code ?? 0);
-      const message = String(reason?.message ?? '');
+    const shouldSuppressWalletNoise = (input: unknown) => {
+      const text = String(input ?? '').toLowerCase();
+      return (
+        text.includes('provider is disconnected from all chains') ||
+        text.includes('cannot redefine property: ethereum') ||
+        text.includes('window.ethereum is already defined and read-only') ||
+        text.includes('could not assign exodus provider to window.ethereum')
+      );
+    };
 
-      if (code === 4900 || /provider is disconnected from all chains/i.test(message)) {
+    const handleError = (event: ErrorEvent) => {
+      const message = event.message || (event.error instanceof Error ? event.error.message : '');
+      const source = event.filename || '';
+
+      if (shouldSuppressWalletNoise(message) || shouldSuppressWalletNoise(source)) {
         event.preventDefault();
+        event.stopImmediatePropagation();
       }
     };
 
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason as { code?: number; message?: string } | null;
+      const code = Number(reason?.code ?? 0);
+      const message = String(reason?.message ?? event.reason ?? '');
+
+      if (code === 4900 || shouldSuppressWalletNoise(message)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    };
+
+    window.addEventListener('error', handleError, true);
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
-    return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => {
+      window.removeEventListener('error', handleError, true);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
   }, []);
 
   useEffect(() => {

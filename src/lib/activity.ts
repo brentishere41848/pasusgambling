@@ -7,7 +7,29 @@ type LogBetActivityInput = {
   detail?: string;
 };
 
+const SERVER_BLOCKED_GAME_ACTIVITY = new Set([
+  'baccarat',
+  'blackjack',
+  'coinflip',
+  'crash',
+  'dice',
+  'hilo',
+  'keno',
+  'limbo',
+  'mines',
+  'plinko',
+  'roulette',
+  'scratch',
+  'slots',
+  'wheel',
+]);
+
 export async function logBetActivity(input: LogBetActivityInput) {
+  const normalizedGameKey = String(input.gameKey || '').trim().toLowerCase();
+  if (SERVER_BLOCKED_GAME_ACTIVITY.has(normalizedGameKey)) {
+    return;
+  }
+
   const token = localStorage.getItem('pasus_auth_token');
   if (!token) {
     return;
@@ -25,6 +47,7 @@ export async function logBetActivity(input: LogBetActivityInput) {
       },
       body: JSON.stringify({
         ...input,
+        gameKey: normalizedGameKey,
         wager: Math.round(input.wager),
         payout: Math.round(input.payout),
         clientSeed,
