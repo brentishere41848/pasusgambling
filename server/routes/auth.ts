@@ -47,6 +47,7 @@ const BLOCKED_USERNAME_PARTS = [
   'faggot',
   'fag',
   'retard',
+  'retarded',
   'cunt',
   'whore',
   'slut',
@@ -55,6 +56,15 @@ const BLOCKED_USERNAME_PARTS = [
   'rape',
   'hitler',
   'nazi',
+  'downy',
+  'downie',
+  'downiee',
+  'downsyndrome',
+  'handicap',
+  'handicapped',
+  'specialneeds',
+  'disabled',
+  'cripple',
 ] as const;
 
 function normalizeUsernameForModeration(value: string) {
