@@ -61,6 +61,19 @@ const WIN_CHANCE = 0.29;
 const BIG_WIN_CHANCE = 0.01;
 
 type OutcomeBand = 'loss' | 'win' | 'bigwin';
+type Point = { x: number; y: number };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function lerp(start: number, end: number, t: number) {
+  return start + (end - start) * t;
+}
+
+function easeInOutCubic(t: number) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
 
 function pickOutcomeBand(): OutcomeBand {
   const roll = Math.random();
@@ -103,6 +116,62 @@ function samplePlinkoBucket(multipliers: number[]) {
   return fallback.length ? pickRandomIndex(fallback) : Math.floor(Math.random() * multipliers.length);
 }
 
+function buildDropPath({
+  rows,
+  startX,
+  targetX,
+  canvasWidth,
+  canvasHeight,
+  topPadding,
+  bucketHeight,
+  profile,
+}: {
+  rows: number;
+  startX: number;
+  targetX: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  topPadding: number;
+  bucketHeight: number;
+  profile: { startDrift: number; pegRandomKick: number; centerPull: number; maxSidewaysSpeed: number };
+}) {
+  const pegSpacingY = (canvasHeight - topPadding - bucketHeight) / (rows + 1);
+  const points: Point[] = [{ x: startX, y: 20 }];
+  let prevX = startX;
+
+  for (let row = 0; row < rows; row += 1) {
+    const progress = (row + 1) / rows;
+    const y = topPadding + (row + 1) * pegSpacingY;
+    const pullTowardTarget = (targetX - prevX) * (profile.centerPull + progress * 0.15);
+    const randomSwing = (Math.random() - 0.5) * (18 + profile.pegRandomKick * 50) * (1 - progress * 0.65);
+    const zigzag = (Math.random() < 0.5 ? -1 : 1) * (8 + profile.startDrift * 24) * (0.35 + (1 - progress));
+
+    const x = clamp(
+      prevX + pullTowardTarget + randomSwing + zigzag,
+      BALL_RADIUS + 2,
+      canvasWidth - BALL_RADIUS - 2
+    );
+
+    points.push({ x, y });
+    prevX = x;
+  }
+
+  const settleY = canvasHeight - bucketHeight - BALL_RADIUS * 2.2;
+  const settleX = clamp(
+    prevX + (targetX - prevX) * 0.42 + (Math.random() - 0.5) * (10 + profile.maxSidewaysSpeed * 3),
+    BALL_RADIUS + 1,
+    canvasWidth - BALL_RADIUS - 1
+  );
+  points.push({ x: settleX, y: settleY });
+
+  points.push({
+    x: clamp(targetX + (Math.random() - 0.5) * 6, BALL_RADIUS + 1, canvasWidth - BALL_RADIUS - 1),
+    y: canvasHeight - bucketHeight - BALL_RADIUS,
+  });
+
+  return points;
+}
+
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
   const [bet, setBet] = useState(1);
@@ -125,8 +194,6 @@ export const PlinkoGame: React.FC = () => {
   const animationRef = useRef<number>();
   const bucketHitRef = useRef(false);
   const dropLockRef = useRef(false);
-  const targetBucketRef = useRef<number | null>(null);
-  const targetBucketXRef = useRef<number | null>(null);
 
   const { getStats, recordBet } = useLocalGameStats('plinko');
   const stats = getStats();
@@ -312,16 +379,21 @@ export const PlinkoGame: React.FC = () => {
 
     const selectedBucket = Math.min(samplePlinkoBucket(multipliers), multipliers.length - 1);
     const bucketWidth = canvasWidth / multipliers.length;
-    targetBucketRef.current = selectedBucket;
-    targetBucketXRef.current = (selectedBucket + 0.5) * bucketWidth + (Math.random() - 0.5) * bucketWidth * 0.75;
+    const targetBucketX = (selectedBucket + 0.5) * bucketWidth;
 
     const startX = canvasWidth / 2 + (Math.random() - 0.5) * 90;
-    ballRef.current = {
-      x: startX,
-      y: 20,
-      vx: (Math.random() - 0.5) * physicsProfile.startDrift,
-      vy: 0,
-    };
+    const path = buildDropPath({
+      rows,
+      startX,
+      targetX: targetBucketX,
+      canvasWidth,
+      canvasHeight,
+      topPadding,
+      bucketHeight,
+      profile: physicsProfile,
+    });
+
+    ballRef.current = { x: startX, y: 20, vx: 0, vy: 0 };
 
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -329,86 +401,32 @@ export const PlinkoGame: React.FC = () => {
       addBalance(cost);
       setIsDropping(false);
       dropLockRef.current = false;
-      targetBucketRef.current = null;
-      targetBucketXRef.current = null;
       return;
     }
 
-    const animate = () => {
+    const startTime = performance.now();
+    const durationMs = 1200 + rows * 65;
+
+    const animate = (timestamp: number) => {
       const ball = ballRef.current;
       if (!ball || bucketHitRef.current) return;
 
-      ball.vy += GRAVITY;
-      ball.vy = Math.min(ball.vy, MAX_FALL_SPEED);
-      ball.vx += (canvasWidth / 2 - ball.x) * physicsProfile.centerPull;
-      if (targetBucketXRef.current !== null) {
-        ball.vx += (targetBucketXRef.current - ball.x) * TARGET_PULL;
-      }
-      ball.vx *= FRICTION;
-      ball.vx = Math.max(-physicsProfile.maxSidewaysSpeed, Math.min(physicsProfile.maxSidewaysSpeed, ball.vx));
-      ball.x += ball.vx;
-      ball.y += ball.vy;
+      const tRaw = clamp((timestamp - startTime) / durationMs, 0, 1);
+      const t = easeInOutCubic(tRaw);
+      const segmentCount = path.length - 1;
+      const scaled = t * segmentCount;
+      const segmentIndex = Math.min(Math.floor(scaled), segmentCount - 1);
+      const localT = scaled - segmentIndex;
+      const from = path[segmentIndex];
+      const to = path[segmentIndex + 1];
 
-      if (targetBucketXRef.current !== null && ball.y > canvasHeight - bucketHeight - BALL_RADIUS * 2.5) {
-        ball.x += (targetBucketXRef.current - ball.x) * 0.02;
-      }
+      const wobble = Math.sin(t * Math.PI * (rows * 0.9)) * (4.5 * (1 - t) + 0.5);
+      ball.x = clamp(lerp(from.x, to.x, localT) + wobble, BALL_RADIUS, canvasWidth - BALL_RADIUS);
+      ball.y = lerp(from.y, to.y, localT);
 
-      if (ball.x < BALL_RADIUS) {
-        ball.x = BALL_RADIUS;
-        ball.vx = -ball.vx * physicsProfile.bounce;
-      }
-      if (ball.x > canvasWidth - BALL_RADIUS) {
-        ball.x = canvasWidth - BALL_RADIUS;
-        ball.vx = -ball.vx * physicsProfile.bounce;
-      }
-
-      let closestPeg: { x: number; y: number } | null = null;
-      let closestDist = Number.POSITIVE_INFINITY;
-
-      for (const peg of pegsRef.current) {
-        const dx = ball.x - peg.x;
-        const dy = ball.y - peg.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < BALL_RADIUS + PEG_RADIUS && dist < closestDist) {
-          closestDist = dist;
-          closestPeg = peg;
-        }
-      }
-
-      if (closestPeg) {
-        const dx = ball.x - closestPeg.x;
-        const dy = ball.y - closestPeg.y;
-        const dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
-        const normalX = dx / dist;
-        const normalY = dy / dist;
-        const tangentX = -normalY;
-        const tangentY = normalX;
-        const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-
-        const normalSpeed = ball.vx * normalX + ball.vy * normalY;
-        const tangentSpeed = ball.vx * tangentX + ball.vy * tangentY;
-        const bouncedNormal = Math.max(0.7, Math.abs(normalSpeed) * (0.85 + physicsProfile.bounce * 0.25));
-        const keptTangent = tangentSpeed * (0.72 + physicsProfile.sidewaysDamping * 0.18);
-        const randomKick = (Math.random() - 0.5) * physicsProfile.pegRandomKick;
-
-        ball.vx = normalX * bouncedNormal + tangentX * keptTangent + randomKick;
-        ball.vy = Math.max(0.95, normalY * bouncedNormal + tangentY * keptTangent + GRAVITY * 0.25);
-        ball.vx = Math.max(-physicsProfile.maxSidewaysSpeed, Math.min(physicsProfile.maxSidewaysSpeed, ball.vx));
-
-        const overlap = BALL_RADIUS + PEG_RADIUS - closestDist + PEG_SEPARATION_EPSILON;
-        ball.x += normalX * overlap;
-        ball.y += normalY * overlap;
-      }
-
-      if (ball.y > canvasHeight - bucketHeight - BALL_RADIUS && !bucketHitRef.current) {
+      if (tRaw >= 1 && !bucketHitRef.current) {
         bucketHitRef.current = true;
-        
-        const numBuckets = multipliers.length;
-        const resolvedBucket = targetBucketRef.current;
-        const resolvedIndex = resolvedBucket !== null
-          ? Math.min(Math.max(resolvedBucket, 0), numBuckets - 1)
-          : Math.min(Math.max(Math.floor(ball.x / (canvasWidth / numBuckets)), 0), numBuckets - 1);
-        const bucketIndex = resolvedIndex;
+        const bucketIndex = selectedBucket;
         
         setFinalPosition(bucketIndex);
         
@@ -437,8 +455,6 @@ export const PlinkoGame: React.FC = () => {
           setDroppedBalls(prev => prev + 1);
           setIsDropping(false);
           dropLockRef.current = false;
-          targetBucketRef.current = null;
-          targetBucketXRef.current = null;
           
           if (isAuto && autoCount > 1) {
             setAutoCount(prev => prev - 1);
@@ -529,8 +545,8 @@ export const PlinkoGame: React.FC = () => {
       animationRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
-  }, [canDrop, betCoins, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet, canvasWidth, canvasHeight, physicsProfile]);
+    animationRef.current = requestAnimationFrame(animate);
+  }, [canDrop, betCoins, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet, canvasWidth, canvasHeight, physicsProfile, rows]);
 
   useEffect(() => {
     return () => {
