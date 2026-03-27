@@ -8362,6 +8362,21 @@ const AppContent = () => {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason as { code?: number; message?: string } | null;
+      const code = Number(reason?.code ?? 0);
+      const message = String(reason?.message ?? '');
+
+      if (code === 4900 || /provider is disconnected from all chains/i.test(message)) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated || !user?.id) {
       setIsOnboardingOpen(false);
       return;
