@@ -42,14 +42,15 @@ const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
 const PEG_COLOR = '#ffffff';
 const BALL_RADIUS = 8;
 const PEG_RADIUS = 4;
-const GRAVITY = 0.46;
+const GRAVITY = 0.33;
 const BOUNCE = 0.34;
 const FRICTION = 0.94;
 const START_DRIFT = 0.5;
 const PEG_RANDOM_KICK = 0.22;
 const SIDEWAYS_DAMPING = 0.56;
-const CENTER_PULL = 0.03;
+const CENTER_PULL = 0.012;
 const MAX_SIDEWAYS_SPEED = 1.45;
+const MAX_FALL_SPEED = 5.4;
 const TARGET_PULL = 0.0045;
 const CLIENT_SEED_STORAGE_KEY = 'pasus_client_seed';
 const CLIENT_NONCE_STORAGE_KEY = 'pasus_client_nonce';
@@ -156,33 +157,33 @@ export const PlinkoGame: React.FC = () => {
   const physicsProfile = useMemo(() => {
     if (rows === 8) {
       return {
-        bounce: 0.24,
-        startDrift: 0.16,
-        pegRandomKick: 0.06,
+        bounce: 0.27,
+        startDrift: 0.34,
+        pegRandomKick: 0.14,
         sidewaysDamping: 0.24,
-        centerPull: 0.052,
+        centerPull: 0.02,
         maxSidewaysSpeed: 0.58,
       };
     }
 
     if (rows === 10) {
       return {
-        bounce: 0.28,
-        startDrift: 0.22,
-        pegRandomKick: 0.08,
+        bounce: 0.3,
+        startDrift: 0.36,
+        pegRandomKick: 0.16,
         sidewaysDamping: 0.3,
-        centerPull: 0.044,
+        centerPull: 0.018,
         maxSidewaysSpeed: 0.8,
       };
     }
 
     if (rows === 12) {
       return {
-        bounce: 0.31,
-        startDrift: 0.28,
-        pegRandomKick: 0.12,
+        bounce: 0.33,
+        startDrift: 0.4,
+        pegRandomKick: 0.18,
         sidewaysDamping: 0.4,
-        centerPull: 0.038,
+        centerPull: 0.015,
         maxSidewaysSpeed: 1,
       };
     }
@@ -360,6 +361,7 @@ export const PlinkoGame: React.FC = () => {
       if (!ball || bucketHitRef.current) return;
 
       ball.vy += GRAVITY;
+      ball.vy = Math.min(ball.vy, MAX_FALL_SPEED);
       ball.vx += (canvasWidth / 2 - ball.x) * physicsProfile.centerPull;
       if (targetBucketXRef.current !== null) {
         ball.vx += (targetBucketXRef.current - ball.x) * TARGET_PULL;
