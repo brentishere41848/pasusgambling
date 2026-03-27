@@ -48,10 +48,10 @@ const FRICTION = 0.94;
 const START_DRIFT = 0.5;
 const PEG_RANDOM_KICK = 0.22;
 const SIDEWAYS_DAMPING = 0.56;
-const CENTER_PULL = 0.012;
+const CENTER_PULL = 0.004;
 const MAX_SIDEWAYS_SPEED = 1.45;
 const MAX_FALL_SPEED = 5.4;
-const TARGET_PULL = 0.0045;
+const TARGET_PULL = 0.0022;
 const CLIENT_SEED_STORAGE_KEY = 'pasus_client_seed';
 const CLIENT_NONCE_STORAGE_KEY = 'pasus_client_nonce';
 
@@ -68,35 +68,12 @@ function pickOutcomeBand(): OutcomeBand {
   return 'bigwin';
 }
 
-function getBinomialWeight(rowCount: number, bucketIndex: number) {
-  const k = Math.max(0, Math.min(rowCount, bucketIndex));
-  const n = rowCount;
-  const mirroredK = Math.min(k, n - k);
-  let combination = 1;
-  for (let i = 1; i <= mirroredK; i += 1) {
-    combination = (combination * (n - mirroredK + i)) / i;
-  }
-  return combination;
-}
-
-function pickWeightedIndex(indices: number[], rowCount: number) {
+function pickRandomIndex(indices: number[]) {
   if (!indices.length) return 0;
-  const weighted = indices.map((index) => ({
-    index,
-    weight: getBinomialWeight(rowCount, index),
-  }));
-  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
-  if (total <= 0) return indices[Math.floor(Math.random() * indices.length)];
-
-  let threshold = Math.random() * total;
-  for (const entry of weighted) {
-    threshold -= entry.weight;
-    if (threshold <= 0) return entry.index;
-  }
-  return weighted[weighted.length - 1].index;
+  return indices[Math.floor(Math.random() * indices.length)];
 }
 
-function samplePlinkoBucket(rowCount: number, multipliers: number[]) {
+function samplePlinkoBucket(multipliers: number[]) {
   if (!multipliers.length) return 0;
 
   const maxMultiplier = Math.max(...multipliers);
@@ -117,12 +94,12 @@ function samplePlinkoBucket(rowCount: number, multipliers: number[]) {
     .filter((entry) => entry.multiplier >= 1 && entry.multiplier < maxMultiplier)
     .map((entry) => entry.index);
 
-  if (outcomeBand === 'loss' && lossBuckets.length) return pickWeightedIndex(lossBuckets, rowCount);
-  if (outcomeBand === 'win' && winBuckets.length) return pickWeightedIndex(winBuckets, rowCount);
-  if (outcomeBand === 'bigwin' && bigWinBuckets.length) return pickWeightedIndex(bigWinBuckets, rowCount);
+  if (outcomeBand === 'loss' && lossBuckets.length) return pickRandomIndex(lossBuckets);
+  if (outcomeBand === 'win' && winBuckets.length) return pickRandomIndex(winBuckets);
+  if (outcomeBand === 'bigwin' && bigWinBuckets.length) return pickRandomIndex(bigWinBuckets);
 
   const fallback = lossBuckets.length ? lossBuckets : winBuckets.length ? winBuckets : bigWinBuckets;
-  return fallback.length ? pickWeightedIndex(fallback, rowCount) : Math.floor(Math.random() * multipliers.length);
+  return fallback.length ? pickRandomIndex(fallback) : Math.floor(Math.random() * multipliers.length);
 }
 
 export const PlinkoGame: React.FC = () => {
@@ -157,34 +134,34 @@ export const PlinkoGame: React.FC = () => {
   const physicsProfile = useMemo(() => {
     if (rows === 8) {
       return {
-        bounce: 0.27,
-        startDrift: 0.34,
-        pegRandomKick: 0.14,
+        bounce: 0.28,
+        startDrift: 0.48,
+        pegRandomKick: 0.2,
         sidewaysDamping: 0.24,
-        centerPull: 0.02,
-        maxSidewaysSpeed: 0.58,
+        centerPull: 0.006,
+        maxSidewaysSpeed: 0.75,
       };
     }
 
     if (rows === 10) {
       return {
-        bounce: 0.3,
-        startDrift: 0.36,
-        pegRandomKick: 0.16,
+        bounce: 0.31,
+        startDrift: 0.52,
+        pegRandomKick: 0.22,
         sidewaysDamping: 0.3,
-        centerPull: 0.018,
-        maxSidewaysSpeed: 0.8,
+        centerPull: 0.006,
+        maxSidewaysSpeed: 0.95,
       };
     }
 
     if (rows === 12) {
       return {
-        bounce: 0.33,
-        startDrift: 0.4,
-        pegRandomKick: 0.18,
+        bounce: 0.34,
+        startDrift: 0.58,
+        pegRandomKick: 0.24,
         sidewaysDamping: 0.4,
-        centerPull: 0.015,
-        maxSidewaysSpeed: 1,
+        centerPull: 0.006,
+        maxSidewaysSpeed: 1.1,
       };
     }
 
@@ -332,12 +309,12 @@ export const PlinkoGame: React.FC = () => {
     setFinalPosition(null);
     bucketHitRef.current = false;
 
-    const selectedBucket = Math.min(samplePlinkoBucket(rows, multipliers), multipliers.length - 1);
+    const selectedBucket = Math.min(samplePlinkoBucket(multipliers), multipliers.length - 1);
     const bucketWidth = canvasWidth / multipliers.length;
     targetBucketRef.current = selectedBucket;
-    targetBucketXRef.current = (selectedBucket + 0.5) * bucketWidth + (Math.random() - 0.5) * bucketWidth * 0.35;
+    targetBucketXRef.current = (selectedBucket + 0.5) * bucketWidth + (Math.random() - 0.5) * bucketWidth * 0.75;
 
-    const startX = canvasWidth / 2 + (Math.random() - 0.5) * 30;
+    const startX = canvasWidth / 2 + (Math.random() - 0.5) * 90;
     ballRef.current = {
       x: startX,
       y: 20,
@@ -372,7 +349,7 @@ export const PlinkoGame: React.FC = () => {
       ball.y += ball.vy;
 
       if (targetBucketXRef.current !== null && ball.y > canvasHeight - bucketHeight - BALL_RADIUS * 2.5) {
-        ball.x += (targetBucketXRef.current - ball.x) * 0.05;
+        ball.x += (targetBucketXRef.current - ball.x) * 0.02;
       }
 
       if (ball.x < BALL_RADIUS) {
