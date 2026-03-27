@@ -52,6 +52,7 @@ const CENTER_PULL = 0.004;
 const MAX_SIDEWAYS_SPEED = 1.45;
 const MAX_FALL_SPEED = 5.4;
 const TARGET_PULL = 0.0022;
+const PEG_SEPARATION_EPSILON = 0.6;
 const CLIENT_SEED_STORAGE_KEY = 'pasus_client_seed';
 const CLIENT_NONCE_STORAGE_KEY = 'pasus_client_nonce';
 
@@ -361,25 +362,42 @@ export const PlinkoGame: React.FC = () => {
         ball.vx = -ball.vx * physicsProfile.bounce;
       }
 
+      let closestPeg: { x: number; y: number } | null = null;
+      let closestDist = Number.POSITIVE_INFINITY;
+
       for (const peg of pegsRef.current) {
         const dx = ball.x - peg.x;
         const dy = ball.y - peg.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        if (dist < BALL_RADIUS + PEG_RADIUS) {
-          const angle = Math.atan2(dy, dx);
-          const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-          const outwardX = Math.cos(angle) * speed * physicsProfile.bounce;
-          const outwardY = Math.sin(angle) * speed * physicsProfile.bounce;
-          
-          ball.vx = outwardX * physicsProfile.sidewaysDamping + (Math.random() - 0.5) * physicsProfile.pegRandomKick;
-          ball.vy = Math.max(0.8, outwardY + GRAVITY * 0.35);
-          ball.vx = Math.max(-physicsProfile.maxSidewaysSpeed, Math.min(physicsProfile.maxSidewaysSpeed, ball.vx));
-          
-          const overlap = BALL_RADIUS + PEG_RADIUS - dist;
-          ball.x += Math.cos(angle) * overlap;
-          ball.y += Math.sin(angle) * overlap;
+        if (dist < BALL_RADIUS + PEG_RADIUS && dist < closestDist) {
+          closestDist = dist;
+          closestPeg = peg;
         }
+      }
+
+      if (closestPeg) {
+        const dx = ball.x - closestPeg.x;
+        const dy = ball.y - closestPeg.y;
+        const dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
+        const normalX = dx / dist;
+        const normalY = dy / dist;
+        const tangentX = -normalY;
+        const tangentY = normalX;
+        const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+
+        const normalSpeed = ball.vx * normalX + ball.vy * normalY;
+        const tangentSpeed = ball.vx * tangentX + ball.vy * tangentY;
+        const bouncedNormal = Math.max(0.7, Math.abs(normalSpeed) * (0.85 + physicsProfile.bounce * 0.25));
+        const keptTangent = tangentSpeed * (0.72 + physicsProfile.sidewaysDamping * 0.18);
+        const randomKick = (Math.random() - 0.5) * physicsProfile.pegRandomKick;
+
+        ball.vx = normalX * bouncedNormal + tangentX * keptTangent + randomKick;
+        ball.vy = Math.max(0.95, normalY * bouncedNormal + tangentY * keptTangent + GRAVITY * 0.25);
+        ball.vx = Math.max(-physicsProfile.maxSidewaysSpeed, Math.min(physicsProfile.maxSidewaysSpeed, ball.vx));
+
+        const overlap = BALL_RADIUS + PEG_RADIUS - closestDist + PEG_SEPARATION_EPSILON;
+        ball.x += normalX * overlap;
+        ball.y += normalY * overlap;
       }
 
       if (ball.y > canvasHeight - bucketHeight - BALL_RADIUS && !bucketHitRef.current) {
