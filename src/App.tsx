@@ -1757,12 +1757,15 @@ const WalletModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 };
 
 const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
-  const { login, register } = useAuth();
+  const { login, register, verifyEmail, resendVerification } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationEmail, setVerificationEmail] = useState('');
   const [requiresTotp, setRequiresTotp] = useState(false);
+  const [requiresEmailVerification, setRequiresEmailVerification] = useState(false);
   const [affiliateCode, setAffiliateCode] = useState('');
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [isRegister, setIsRegister] = useState(false);
@@ -1788,6 +1791,26 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
     e.preventDefault();
     setError('');
 
+    if (requiresEmailVerification) {
+      if (!verificationEmail.trim() || !verificationCode.trim()) {
+        setError('Enter your email and verification code.');
+        return;
+      }
+
+      try {
+        setIsSubmitting(true);
+        await verifyEmail(verificationEmail.trim(), verificationCode.trim());
+        setVerificationCode('');
+        setRequiresEmailVerification(false);
+        onClose();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Email verification failed.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (!username.trim() || !password.trim() || (isRegister && !email.trim())) {
       setError('Please fill in all required fields.');
       return;
@@ -1802,16 +1825,25 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
       setIsSubmitting(true);
       if (isRegister) {
         await register(username.trim(), email.trim(), password, affiliateCode.trim(), emailOptIn);
+        setVerificationEmail(email.trim());
+        setVerificationCode('');
+        setRequiresEmailVerification(true);
+        setError('Check your email for the verification code.');
       } else {
         await login(username.trim(), password, requiresTotp ? totpCode.trim() : undefined);
+        setTotpCode('');
+        setRequiresTotp(false);
+        onClose();
       }
-      setTotpCode('');
-      setRequiresTotp(false);
-      onClose();
     } catch (err: any) {
       if (err.message?.includes('2FA')) {
         setRequiresTotp(true);
         setError(err.message);
+      } else if (err.requiresEmailVerification) {
+        setRequiresEmailVerification(true);
+        setVerificationEmail(String(err.email || email.trim()));
+        setVerificationCode('');
+        setError(err.message || 'Email verification required.');
       } else {
         setError(err instanceof Error ? err.message : 'Authentication failed.');
       }
@@ -1837,10 +1869,12 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
         <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto max-h-full sm:max-h-none custom-scrollbar">
           <div className="text-center space-y-2">
             <h2 className="text-3xl font-black italic uppercase tracking-tighter">
-              {isRegister ? 'Join Pasus' : 'Welcome Back'}
+              {requiresEmailVerification ? 'Verify Email' : isRegister ? 'Join Pasus' : 'Welcome Back'}
             </h2>
             <p className="text-white/40 text-sm font-medium">
-              {isRegister ? 'Create your account to start winning' : 'Enter your details to access your account'}
+              {requiresEmailVerification
+                ? 'Enter the code sent to your email to continue'
+                : isRegister ? 'Create your account to start winning' : 'Enter your details to access your account'}
             </p>
           </div>
 
@@ -1851,22 +1885,24 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
               </div>
             )}
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Username</label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
-                <input 
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
-                  placeholder="Enter username"
-                  required
-                />
+            {!requiresEmailVerification ? (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Username</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+                  <input 
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
+                    placeholder="Enter username"
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            ) : null}
 
-            {isRegister && (
+            {isRegister && !requiresEmailVerification && (
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Email</label>
                 <div className="relative">
@@ -1883,7 +1919,61 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
               </div>
             )}
 
-            {isRegister && (
+            {requiresEmailVerification ? (
+              <>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+                    <input
+                      type="email"
+                      value={verificationEmail}
+                      onChange={(e) => setVerificationEmail(e.target.value)}
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
+                      placeholder="Enter email"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Verification Code</label>
+                  <div className="relative">
+                    <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+                    <input
+                      type="text"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold tracking-[0.3em] text-center focus:outline-none focus:border-[#00FF88]/50 transition-all"
+                      placeholder="000000"
+                      maxLength={6}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setIsSubmitting(true);
+                      setError('');
+                      await resendVerification(verificationEmail.trim());
+                      setError('Verification code resent.');
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to resend verification code.');
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  className="w-full rounded-2xl border border-white/10 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white/70"
+                >
+                  Resend Code
+                </button>
+              </>
+            ) : null}
+
+            {isRegister && !requiresEmailVerification && (
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Affiliate Code</label>
                 <div className="relative">
@@ -1899,6 +1989,7 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
               </div>
             )}
 
+            {!requiresEmailVerification ? (
             <label className="flex items-center gap-3 cursor-pointer py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
               <input
                 type="checkbox"
@@ -1911,7 +2002,9 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
                 <div className="text-[10px] text-white/40">Get updates and special offers via email</div>
               </div>
             </label>
+            ) : null}
 
+            {!requiresEmailVerification ? (
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Password</label>
               <div className="relative">
@@ -1926,8 +2019,9 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
                 />
               </div>
             </div>
+            ) : null}
 
-            {requiresTotp && (
+            {requiresTotp && !requiresEmailVerification && (
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">2FA Code</label>
                 <div className="relative">
@@ -1950,13 +2044,18 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
               disabled={isSubmitting}
               className="w-full py-4 bg-[#00FF88] text-black rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting ? 'Please wait...' : (isRegister ? 'Create Account' : 'Sign In')}
+              {isSubmitting ? 'Please wait...' : (requiresEmailVerification ? 'Verify Email' : isRegister ? 'Create Account' : 'Sign In')}
             </button>
           </form>
 
           <div className="text-center">
             <button 
               onClick={() => {
+                if (requiresEmailVerification) {
+                  setRequiresEmailVerification(false);
+                  setVerificationCode('');
+                  return;
+                }
                 setIsRegister(!isRegister);
                 setError('');
                 setRequiresTotp(false);
@@ -1964,7 +2063,7 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
               }}
               className="text-xs font-bold text-white/40 hover:text-white transition-colors"
             >
-              {isRegister ? 'Already have an account? Sign In' : "Don't have an account? Register"}
+              {requiresEmailVerification ? 'Back to login' : isRegister ? 'Already have an account? Sign In' : "Don't have an account? Register"}
             </button>
           </div>
         </div>

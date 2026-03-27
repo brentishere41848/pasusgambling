@@ -27,6 +27,8 @@ interface AuthContextType {
   user: User | null;
   login: (username: string, password: string, totpCode?: string) => Promise<void>;
   register: (username: string, email: string, password: string, affiliateCode?: string, emailOptIn?: boolean) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
   logout: () => void;
   updateCurrency: (currency: string) => void;
   updatePreferences: (preferences: { currency?: string; avatarSource?: 'custom' | 'roblox' | 'discord'; customAvatarUrl?: string }) => Promise<void>;
@@ -44,7 +46,9 @@ async function parseApiResponse(response: Response) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || 'Request failed.');
+    const error = new Error(data.error || 'Request failed.') as Error & Record<string, unknown>;
+    Object.assign(error, data);
+    throw error;
   }
 
   return data;
@@ -128,7 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const register = async (username: string, email: string, password: string, affiliateCode?: string, emailOptIn?: boolean) => {
-    const data = await parseApiResponse(
+    await parseApiResponse(
       await apiFetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -143,8 +147,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }),
       })
     );
+  };
+
+  const verifyEmail = async (email: string, code: string) => {
+    const data = await parseApiResponse(
+      await apiFetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          code,
+        }),
+      })
+    );
 
     applyAuthenticatedUser(data.user as User, data.token as string);
+  };
+
+  const resendVerification = async (email: string) => {
+    await parseApiResponse(
+      await apiFetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+        }),
+      })
+    );
   };
 
   const logout = () => {
@@ -196,6 +229,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         login,
         register,
+        verifyEmail,
+        resendVerification,
         logout,
         updateCurrency,
         updatePreferences,

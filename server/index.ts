@@ -94,6 +94,23 @@ async function sendWelcomeEmail(email: string, username: string) {
   }
 }
 
+async function sendVerificationEmail(email: string, username: string, code: string) {
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h1 style="color: #00FF88;">Verify your Pasus account</h1>
+      <p>Hey ${username},</p>
+      <p>Use this verification code to activate your account:</p>
+      <div style="margin: 24px 0; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #111; background: #00FF88; display: inline-block; padding: 14px 22px; border-radius: 12px;">
+        ${code}
+      </div>
+      <p>This code expires in 15 minutes.</p>
+      <p style="color: #666; font-size: 12px;">If you did not create this account, you can ignore this email.</p>
+    </div>
+  `;
+
+  await sendEmail(email, 'Verify your Pasus account', html);
+}
+
 async function sendPromoEmail(email: string, username: string, promo: string) {
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -1931,6 +1948,9 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS user_level INT NOT NULL DEFAULT 1`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS vip_claimed_levels TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_opt_in BOOLEAN NOT NULL DEFAULT true`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_code TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMPTZ`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_roblox_user_id_unique ON users(roblox_user_id) WHERE roblox_user_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL`);
 
@@ -2612,6 +2632,7 @@ registerAuthRoutes({
   normalizeAffiliateCode,
   requireAuth,
   sanitizeUser,
+  sendVerificationEmail,
   sendWelcomeEmail,
   verifyTotpCode,
 });
