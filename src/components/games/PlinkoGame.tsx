@@ -50,16 +50,78 @@ const PEG_RANDOM_KICK = 0.22;
 const SIDEWAYS_DAMPING = 0.56;
 const CENTER_PULL = 0.03;
 const MAX_SIDEWAYS_SPEED = 1.45;
-const TARGET_PULL = 0.014;
+const TARGET_PULL = 0.0045;
 const CLIENT_SEED_STORAGE_KEY = 'pasus_client_seed';
 const CLIENT_NONCE_STORAGE_KEY = 'pasus_client_nonce';
 
-function samplePlinkoBucket(rowCount: number) {
-  let rightSteps = 0;
-  for (let i = 0; i < rowCount; i += 1) {
-    if (Math.random() >= 0.5) rightSteps += 1;
+const LOSS_CHANCE = 0.7;
+const WIN_CHANCE = 0.29;
+const BIG_WIN_CHANCE = 0.01;
+
+type OutcomeBand = 'loss' | 'win' | 'bigwin';
+
+function pickOutcomeBand(): OutcomeBand {
+  const roll = Math.random();
+  if (roll < LOSS_CHANCE) return 'loss';
+  if (roll < LOSS_CHANCE + WIN_CHANCE) return 'win';
+  return 'bigwin';
+}
+
+function getBinomialWeight(rowCount: number, bucketIndex: number) {
+  const k = Math.max(0, Math.min(rowCount, bucketIndex));
+  const n = rowCount;
+  const mirroredK = Math.min(k, n - k);
+  let combination = 1;
+  for (let i = 1; i <= mirroredK; i += 1) {
+    combination = (combination * (n - mirroredK + i)) / i;
   }
-  return rightSteps;
+  return combination;
+}
+
+function pickWeightedIndex(indices: number[], rowCount: number) {
+  if (!indices.length) return 0;
+  const weighted = indices.map((index) => ({
+    index,
+    weight: getBinomialWeight(rowCount, index),
+  }));
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  if (total <= 0) return indices[Math.floor(Math.random() * indices.length)];
+
+  let threshold = Math.random() * total;
+  for (const entry of weighted) {
+    threshold -= entry.weight;
+    if (threshold <= 0) return entry.index;
+  }
+  return weighted[weighted.length - 1].index;
+}
+
+function samplePlinkoBucket(rowCount: number, multipliers: number[]) {
+  if (!multipliers.length) return 0;
+
+  const maxMultiplier = Math.max(...multipliers);
+  const outcomeBand = pickOutcomeBand();
+
+  const lossBuckets = multipliers
+    .map((multiplier, index) => ({ multiplier, index }))
+    .filter((entry) => entry.multiplier < 1)
+    .map((entry) => entry.index);
+
+  const bigWinBuckets = multipliers
+    .map((multiplier, index) => ({ multiplier, index }))
+    .filter((entry) => entry.multiplier === maxMultiplier)
+    .map((entry) => entry.index);
+
+  const winBuckets = multipliers
+    .map((multiplier, index) => ({ multiplier, index }))
+    .filter((entry) => entry.multiplier >= 1 && entry.multiplier < maxMultiplier)
+    .map((entry) => entry.index);
+
+  if (outcomeBand === 'loss' && lossBuckets.length) return pickWeightedIndex(lossBuckets, rowCount);
+  if (outcomeBand === 'win' && winBuckets.length) return pickWeightedIndex(winBuckets, rowCount);
+  if (outcomeBand === 'bigwin' && bigWinBuckets.length) return pickWeightedIndex(bigWinBuckets, rowCount);
+
+  const fallback = lossBuckets.length ? lossBuckets : winBuckets.length ? winBuckets : bigWinBuckets;
+  return fallback.length ? pickWeightedIndex(fallback, rowCount) : Math.floor(Math.random() * multipliers.length);
 }
 
 export const PlinkoGame: React.FC = () => {
@@ -269,10 +331,10 @@ export const PlinkoGame: React.FC = () => {
     setFinalPosition(null);
     bucketHitRef.current = false;
 
-    const selectedBucket = Math.min(samplePlinkoBucket(rows), multipliers.length - 1);
+    const selectedBucket = Math.min(samplePlinkoBucket(rows, multipliers), multipliers.length - 1);
     const bucketWidth = canvasWidth / multipliers.length;
     targetBucketRef.current = selectedBucket;
-    targetBucketXRef.current = (selectedBucket + 0.5) * bucketWidth;
+    targetBucketXRef.current = (selectedBucket + 0.5) * bucketWidth + (Math.random() - 0.5) * bucketWidth * 0.35;
 
     const startX = canvasWidth / 2 + (Math.random() - 0.5) * 30;
     ballRef.current = {
@@ -308,7 +370,7 @@ export const PlinkoGame: React.FC = () => {
       ball.y += ball.vy;
 
       if (targetBucketXRef.current !== null && ball.y > canvasHeight - bucketHeight - BALL_RADIUS * 2.5) {
-        ball.x += (targetBucketXRef.current - ball.x) * 0.22;
+        ball.x += (targetBucketXRef.current - ball.x) * 0.05;
       }
 
       if (ball.x < BALL_RADIUS) {
