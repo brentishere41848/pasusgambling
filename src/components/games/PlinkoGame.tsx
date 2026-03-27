@@ -13,29 +13,29 @@ const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
 const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    low: [1.25, 0.85, 0.55, 0.25, 0.08, 0.25, 0.55, 0.85, 1.25],
-    medium: [1.8, 1, 0.45, 0.16, 0.04, 0.16, 0.45, 1, 1.8],
-    high: [2.6, 1.15, 0.5, 0.14, 0.02, 0.14, 0.5, 1.15, 2.6],
+    low: [3.8161, 2.595, 1.6791, 0.7632, 0.2442, 0.7632, 1.6791, 2.595, 3.8161],
+    medium: [6.7516, 3.7509, 1.6879, 0.6001, 0.15, 0.6001, 1.6879, 3.7509, 6.7516],
+    high: [9.3037, 4.1151, 1.7892, 0.501, 0.0716, 0.501, 1.7892, 4.1151, 9.3037],
   },
   10: {
-    low: [1.8, 1.1, 0.7, 0.42, 0.2, 0.08, 0.2, 0.42, 0.7, 1.1, 1.8],
-    medium: [3, 1.45, 0.7, 0.28, 0.1, 0.03, 0.1, 0.28, 0.7, 1.45, 3],
-    high: [5.5, 2, 0.95, 0.32, 0.11, 0.02, 0.11, 0.32, 0.95, 2, 5.5],
+    low: [6.0276, 3.6836, 2.3441, 1.4064, 0.6697, 0.2679, 0.6697, 1.4064, 2.3441, 3.6836, 6.0276],
+    medium: [13.7322, 6.6372, 3.2042, 1.2817, 0.4577, 0.1373, 0.4577, 1.2817, 3.2042, 6.6372, 13.7322],
+    high: [20.4382, 7.4321, 3.5302, 1.1891, 0.4088, 0.0743, 0.4088, 1.1891, 3.5302, 7.4321, 20.4382],
   },
   12: {
-    low: [2.5, 1.3, 0.8, 0.5, 0.28, 0.12, 0.05, 0.12, 0.28, 0.5, 0.8, 1.3, 2.5],
-    medium: [4.5, 1.9, 0.85, 0.36, 0.14, 0.06, 0.02, 0.06, 0.14, 0.36, 0.85, 1.9, 4.5],
-    high: [8, 2.8, 1.1, 0.42, 0.16, 0.06, 0.015, 0.06, 0.16, 0.42, 1.1, 2.8, 8],
+    low: [11.2311, 5.8402, 3.594, 2.2462, 1.2579, 0.5391, 0.2246, 0.5391, 1.2579, 2.2462, 3.594, 5.8402, 11.2311],
+    medium: [30.6498, 12.941, 5.7894, 2.452, 0.9535, 0.4087, 0.1362, 0.4087, 0.9535, 2.452, 5.7894, 12.941, 30.6498],
+    high: [46.2267, 16.1794, 6.3562, 2.4269, 0.9245, 0.3467, 0.0867, 0.3467, 0.9245, 2.4269, 6.3562, 16.1794, 46.2267],
   },
   14: {
-    low: [10, 4, 2.2, 1.3, 0.9, 0.65, 0.4, 0.25, 0.4, 0.65, 0.9, 1.3, 2.2, 4, 10],
-    medium: [22, 6.5, 2.8, 1.3, 0.65, 0.35, 0.18, 0.08, 0.18, 0.35, 0.65, 1.3, 2.8, 6.5, 22],
-    high: [60, 12, 4.2, 1.5, 0.6, 0.28, 0.12, 0.05, 0.12, 0.28, 0.6, 1.5, 4.2, 12, 60],
+    low: [17.2018, 6.8807, 3.7844, 2.2362, 1.5482, 1.1181, 0.6881, 0.43, 0.6881, 1.1181, 1.5482, 2.2362, 3.7844, 6.8807, 17.2018],
+    medium: [60.2804, 17.8101, 7.6721, 3.562, 1.781, 0.959, 0.4932, 0.2192, 0.4932, 0.959, 1.781, 3.562, 7.6721, 17.8101, 60.2804],
+    high: [170.7457, 34.1491, 11.9522, 4.2686, 1.7075, 0.7968, 0.3415, 0.1423, 0.3415, 0.7968, 1.7075, 4.2686, 11.9522, 34.1491, 170.7457],
   },
   16: {
-    low: [14, 5, 2.6, 1.4, 1, 0.7, 0.45, 0.28, 0.18, 0.28, 0.45, 0.7, 1, 1.4, 2.6, 5, 14],
-    medium: [32, 8.5, 3.5, 1.5, 0.75, 0.4, 0.2, 0.1, 0.05, 0.1, 0.2, 0.4, 0.75, 1.5, 3.5, 8.5, 32],
-    high: [100, 20, 6, 2.4, 1, 0.5, 0.22, 0.1, 0.03, 0.1, 0.22, 0.5, 1, 2.4, 6, 20, 100],
+    low: [31.384, 11.2086, 5.8285, 3.1384, 2.2417, 1.5692, 1.0088, 0.6277, 0.4035, 0.6277, 1.0088, 1.5692, 2.2417, 3.1384, 5.8285, 11.2086, 31.384],
+    medium: [132.3203, 35.1476, 14.4725, 6.2025, 3.1013, 1.654, 0.827, 0.4135, 0.2068, 0.4135, 0.827, 1.654, 3.1013, 6.2025, 14.4725, 35.1476, 132.3203],
+    high: [328.1308, 65.6262, 19.6879, 7.8751, 3.2813, 1.6407, 0.7219, 0.3281, 0.0984, 0.3281, 0.7219, 1.6407, 3.2813, 7.8751, 19.6879, 65.6262, 328.1308],
   },
 };
 
@@ -50,6 +50,17 @@ const PEG_RANDOM_KICK = 0.22;
 const SIDEWAYS_DAMPING = 0.56;
 const CENTER_PULL = 0.03;
 const MAX_SIDEWAYS_SPEED = 1.45;
+const TARGET_PULL = 0.014;
+const CLIENT_SEED_STORAGE_KEY = 'pasus_client_seed';
+const CLIENT_NONCE_STORAGE_KEY = 'pasus_client_nonce';
+
+function samplePlinkoBucket(rowCount: number) {
+  let rightSteps = 0;
+  for (let i = 0; i < rowCount; i += 1) {
+    if (Math.random() >= 0.5) rightSteps += 1;
+  }
+  return rightSteps;
+}
 
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
@@ -63,6 +74,8 @@ export const PlinkoGame: React.FC = () => {
   const [droppedBalls, setDroppedBalls] = useState(0);
   const [currentBallPos, setCurrentBallPos] = useState<{ x: number; y: number } | null>(null);
   const [finalPosition, setFinalPosition] = useState<number | null>(null);
+  const [pfClientSeed, setPfClientSeed] = useState('');
+  const [pfNonce, setPfNonce] = useState(1);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pegsRef = useRef<Array<{ x: number; y: number }>>([]);
@@ -70,6 +83,9 @@ export const PlinkoGame: React.FC = () => {
   const ballRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const animationRef = useRef<number>();
   const bucketHitRef = useRef(false);
+  const dropLockRef = useRef(false);
+  const targetBucketRef = useRef<number | null>(null);
+  const targetBucketXRef = useRef<number | null>(null);
 
   const { getStats, recordBet } = useLocalGameStats('plinko');
   const stats = getStats();
@@ -239,15 +255,24 @@ export const PlinkoGame: React.FC = () => {
   }, [rows, multipliers, canvasHeight]);
 
   const dropBall = useCallback(() => {
-    if (!canDrop) return;
+    if (!canDrop || dropLockRef.current) return;
+    dropLockRef.current = true;
 
     const cost = betCoins;
-    if (!subtractBalance(cost)) return;
+    if (!subtractBalance(cost)) {
+      dropLockRef.current = false;
+      return;
+    }
 
     setIsDropping(true);
     setLastResult(null);
     setFinalPosition(null);
     bucketHitRef.current = false;
+
+    const selectedBucket = Math.min(samplePlinkoBucket(rows), multipliers.length - 1);
+    const bucketWidth = canvasWidth / multipliers.length;
+    targetBucketRef.current = selectedBucket;
+    targetBucketXRef.current = (selectedBucket + 0.5) * bucketWidth;
 
     const startX = canvasWidth / 2 + (Math.random() - 0.5) * 30;
     ballRef.current = {
@@ -259,7 +284,14 @@ export const PlinkoGame: React.FC = () => {
 
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!ctx || !canvas) return;
+    if (!ctx || !canvas) {
+      addBalance(cost);
+      setIsDropping(false);
+      dropLockRef.current = false;
+      targetBucketRef.current = null;
+      targetBucketXRef.current = null;
+      return;
+    }
 
     const animate = () => {
       const ball = ballRef.current;
@@ -267,10 +299,17 @@ export const PlinkoGame: React.FC = () => {
 
       ball.vy += GRAVITY;
       ball.vx += (canvasWidth / 2 - ball.x) * physicsProfile.centerPull;
+      if (targetBucketXRef.current !== null) {
+        ball.vx += (targetBucketXRef.current - ball.x) * TARGET_PULL;
+      }
       ball.vx *= FRICTION;
       ball.vx = Math.max(-physicsProfile.maxSidewaysSpeed, Math.min(physicsProfile.maxSidewaysSpeed, ball.vx));
       ball.x += ball.vx;
       ball.y += ball.vy;
+
+      if (targetBucketXRef.current !== null && ball.y > canvasHeight - bucketHeight - BALL_RADIUS * 2.5) {
+        ball.x += (targetBucketXRef.current - ball.x) * 0.22;
+      }
 
       if (ball.x < BALL_RADIUS) {
         ball.x = BALL_RADIUS;
@@ -306,8 +345,11 @@ export const PlinkoGame: React.FC = () => {
         bucketHitRef.current = true;
         
         const numBuckets = multipliers.length;
-        const bucketWidth = canvasWidth / numBuckets;
-        const bucketIndex = Math.min(Math.max(Math.floor(ball.x / bucketWidth), 0), numBuckets - 1);
+        const resolvedBucket = targetBucketRef.current;
+        const resolvedIndex = resolvedBucket !== null
+          ? Math.min(Math.max(resolvedBucket, 0), numBuckets - 1)
+          : Math.min(Math.max(Math.floor(ball.x / (canvasWidth / numBuckets)), 0), numBuckets - 1);
+        const bucketIndex = resolvedIndex;
         
         setFinalPosition(bucketIndex);
         
@@ -335,6 +377,9 @@ export const PlinkoGame: React.FC = () => {
           
           setDroppedBalls(prev => prev + 1);
           setIsDropping(false);
+          dropLockRef.current = false;
+          targetBucketRef.current = null;
+          targetBucketXRef.current = null;
           
           if (isAuto && autoCount > 1) {
             setAutoCount(prev => prev - 1);
@@ -456,6 +501,23 @@ export const PlinkoGame: React.FC = () => {
       setAutoCount(10);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const syncProvablyFairData = () => {
+      setPfClientSeed(localStorage.getItem(CLIENT_SEED_STORAGE_KEY) || 'N/A');
+      setPfNonce(Number(localStorage.getItem(CLIENT_NONCE_STORAGE_KEY) || 1));
+    };
+
+    syncProvablyFairData();
+    window.addEventListener('pasus:bet-recorded', syncProvablyFairData as EventListener);
+    window.addEventListener('storage', syncProvablyFairData as EventListener);
+    return () => {
+      window.removeEventListener('pasus:bet-recorded', syncProvablyFairData as EventListener);
+      window.removeEventListener('storage', syncProvablyFairData as EventListener);
+    };
+  }, []);
 
   const getMultiplierColor = (m: number) => {
     if (m >= 100) return 'text-red-400';
@@ -589,6 +651,26 @@ export const PlinkoGame: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-4 space-y-3">
+          <div className="text-[10px] uppercase tracking-widest text-white/40">Provably Fair</div>
+          <div className="space-y-2 text-[11px]">
+            <div className="rounded-lg bg-black/30 border border-white/10 px-3 py-2">
+              <div className="text-white/35 uppercase tracking-[0.16em] text-[9px]">Client Seed</div>
+              <div className="text-white/80 font-mono truncate">{pfClientSeed || 'N/A'}</div>
+            </div>
+            <div className="rounded-lg bg-black/30 border border-white/10 px-3 py-2">
+              <div className="text-white/35 uppercase tracking-[0.16em] text-[9px]">Nonce</div>
+              <div className="text-white font-black">{pfNonce}</div>
+            </div>
+          </div>
+          <a
+            href="/provably-fair"
+            className="block w-full text-center rounded-xl bg-white/10 hover:bg-white/15 text-white/80 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all"
+          >
+            Open Verifier
+          </a>
         </div>
       </div>
 
