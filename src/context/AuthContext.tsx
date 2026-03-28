@@ -47,6 +47,7 @@ async function parseApiResponse(response: Response) {
 
   if (!response.ok) {
     const error = new Error(data.error || 'Request failed.') as Error & Record<string, unknown>;
+    (error as Error & { status?: number }).status = response.status;
     Object.assign(error, data);
     throw error;
   }
@@ -90,10 +91,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     refreshUser()
-      .catch(() => {
-        localStorage.removeItem(TOKEN_STORAGE_KEY);
-        localStorage.removeItem(USER_STORAGE_KEY);
-        setUser(null);
+      .catch((error) => {
+        const status = Number((error as { status?: number } | null)?.status || 0);
+        const shouldClearSession = status === 401 || status === 403;
+
+        if (shouldClearSession) {
+          localStorage.removeItem(TOKEN_STORAGE_KEY);
+          localStorage.removeItem(USER_STORAGE_KEY);
+          setUser(null);
+        }
       })
       .finally(() => {
         setIsLoading(false);
