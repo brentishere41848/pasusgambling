@@ -42,9 +42,9 @@ const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
 const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    low: [1.2, 0.96, 0.7, 0.5, 0.3, 0.5, 0.7, 0.96, 1.2],
-    medium: [1.75, 1.08, 0.62, 0.36, 0.18, 0.36, 0.62, 1.08, 1.75],
-    high: [3.2, 1.5, 0.62, 0.28, 0.1, 0.28, 0.62, 1.5, 3.2],
+    low: [1.1, 0.9, 0.64, 0.46, 0.28, 0.46, 0.64, 0.9, 1.1],
+    medium: [1.5, 0.98, 0.55, 0.32, 0.16, 0.32, 0.55, 0.98, 1.5],
+    high: [2.4, 1.18, 0.5, 0.24, 0.08, 0.24, 0.5, 1.18, 2.4],
   },
   10: {
     low: [1.45, 1.02, 0.72, 0.52, 0.38, 0.24, 0.38, 0.52, 0.72, 1.02, 1.45],
@@ -84,7 +84,7 @@ const WALL_BOUNCE = 0.72;
 const PEG_SEPARATION_EPSILON = 0.5;
 
 const OUTCOME_CHANCE_BY_ROWS: Record<number, { loss: number; win: number; bigwin: number }> = {
-  8: { loss: 0.86, win: 0.138, bigwin: 0.002 },
+  8: { loss: 0.9, win: 0.099, bigwin: 0.001 },
   10: { loss: 0.84, win: 0.157, bigwin: 0.003 },
 };
 const DEFAULT_OUTCOME_CHANCE = { loss: 0.8, win: 0.195, bigwin: 0.005 };
@@ -104,6 +104,22 @@ function pickCenterWeightedIndex(indices: number[], totalBuckets: number) {
   const weighted = indices.map((index) => ({
     index,
     weight: 1 / (1 + Math.abs(index - center)),
+  }));
+  const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const item of weighted) {
+    roll -= item.weight;
+    if (roll <= 0) return item.index;
+  }
+  return weighted[weighted.length - 1].index;
+}
+
+function pickStrongCenterWeightedIndex(indices: number[], totalBuckets: number) {
+  if (!indices.length) return 0;
+  const center = (totalBuckets - 1) / 2;
+  const weighted = indices.map((index) => ({
+    index,
+    weight: 1 / Math.pow(1 + Math.abs(index - center), 2),
   }));
   const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
   let roll = Math.random() * totalWeight;
@@ -142,10 +158,14 @@ function samplePlinkoBucket(rows: number, multipliers: number[]) {
     .map((entry) => entry.index);
 
   if (outcomeBand === 'loss' && lossBuckets.length) {
-    return pickCenterWeightedIndex(lossBuckets, multipliers.length);
+    return rows <= 8
+      ? pickStrongCenterWeightedIndex(lossBuckets, multipliers.length)
+      : pickCenterWeightedIndex(lossBuckets, multipliers.length);
   }
   if (outcomeBand === 'win' && winBuckets.length) {
-    return pickCenterWeightedIndex(winBuckets, multipliers.length);
+    return rows <= 8
+      ? pickStrongCenterWeightedIndex(winBuckets, multipliers.length)
+      : pickCenterWeightedIndex(winBuckets, multipliers.length);
   }
   if (outcomeBand === 'bigwin' && bigWinBuckets.length) {
     return pickRandomIndex(bigWinBuckets);
@@ -199,7 +219,7 @@ export const PlinkoGame: React.FC = () => {
 
   const physicsProfile = useMemo(() => {
     if (rows <= 8) {
-      return { startDrift: 0.62, randomKick: 0.05, steerBase: 0.0005, steerScale: 0.003, restitution: 0.28 };
+      return { startDrift: 0.46, randomKick: 0.035, steerBase: 0.00058, steerScale: 0.0034, restitution: 0.24 };
     }
     if (rows <= 10) {
       return { startDrift: 0.66, randomKick: 0.06, steerBase: 0.00045, steerScale: 0.0028, restitution: 0.29 };
@@ -385,7 +405,8 @@ export const PlinkoGame: React.FC = () => {
     setActiveBucket(selectedBucket);
     setLastResult(null);
 
-    const startX = BOARD_WIDTH / 2 + (Math.random() - 0.5) * 96;
+    const startSpread = rows <= 8 ? 56 : rows <= 10 ? 74 : 96;
+    const startX = BOARD_WIDTH / 2 + (Math.random() - 0.5) * startSpread;
     ballRef.current = {
       x: clamp(startX, BALL_RADIUS + 1, BOARD_WIDTH - BALL_RADIUS - 1),
       y: 18,
