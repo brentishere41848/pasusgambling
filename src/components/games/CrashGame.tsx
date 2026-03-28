@@ -108,12 +108,12 @@ export const CrashGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-[360px_1fr] gap-6 p-4 max-w-7xl mx-auto">
-      <div className="bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+      <div className="bg-[linear-gradient(180deg,#141d2e_0%,#0f1624_100%)] border border-cyan-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_18px_60px_rgba(4,18,40,0.45)]">
         <div className="flex items-center justify-between">
           <div className="text-sm font-black text-white/40 uppercase tracking-widest">Crash</div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
+        <div className="rounded-2xl border border-cyan-300/20 bg-black/30 px-4 py-3">
           <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.22em] text-white/30">
             <span>Next Round</span>
             <span>{snapshot.phase === 'countdown' ? `${Math.ceil(snapshot.countdown)}s` : 'LIVE'}</span>
@@ -173,7 +173,7 @@ export const CrashGame: React.FC = () => {
         {snapshot.phase === 'running' && playerBet?.status === 'active' ? (
           <button
             onClick={cashOut}
-            className="w-full bg-[#00FF88] hover:bg-[#00FF88]/90 text-black font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,255,136,0.3)]"
+            className="w-full bg-gradient-to-r from-cyan-300 to-emerald-300 hover:opacity-95 text-slate-900 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_0_28px_rgba(34,211,238,0.28)]"
           >
             <Square size={18} fill="currentColor" />
             CASH OUT {formatCents(Math.round(playerBet.wager * snapshot.multiplier))}
@@ -182,7 +182,7 @@ export const CrashGame: React.FC = () => {
           <button
             onClick={joinNextRound}
             disabled={snapshot.phase !== 'countdown' || joined || balance < dollarsToCents(bet)}
-            className="w-full bg-white hover:bg-white/90 text-black font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-cyan-200 to-white hover:opacity-95 text-black font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Play size={18} fill="currentColor" />
             {joined ? 'BET LOCKED' : 'JOIN NEXT ROUND'}
@@ -365,7 +365,7 @@ export const CrashGame: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-black border border-white/10 rounded-2xl relative overflow-hidden min-h-[400px] flex items-center justify-center">
+      <div className="bg-[linear-gradient(180deg,#0a121d_0%,#05090f_100%)] border border-cyan-300/20 rounded-3xl relative overflow-hidden min-h-[400px] flex items-center justify-center shadow-[0_20px_70px_rgba(0,0,0,0.4)]">
         <div className="absolute inset-0 opacity-20 pointer-events-none">
           <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(#333 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
         </div>

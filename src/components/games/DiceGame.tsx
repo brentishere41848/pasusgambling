@@ -125,7 +125,7 @@ export const DiceGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+      <div className="lg:col-span-1 bg-[linear-gradient(180deg,#12172b_0%,#0c101d_100%)] border border-blue-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_18px_60px_rgba(4,10,35,0.4)]">
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
@@ -136,15 +136,15 @@ export const DiceGame: React.FC = () => {
               min="0.01"
               step="0.01"
               disabled={isRolling || isAuto}
-              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50"
+                className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-300/55"
             />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
             <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setIsOver(false)} disabled={isRolling || isAuto} className={cn("py-2 rounded-lg text-xs font-bold transition-all", !isOver ? "bg-white text-black" : "bg-white/5 text-white/40")}>ROLL UNDER</button>
-            <button onClick={() => setIsOver(true)} disabled={isRolling || isAuto} className={cn("py-2 rounded-lg text-xs font-bold transition-all", isOver ? "bg-white text-black" : "bg-white/5 text-white/40")}>ROLL OVER</button>
+            <button onClick={() => setIsOver(false)} disabled={isRolling || isAuto} className={cn("py-2 rounded-lg text-xs font-bold transition-all", !isOver ? "bg-blue-200 text-slate-900" : "bg-white/5 text-white/40")}>ROLL UNDER</button>
+            <button onClick={() => setIsOver(true)} disabled={isRolling || isAuto} className={cn("py-2 rounded-lg text-xs font-bold transition-all", isOver ? "bg-blue-200 text-slate-900" : "bg-white/5 text-white/40")}>ROLL OVER</button>
           </div>
 
           <div className="flex gap-2">
@@ -175,7 +175,7 @@ export const DiceGame: React.FC = () => {
             />
           ) : null}
 
-          <button onClick={handleMainAction} disabled={(balance < betCents && !isAuto) || (isRolling && !isAuto)} className={cn("w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50", isAuto ? "bg-red-500 text-white" : "bg-[#00FF88] text-black")}>
+            <button onClick={handleMainAction} disabled={(balance < betCents && !isAuto) || (isRolling && !isAuto)} className={cn("w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50", isAuto ? "bg-red-500 text-white" : "bg-gradient-to-r from-blue-300 to-cyan-300 text-slate-900")}>
             {isAuto ? <><Timer size={18} />STOP AUTO</> : <><Play size={18} fill="currentColor" />ROLL DICE</>}
           </button>
 
@@ -195,7 +195,7 @@ export const DiceGame: React.FC = () => {
         ]} />
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-12 flex flex-col items-center justify-center gap-12">
+      <div className="lg:col-span-3 bg-[linear-gradient(180deg,#0b1322_0%,#090f1a_100%)] border border-blue-300/20 rounded-3xl p-12 flex flex-col items-center justify-center gap-12 shadow-[0_22px_75px_rgba(0,0,0,0.38)]">
         <div className="w-full max-w-3xl rounded-[28px] border border-white/10 bg-[#0f1218] px-8 py-10">
           <div className="mb-10 flex items-center justify-between text-[10px] uppercase tracking-[0.28em] text-white/20">
             <span>0</span>

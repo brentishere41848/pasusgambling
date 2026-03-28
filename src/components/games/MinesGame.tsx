@@ -86,27 +86,27 @@ export const MinesGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+      <div className="lg:col-span-1 bg-[linear-gradient(180deg,#171826_0%,#0f1019_100%)] border border-amber-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_18px_55px_rgba(0,0,0,0.35)]">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-          <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={gameState === 'playing'} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+          <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={gameState === 'playing'} className="w-full bg-black/50 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-300/50" />
           <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={gameState === 'playing'} />
           <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={gameState === 'playing'} />
         </div>
 
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Mines</label>
-          <select value={minesCount} onChange={(e) => setMinesCount(Number(e.target.value))} disabled={gameState === 'playing'} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50">
+          <select value={minesCount} onChange={(e) => setMinesCount(Number(e.target.value))} disabled={gameState === 'playing'} className="w-full bg-black/50 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-300/50">
             {[3, 5, 7, 10, 15, 20, 24].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
 
         {gameState === 'playing' ? (
-          <button onClick={cashOut} disabled={revealedCount === 0} className="w-full bg-[#00FF88] hover:bg-[#00FF88]/90 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50">
+          <button onClick={cashOut} disabled={revealedCount === 0} className="w-full bg-gradient-to-r from-amber-300 to-emerald-300 hover:opacity-95 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50">
             CASH OUT ({formatCents(Math.round(betPlaced * currentMultiplier))})
           </button>
         ) : (
-          <button onClick={startGame} disabled={balance < betCents} className="w-full bg-white hover:bg-white/90 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+          <button onClick={startGame} disabled={balance < betCents} className="w-full bg-gradient-to-r from-amber-200 to-white hover:opacity-95 text-black font-bold py-4 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2">
             <Play size={18} fill="currentColor" />PLAY
           </button>
         )}
@@ -132,7 +132,7 @@ export const MinesGame: React.FC = () => {
         ]} />
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-8 flex items-center justify-center">
+      <div className="lg:col-span-3 bg-[linear-gradient(180deg,#111723_0%,#0a0f18_100%)] border border-amber-300/20 rounded-3xl p-8 flex items-center justify-center shadow-[0_18px_65px_rgba(0,0,0,0.35)]">
         <div className="grid grid-cols-5 gap-3 w-full max-w-[500px] aspect-square">
           {grid.map((cell, i) => (
             <motion.button

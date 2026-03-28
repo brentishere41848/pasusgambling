@@ -408,7 +408,7 @@ export const BlackjackGame: React.FC = () => {
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-5 gap-4 sm:gap-6 p-3 sm:p-4 max-w-7xl mx-auto">
       {/* Sidebar */}
-      <div className="lg:col-span-1 bg-[#1a1d23] border border-white/5 rounded-2xl p-4 sm:p-5 flex flex-col gap-4">
+      <div className="lg:col-span-1 bg-[linear-gradient(180deg,#173021_0%,#101f17_100%)] border border-emerald-300/20 rounded-3xl p-4 sm:p-5 flex flex-col gap-4 shadow-[0_18px_65px_rgba(0,0,0,0.32)]">
         <div>
           <label className="text-[10px] uppercase tracking-widest text-white/40 block mb-2">Bet Amount</label>
           <div className="text-lg font-black text-[#00FF88] mb-2">${betAmount.toFixed(2)}</div>
@@ -419,7 +419,7 @@ export const BlackjackGame: React.FC = () => {
             min="0.01"
             step="0.01"
             disabled={phase !== 'betting' && phase !== 'ended'}
-            className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#00FF88]/50 disabled:opacity-50"
+            className="w-full bg-black/45 border border-white/12 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-300/60 disabled:opacity-50"
           />
           <QuickBetButtons
             balance={centsToDollars(balance)}
@@ -443,7 +443,7 @@ export const BlackjackGame: React.FC = () => {
           <button
             onClick={phase === 'ended' ? newGame : startGame}
             disabled={phase === 'betting' && balance < betCents}
-            className="w-full bg-[#00FF88] hover:bg-[#00FF88]/90 disabled:opacity-40 text-black font-black py-3 sm:py-4 rounded-xl transition-all flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-emerald-300 to-lime-300 hover:opacity-95 disabled:opacity-40 text-slate-900 font-black py-3 sm:py-4 rounded-xl transition-all flex items-center justify-center gap-2"
           >
             <Play size={18} fill="currentColor" />
             {phase === 'ended' ? 'NEW HAND' : 'DEAL'}
@@ -472,8 +472,8 @@ export const BlackjackGame: React.FC = () => {
       </div>
 
       {/* Game Area */}
-      <div className="lg:col-span-4 bg-[#0f1115] border border-white/5 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[450px] sm:min-h-[520px] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#00FF88]/5 via-transparent to-transparent pointer-events-none" />
+      <div className="lg:col-span-4 bg-[linear-gradient(180deg,#11251a_0%,#0b1811_100%)] border border-emerald-300/20 rounded-3xl p-4 sm:p-6 flex flex-col min-h-[450px] sm:min-h-[520px] relative overflow-hidden shadow-[0_20px_80px_rgba(0,0,0,0.35)]">
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-300/10 via-transparent to-transparent pointer-events-none" />
 
         {/* Dealer */}
         <div className="flex flex-col items-center gap-3 z-10 mb-4">

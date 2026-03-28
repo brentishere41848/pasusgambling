@@ -455,7 +455,7 @@ export const SlotsGame: React.FC = () => {
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 p-4 max-w-6xl mx-auto">
       <div className="lg:col-span-1 space-y-4">
-        <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-5">
+        <div className="bg-[linear-gradient(180deg,#2a1325_0%,#1a0f1d_100%)] border border-fuchsia-300/20 rounded-3xl p-5 shadow-[0_18px_60px_rgba(0,0,0,0.38)]">
           <div className="space-y-4">
             <div>
               <div className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Bet Amount</div>
@@ -466,7 +466,7 @@ export const SlotsGame: React.FC = () => {
                 value={bet}
                 onChange={(e) => setBet(Math.max(1, Math.round(Number(e.target.value))))}
                 disabled={spinning.some(Boolean)}
-                className="w-full bg-[#0f1115] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50"
+                className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-fuchsia-300/60"
               />
               <div className="text-[9px] text-white/25 mt-1">Min: $0.01</div>
               <QuickBetButtons balance={balance} bet={bet} onSetBet={setBet} disabled={spinning.some(Boolean)} />
@@ -487,8 +487,8 @@ export const SlotsGame: React.FC = () => {
               className={cn(
                 'w-full py-4 rounded-xl font-black text-lg uppercase tracking-wider transition-all flex items-center justify-center gap-2',
                 freeSpins > 0 
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white shadow-lg shadow-purple-500/30' 
-                  : 'bg-[#00FF88] hover:bg-[#00FF88]/90 text-black shadow-lg shadow-[#00FF88]/30',
+                  ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:from-purple-400 hover:to-fuchsia-400 text-white shadow-lg shadow-purple-500/30' 
+                  : 'bg-gradient-to-r from-fuchsia-300 to-rose-300 hover:opacity-95 text-slate-900 shadow-lg shadow-fuchsia-500/25',
                 (!canSpin && freeSpins === 0) && 'opacity-50 cursor-not-allowed'
               )}
             >
@@ -526,7 +526,7 @@ export const SlotsGame: React.FC = () => {
           { label: 'Wagered', value: formatCoins(stats.totalWagered) },
         ]} />
 
-        <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-4">
+        <div className="bg-[linear-gradient(180deg,#2a1325_0%,#1a0f1d_100%)] border border-fuchsia-300/20 rounded-2xl p-4">
           <div className="text-[10px] uppercase tracking-widest text-white/40 mb-3">Payouts</div>
           <div className="space-y-1 text-xs">
             <div className="flex justify-between text-white/60">
@@ -554,7 +554,7 @@ export const SlotsGame: React.FC = () => {
       </div>
 
       <div className="lg:col-span-4">
-        <div className="relative bg-gradient-to-b from-[#1a1d23] to-[#0a0a0a] border border-white/10 rounded-3xl p-8 overflow-hidden">
+        <div className="relative bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.24),transparent_35%),linear-gradient(180deg,#2a1325_0%,#140b14_100%)] border border-fuchsia-300/25 rounded-3xl p-8 overflow-hidden shadow-[0_24px_80px_rgba(0,0,0,0.42)]">
           <div className="absolute inset-0 opacity-10" style={{
             backgroundImage: `
               linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
