@@ -454,8 +454,12 @@ export const ChatRain: React.FC<{
       </AnimatePresence>
 
       <aside className={cn(
-        'w-[340px] shrink-0 border-l border-white/5 bg-[#0a0f1a]/95 backdrop-blur-xl flex-col h-screen sticky top-0 relative overflow-hidden',
-        isMobileOpen ? 'fixed right-0 top-0 bottom-0 z-50 xl:hidden flex' : isOpen ? 'flex' : 'hidden'
+        'w-[min(100vw,360px)] xl:w-[340px] shrink-0 border-l border-white/5 bg-[#0a0f1a]/95 backdrop-blur-xl flex-col relative overflow-hidden',
+        isMobileOpen
+          ? 'fixed right-0 top-0 bottom-0 z-50 xl:hidden flex h-dvh'
+          : isOpen
+            ? 'hidden xl:flex h-screen sticky top-0'
+            : 'hidden'
       )}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#0a0f1a]">
           <span className="text-sm font-black uppercase tracking-widest text-white/60">Chat & Rain</span>

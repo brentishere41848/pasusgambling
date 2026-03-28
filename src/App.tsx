@@ -8410,6 +8410,7 @@ const OnboardingTourModal = ({
 const AppContent = () => {
   consumeRedirectedPath();
   const initialRoute = resolveRoute(window.location.pathname);
+  const CHAT_PREFERENCE_KEY = 'pasus_chat_open';
   const [activeGame, setActiveGame] = useState<string | null>(initialRoute.gameId);
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -8417,15 +8418,19 @@ const AppContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRightRailOpen, setIsRightRailOpen] = useState(false);
   const [currentView, setCurrentView] = useState<MainView>(initialRoute.view);
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(() => {
+    const saved = localStorage.getItem(CHAT_PREFERENCE_KEY);
+    return saved === null ? true : saved === 'true';
+  });
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() => window.innerWidth >= 1280);
   
   const toggleChat = useCallback(() => {
-    setChatOpen(prev => {
-      const newState = !prev;
-      setIsRightRailOpen(newState);
-      return newState;
-    });
-  }, []);
+    if (isDesktopViewport) {
+      setChatOpen((prev) => !prev);
+      return;
+    }
+    setIsRightRailOpen((prev) => !prev);
+  }, [isDesktopViewport]);
   const [dailyBonusStatus, setDailyBonusStatus] = useState<{
     canClaim: boolean;
     streak: number;
@@ -8438,6 +8443,24 @@ const AppContent = () => {
   const [isPFOpen, setIsPFOpen] = useState(false);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => {
+      const desktop = window.innerWidth >= 1280;
+      setIsDesktopViewport(desktop);
+      if (desktop) {
+        setIsRightRailOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', onResize);
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(CHAT_PREFERENCE_KEY, chatOpen ? 'true' : 'false');
+  }, [chatOpen]);
 
   useEffect(() => {
     const shouldSuppressWalletNoise = (input: unknown) => {
@@ -8897,21 +8920,43 @@ const AppContent = () => {
 
       <Suspense fallback={null}>
         <ChatRain 
-          isOpen={chatOpen} 
-          isMobileOpen={isRightRailOpen} 
+          isOpen={chatOpen && isDesktopViewport}
+          isMobileOpen={isRightRailOpen && !isDesktopViewport}
           onCloseMobile={() => setIsRightRailOpen(false)} 
-          onClose={() => setChatOpen(false)}
+          onClose={() => {
+            if (isDesktopViewport) {
+              setChatOpen(false);
+            } else {
+              setIsRightRailOpen(false);
+            }
+          }}
           onOpenProfile={(username) => setProfileUsername(username)}
         />
       </Suspense>
 
-      {!chatOpen && (
+      {isDesktopViewport && !chatOpen && (
         <button
           onClick={() => setChatOpen(true)}
           className="fixed bottom-6 right-6 z-30 bg-[#00FF88] text-black w-14 h-14 rounded-full shadow-lg shadow-[#00FF88]/30 flex items-center justify-center hover:bg-[#00FF88]/90 transition-all active:scale-95"
           aria-label="Open chat"
         >
           <MessageSquare size={22} />
+        </button>
+      )}
+
+      {!isDesktopViewport && (
+        <button
+          onClick={() => setIsRightRailOpen((prev) => !prev)}
+          className={cn(
+            'fixed bottom-6 right-5 z-40 flex items-center gap-2 rounded-full px-4 py-3 text-xs font-black uppercase tracking-[0.14em] shadow-lg transition-all active:scale-95',
+            isRightRailOpen
+              ? 'bg-white/90 text-black shadow-black/30'
+              : 'bg-[#00FF88] text-black shadow-[#00FF88]/30'
+          )}
+          aria-label={isRightRailOpen ? 'Hide chat' : 'Show chat'}
+        >
+          <MessageSquare size={16} />
+          {isRightRailOpen ? 'Hide Chat' : 'Show Chat'}
         </button>
       )}
 
