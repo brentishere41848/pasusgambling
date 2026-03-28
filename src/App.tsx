@@ -1788,6 +1788,19 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isSubmitting) {
+      return;
+    }
+
+    const watchdog = window.setTimeout(() => {
+      setIsSubmitting(false);
+      setError((prev) => prev || 'Login request stalled. Please try again.');
+    }, 20000);
+
+    return () => window.clearTimeout(watchdog);
+  }, [isSubmitting]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
