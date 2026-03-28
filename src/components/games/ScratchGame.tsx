@@ -105,7 +105,7 @@ export const ScratchGame: React.FC = () => {
   }, [phase, spots, winningSymbol, addBalance, tierIdx]);
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-[280px_1fr] gap-6 p-4 max-w-5xl mx-auto">
+    <div className="flex flex-col lg:grid lg:grid-cols-[280px_1fr] gap-6 p-4 md:p-5 max-w-5xl mx-auto">
       <div className="bg-[linear-gradient(180deg,#201a2a_0%,#171320_100%)] border border-purple-300/20 rounded-3xl p-5 space-y-4 shadow-[0_20px_65px_rgba(0,0,0,0.35)]">
         <div className="text-xs font-black uppercase tracking-widest text-white/40">Prize Table</div>
         <div className="space-y-2">

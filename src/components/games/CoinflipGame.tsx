@@ -154,11 +154,11 @@ export const CoinflipGame: React.FC = () => {
   });
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
+    <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 md:p-5 max-w-6xl mx-auto">
       <div className="lg:col-span-1 bg-[linear-gradient(180deg,#201817_0%,#14100f_100%)] border border-amber-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
         <div className="space-y-4">
           <div>
-            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
+            <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45 mb-2 block">Bet Amount</label>
             <input 
               type="number" 
               value={bet} 
@@ -173,7 +173,7 @@ export const CoinflipGame: React.FC = () => {
           </div>
 
           <div>
-            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Choose Side</label>
+            <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45 mb-2 block">Choose Side</label>
             <div className="grid grid-cols-2 gap-2">
               {(['heads', 'tails'] as CoinSide[]).map((side) => (
                 <button 

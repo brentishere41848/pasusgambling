@@ -453,7 +453,7 @@ export const SlotsGame: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 p-4 max-w-6xl mx-auto">
+    <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 p-4 md:p-5 max-w-6xl mx-auto">
       <div className="lg:col-span-1 space-y-4">
         <div className="bg-[linear-gradient(180deg,#2a1325_0%,#1a0f1d_100%)] border border-fuchsia-300/20 rounded-3xl p-5 shadow-[0_18px_60px_rgba(0,0,0,0.38)]">
           <div className="space-y-4">

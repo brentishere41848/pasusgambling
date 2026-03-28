@@ -107,7 +107,7 @@ export const CrashGame: React.FC = () => {
   const history = snapshot.history;
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-[360px_1fr] gap-6 p-4 max-w-7xl mx-auto">
+    <div className="flex flex-col lg:grid lg:grid-cols-[360px_1fr] gap-6 p-4 md:p-5 max-w-7xl mx-auto">
       <div className="bg-[linear-gradient(180deg,#141d2e_0%,#0f1624_100%)] border border-cyan-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_18px_60px_rgba(4,18,40,0.45)]">
         <div className="flex items-center justify-between">
           <div className="text-sm font-black text-white/40 uppercase tracking-widest">Crash</div>
@@ -129,7 +129,7 @@ export const CrashGame: React.FC = () => {
         </div>
 
         <div>
-          <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
+          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45 mb-2 block">Bet Amount</label>
           <div className="relative">
             <input
               type="number"
@@ -150,7 +150,7 @@ export const CrashGame: React.FC = () => {
         </div>
 
         <div>
-          <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">
+            <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45 mb-2 block">
             Auto Cashout <span className="text-white/20">(optional)</span>
           </label>
           <input
@@ -347,7 +347,7 @@ export const CrashGame: React.FC = () => {
 
         <div className="mt-auto space-y-3">
           <div>
-            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">History</label>
+            <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45 mb-2 block">History</label>
             <div className="flex flex-wrap gap-2">
               {history.slice(0, 12).map((h, i) => (
                 <span key={i} className={cn('px-2 py-1 rounded text-[10px] font-mono', h >= 2 ? 'bg-[#00FF88]/20 text-[#00FF88]' : 'bg-red-500/20 text-red-400')}>

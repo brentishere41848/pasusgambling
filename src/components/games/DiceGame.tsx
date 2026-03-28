@@ -124,11 +124,11 @@ export const DiceGame: React.FC = () => {
   useGameHotkeys({ onBet: roll, onStop: stopAuto, onAuto: startAuto, isDisabled: isRolling || (!isAuto && balance < betCents) });
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
+    <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 md:p-5 max-w-6xl mx-auto">
       <div className="lg:col-span-1 bg-[linear-gradient(180deg,#12172b_0%,#0c101d_100%)] border border-blue-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_18px_60px_rgba(4,10,35,0.4)]">
         <div className="space-y-4">
           <div>
-            <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
+            <label className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45 mb-2 block">Bet Amount</label>
             <input
               type="number"
               value={bet}
