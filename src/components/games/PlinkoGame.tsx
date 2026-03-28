@@ -478,9 +478,15 @@ export const PlinkoGame: React.FC = () => {
         ball.y = settleLineY;
         drawBoard(ctx, ball);
 
+        const landedBucket = clamp(
+          Math.floor(ball.x / (BOARD_WIDTH / multipliers.length)),
+          0,
+          multipliers.length - 1
+        );
+
         settleTimeoutRef.current = window.setTimeout(() => {
-          setActiveBucket(selectedBucket);
-          settleResult(cost, selectedBucket);
+          setActiveBucket(landedBucket);
+          settleResult(cost, landedBucket);
         }, 210);
         return;
       }
