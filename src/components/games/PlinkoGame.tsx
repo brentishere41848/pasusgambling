@@ -42,7 +42,7 @@ const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
 const PEG_COLOR = '#ffffff';
 const BALL_RADIUS = 8;
 const PEG_RADIUS = 4;
-const GRAVITY = 0.31;
+const GRAVITY = 0.26;
 const BOUNCE = 0.34;
 const FRICTION = 0.94;
 const START_DRIFT = 0.5;
@@ -50,7 +50,7 @@ const PEG_RANDOM_KICK = 0.22;
 const SIDEWAYS_DAMPING = 0.56;
 const CENTER_PULL = 0.004;
 const MAX_SIDEWAYS_SPEED = 1.45;
-const MAX_FALL_SPEED = 5.4;
+const MAX_FALL_SPEED = 5.1;
 const TARGET_PULL = 0.0022;
 const PEG_SEPARATION_EPSILON = 0.6;
 const CLIENT_SEED_STORAGE_KEY = 'pasus_client_seed';
@@ -403,7 +403,7 @@ export const PlinkoGame: React.FC = () => {
 
           const approach = ball.vx * normalX + ball.vy * normalY;
           if (approach < 0) {
-            const restitution = 0.17 + physicsProfile.bounce * 0.1;
+            const restitution = 0.22 + physicsProfile.bounce * 0.12;
             ball.vx -= (1 + restitution) * approach * normalX;
             ball.vy -= (1 + restitution) * approach * normalY;
           }
@@ -413,7 +413,7 @@ export const PlinkoGame: React.FC = () => {
           const tangentSpeed = ball.vx * tangentX + ball.vy * tangentY;
           const sideKick = (Math.random() - 0.5) * physicsProfile.pegRandomKick;
           ball.vx += tangentX * (sideKick + tangentSpeed * 0.04);
-          ball.vy = Math.max(0.45, (ball.vy + Math.abs(tangentSpeed) * 0.01) * 0.92);
+          ball.vy = Math.max(0.45, (ball.vy + Math.abs(tangentSpeed) * 0.014) * 0.97);
           ball.vx = clamp(ball.vx, -physicsProfile.maxSidewaysSpeed, physicsProfile.maxSidewaysSpeed);
           ball.vy = Math.min(ball.vy, MAX_FALL_SPEED);
         }
