@@ -44,7 +44,7 @@ const BALL_RADIUS = 8;
 const PEG_RADIUS = 4;
 const GRAVITY = 0.26;
 const BOUNCE = 0.34;
-const FRICTION = 0.94;
+const FRICTION = 0.975;
 const START_DRIFT = 0.5;
 const PEG_RANDOM_KICK = 0.22;
 const SIDEWAYS_DAMPING = 0.56;
@@ -338,7 +338,7 @@ export const PlinkoGame: React.FC = () => {
     ballRef.current = {
       x: startX,
       y: 20,
-      vx: (Math.random() - 0.5) * physicsProfile.startDrift,
+      vx: (Math.random() - 0.5) * physicsProfile.startDrift * 1.9,
       vy: 0,
     };
 
@@ -358,10 +358,10 @@ export const PlinkoGame: React.FC = () => {
       ball.vy = Math.min(MAX_FALL_SPEED, ball.vy + GRAVITY);
 
       const yProgress = clamp(ball.y / (canvasHeight - bucketHeight), 0, 1);
-      const steerStrength = 0.0007 + yProgress * 0.0038;
-      const targetPull = clamp((targetBucketX - ball.x) * steerStrength, -0.13, 0.13);
+      const steerStrength = 0.00035 + yProgress * 0.0022;
+      const targetPull = clamp((targetBucketX - ball.x) * steerStrength, -0.09, 0.09);
       ball.vx += targetPull;
-      ball.vx += (Math.random() - 0.5) * 0.018;
+      ball.vx += (Math.random() - 0.5) * 0.028;
       ball.vx *= FRICTION;
       ball.vx = clamp(ball.vx, -physicsProfile.maxSidewaysSpeed, physicsProfile.maxSidewaysSpeed);
 
@@ -412,7 +412,8 @@ export const PlinkoGame: React.FC = () => {
           const tangentY = normalX;
           const tangentSpeed = ball.vx * tangentX + ball.vy * tangentY;
           const sideKick = (Math.random() - 0.5) * physicsProfile.pegRandomKick;
-          ball.vx += tangentX * (sideKick + tangentSpeed * 0.04);
+          const directionalKick = tangentX * (0.075 + Math.random() * 0.11);
+          ball.vx += tangentX * (sideKick + tangentSpeed * 0.055) + directionalKick;
           ball.vy = Math.max(0.45, (ball.vy + Math.abs(tangentSpeed) * 0.014) * 0.97);
           ball.vx = clamp(ball.vx, -physicsProfile.maxSidewaysSpeed, physicsProfile.maxSidewaysSpeed);
           ball.vy = Math.min(ball.vy, MAX_FALL_SPEED);
