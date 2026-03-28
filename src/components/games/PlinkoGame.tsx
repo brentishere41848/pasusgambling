@@ -1,76 +1,93 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import confetti from 'canvas-confetti';
+import { Play, RotateCcw } from 'lucide-react';
 import { useBalance } from '../../context/BalanceContext';
 import { cn } from '../../lib/utils';
-import { Play, RotateCcw } from 'lucide-react';
-import { QuickBetButtons, GameStatsBar, useLocalGameStats, useGameHotkeys, centsToDollars, dollarsToCents, formatCents, MIN_BET } from './GameHooks';
-import confetti from 'canvas-confetti';
+import {
+  QuickBetButtons,
+  GameStatsBar,
+  useLocalGameStats,
+  useGameHotkeys,
+  centsToDollars,
+  dollarsToCents,
+  formatCents,
+  MIN_BET,
+} from './GameHooks';
 import { logBetActivity } from '../../lib/activity';
 
 type RiskLevel = 'low' | 'medium' | 'high';
+type OutcomeBand = 'loss' | 'win' | 'bigwin';
+
+type BallState = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+};
+
+type Peg = {
+  id: number;
+  x: number;
+  y: number;
+};
+
+type Bucket = {
+  x: number;
+  y: number;
+  width: number;
+};
 
 const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
 const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    low: [3.8161, 2.595, 1.6791, 0.7632, 0.2442, 0.7632, 1.6791, 2.595, 3.8161],
-    medium: [6.7516, 3.7509, 1.6879, 0.6001, 0.15, 0.6001, 1.6879, 3.7509, 6.7516],
-    high: [9.3037, 4.1151, 1.7892, 0.501, 0.0716, 0.501, 1.7892, 4.1151, 9.3037],
+    low: [2.4, 1.4, 1.1, 0.8, 0.55, 0.8, 1.1, 1.4, 2.4],
+    medium: [4.8, 2.1, 1.2, 0.65, 0.35, 0.65, 1.2, 2.1, 4.8],
+    high: [9, 3.2, 1.4, 0.55, 0.2, 0.55, 1.4, 3.2, 9],
   },
   10: {
-    low: [6.0276, 3.6836, 2.3441, 1.4064, 0.6697, 0.2679, 0.6697, 1.4064, 2.3441, 3.6836, 6.0276],
-    medium: [13.7322, 6.6372, 3.2042, 1.2817, 0.4577, 0.1373, 0.4577, 1.2817, 3.2042, 6.6372, 13.7322],
-    high: [20.4382, 7.4321, 3.5302, 1.1891, 0.4088, 0.0743, 0.4088, 1.1891, 3.5302, 7.4321, 20.4382],
+    low: [3.6, 2, 1.3, 1, 0.78, 0.58, 0.78, 1, 1.3, 2, 3.6],
+    medium: [7.5, 3.2, 1.65, 0.95, 0.55, 0.3, 0.55, 0.95, 1.65, 3.2, 7.5],
+    high: [14, 5.2, 2, 0.95, 0.45, 0.18, 0.45, 0.95, 2, 5.2, 14],
   },
   12: {
-    low: [11.2311, 5.8402, 3.594, 2.2462, 1.2579, 0.5391, 0.2246, 0.5391, 1.2579, 2.2462, 3.594, 5.8402, 11.2311],
-    medium: [30.6498, 12.941, 5.7894, 2.452, 0.9535, 0.4087, 0.1362, 0.4087, 0.9535, 2.452, 5.7894, 12.941, 30.6498],
-    high: [46.2267, 16.1794, 6.3562, 2.4269, 0.9245, 0.3467, 0.0867, 0.3467, 0.9245, 2.4269, 6.3562, 16.1794, 46.2267],
+    low: [5.8, 2.8, 1.6, 1.2, 0.9, 0.7, 0.55, 0.7, 0.9, 1.2, 1.6, 2.8, 5.8],
+    medium: [12, 4.9, 2.2, 1.25, 0.78, 0.48, 0.28, 0.48, 0.78, 1.25, 2.2, 4.9, 12],
+    high: [22, 7.8, 2.9, 1.35, 0.68, 0.35, 0.16, 0.35, 0.68, 1.35, 2.9, 7.8, 22],
   },
   14: {
-    low: [17.2018, 6.8807, 3.7844, 2.2362, 1.5482, 1.1181, 0.6881, 0.43, 0.6881, 1.1181, 1.5482, 2.2362, 3.7844, 6.8807, 17.2018],
-    medium: [60.2804, 17.8101, 7.6721, 3.562, 1.781, 0.959, 0.4932, 0.2192, 0.4932, 0.959, 1.781, 3.562, 7.6721, 17.8101, 60.2804],
-    high: [170.7457, 34.1491, 11.9522, 4.2686, 1.7075, 0.7968, 0.3415, 0.1423, 0.3415, 0.7968, 1.7075, 4.2686, 11.9522, 34.1491, 170.7457],
+    low: [8.8, 3.6, 2, 1.35, 1.05, 0.85, 0.68, 0.54, 0.68, 0.85, 1.05, 1.35, 2, 3.6, 8.8],
+    medium: [19, 6.8, 2.9, 1.6, 1, 0.68, 0.44, 0.24, 0.44, 0.68, 1, 1.6, 2.9, 6.8, 19],
+    high: [40, 11.8, 4.1, 1.9, 1, 0.55, 0.28, 0.12, 0.28, 0.55, 1, 1.9, 4.1, 11.8, 40],
   },
   16: {
-    low: [31.384, 11.2086, 5.8285, 3.1384, 2.2417, 1.5692, 1.0088, 0.6277, 0.4035, 0.6277, 1.0088, 1.5692, 2.2417, 3.1384, 5.8285, 11.2086, 31.384],
-    medium: [132.3203, 35.1476, 14.4725, 6.2025, 3.1013, 1.654, 0.827, 0.4135, 0.2068, 0.4135, 0.827, 1.654, 3.1013, 6.2025, 14.4725, 35.1476, 132.3203],
-    high: [328.1308, 65.6262, 19.6879, 7.8751, 3.2813, 1.6407, 0.7219, 0.3281, 0.0984, 0.3281, 0.7219, 1.6407, 3.2813, 7.8751, 19.6879, 65.6262, 328.1308],
+    low: [13, 4.7, 2.4, 1.5, 1.2, 0.95, 0.78, 0.64, 0.52, 0.64, 0.78, 0.95, 1.2, 1.5, 2.4, 4.7, 13],
+    medium: [28, 8.9, 3.5, 1.9, 1.18, 0.8, 0.52, 0.34, 0.2, 0.34, 0.52, 0.8, 1.18, 1.9, 3.5, 8.9, 28],
+    high: [65, 18, 5.8, 2.5, 1.35, 0.72, 0.4, 0.22, 0.1, 0.22, 0.4, 0.72, 1.35, 2.5, 5.8, 18, 65],
   },
 };
 
-const PEG_COLOR = '#ffffff';
+const BOARD_WIDTH = 420;
+const BOARD_HEIGHT = 460;
+const TOP_PADDING = 34;
+const BUCKET_HEIGHT = 34;
+
 const BALL_RADIUS = 8;
 const PEG_RADIUS = 4;
-const GRAVITY = 0.26;
-const BOUNCE = 0.34;
-const FRICTION = 0.975;
-const START_DRIFT = 0.5;
-const PEG_RANDOM_KICK = 0.22;
-const SIDEWAYS_DAMPING = 0.56;
-const CENTER_PULL = 0.004;
-const MAX_SIDEWAYS_SPEED = 1.45;
-const MAX_FALL_SPEED = 5.1;
-const TARGET_PULL = 0.0022;
-const PEG_SEPARATION_EPSILON = 0.6;
-const CLIENT_SEED_STORAGE_KEY = 'pasus_client_seed';
-const CLIENT_NONCE_STORAGE_KEY = 'pasus_client_nonce';
+
+const GRAVITY = 0.24;
+const FRICTION_X = 0.985;
+const MAX_VX = 2.2;
+const MAX_VY = 5;
+const WALL_BOUNCE = 0.72;
+const PEG_SEPARATION_EPSILON = 0.5;
 
 const LOSS_CHANCE = 0.7;
 const WIN_CHANCE = 0.29;
-const BIG_WIN_CHANCE = 0.01;
-
-type OutcomeBand = 'loss' | 'win' | 'bigwin';
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
-}
-
-function pickOutcomeBand(): OutcomeBand {
-  const roll = Math.random();
-  if (roll < LOSS_CHANCE) return 'loss';
-  if (roll < LOSS_CHANCE + WIN_CHANCE) return 'win';
-  return 'bigwin';
 }
 
 function pickRandomIndex(indices: number[]) {
@@ -94,9 +111,14 @@ function pickCenterWeightedIndex(indices: number[], totalBuckets: number) {
   return weighted[weighted.length - 1].index;
 }
 
-function samplePlinkoBucket(multipliers: number[]) {
-  if (!multipliers.length) return 0;
+function pickOutcomeBand(): OutcomeBand {
+  const roll = Math.random();
+  if (roll < LOSS_CHANCE) return 'loss';
+  if (roll < LOSS_CHANCE + WIN_CHANCE) return 'win';
+  return 'bigwin';
+}
 
+function samplePlinkoBucket(multipliers: number[]) {
   const maxMultiplier = Math.max(...multipliers);
   const outcomeBand = pickOutcomeBand();
 
@@ -105,215 +127,236 @@ function samplePlinkoBucket(multipliers: number[]) {
     .filter((entry) => entry.multiplier < 1)
     .map((entry) => entry.index);
 
-  const bigWinBuckets = multipliers
-    .map((multiplier, index) => ({ multiplier, index }))
-    .filter((entry) => entry.multiplier === maxMultiplier)
-    .map((entry) => entry.index);
-
   const winBuckets = multipliers
     .map((multiplier, index) => ({ multiplier, index }))
     .filter((entry) => entry.multiplier >= 1 && entry.multiplier < maxMultiplier)
     .map((entry) => entry.index);
 
-  if (outcomeBand === 'loss' && lossBuckets.length) return pickCenterWeightedIndex(lossBuckets, multipliers.length);
-  if (outcomeBand === 'win' && winBuckets.length) return pickCenterWeightedIndex(winBuckets, multipliers.length);
-  if (outcomeBand === 'bigwin' && bigWinBuckets.length) return pickRandomIndex(bigWinBuckets);
+  const bigWinBuckets = multipliers
+    .map((multiplier, index) => ({ multiplier, index }))
+    .filter((entry) => entry.multiplier === maxMultiplier)
+    .map((entry) => entry.index);
+
+  if (outcomeBand === 'loss' && lossBuckets.length) {
+    return pickCenterWeightedIndex(lossBuckets, multipliers.length);
+  }
+  if (outcomeBand === 'win' && winBuckets.length) {
+    return pickCenterWeightedIndex(winBuckets, multipliers.length);
+  }
+  if (outcomeBand === 'bigwin' && bigWinBuckets.length) {
+    return pickRandomIndex(bigWinBuckets);
+  }
 
   const fallback = lossBuckets.length ? lossBuckets : winBuckets.length ? winBuckets : bigWinBuckets;
-  return fallback.length ? pickRandomIndex(fallback) : Math.floor(Math.random() * multipliers.length);
+  return fallback.length ? pickRandomIndex(fallback) : 0;
+}
+
+function getRiskColor(risk: RiskLevel) {
+  if (risk === 'low') return 'text-emerald-300';
+  if (risk === 'medium') return 'text-amber-300';
+  return 'text-rose-300';
+}
+
+function getMultiplierTone(multiplier: number) {
+  if (multiplier >= 10) return 'bg-rose-500/20 text-rose-300 border-rose-400/30';
+  if (multiplier >= 1) return 'bg-emerald-500/15 text-emerald-300 border-emerald-400/25';
+  return 'bg-slate-500/20 text-slate-300 border-slate-400/20';
 }
 
 export const PlinkoGame: React.FC = () => {
   const { balance, addBalance, subtractBalance } = useBalance();
+  const { getStats, recordBet } = useLocalGameStats('plinko');
+
   const [bet, setBet] = useState(1);
   const [rows, setRows] = useState<number>(12);
   const [risk, setRisk] = useState<RiskLevel>('medium');
+  const [isDropping, setIsDropping] = useState(false);
   const [isAuto, setIsAuto] = useState(false);
   const [autoCount, setAutoCount] = useState(10);
-  const [lastResult, setLastResult] = useState<{ multiplier: number; payout: number } | null>(null);
-  const [isDropping, setIsDropping] = useState(false);
-  const [droppedBalls, setDroppedBalls] = useState(0);
-  const [currentBallPos, setCurrentBallPos] = useState<{ x: number; y: number } | null>(null);
-  const [finalPosition, setFinalPosition] = useState<number | null>(null);
-  const [pfClientSeed, setPfClientSeed] = useState('');
-  const [pfNonce, setPfNonce] = useState(1);
-  
+  const [drops, setDrops] = useState(0);
+  const [lastResult, setLastResult] = useState<{ multiplier: number; payout: number; bucket: number } | null>(null);
+  const [activeBucket, setActiveBucket] = useState<number | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pegsRef = useRef<Array<{ id: number; x: number; y: number }>>([]);
-  const bucketsRef = useRef<Array<{ x: number; y: number; width: number }>>([]);
-  const ballRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
-  const animationRef = useRef<number>();
-  const bucketHitRef = useRef(false);
+  const pegsRef = useRef<Peg[]>([]);
+  const bucketsRef = useRef<Bucket[]>([]);
+  const ballRef = useRef<BallState | null>(null);
+  const rafRef = useRef<number>();
+  const settleTimeoutRef = useRef<number>();
   const dropLockRef = useRef(false);
+  const targetBucketRef = useRef<number | null>(null);
+  const targetXRef = useRef<number | null>(null);
   const lastPegHitRef = useRef<{ id: number; at: number } | null>(null);
 
-  const { getStats, recordBet } = useLocalGameStats('plinko');
   const stats = getStats();
-
   const multipliers = useMemo(() => MULTIPLIERS[rows][risk], [rows, risk]);
-  const physicsProfile = useMemo(() => {
-    if (rows === 8) {
-      return {
-        bounce: 0.28,
-        startDrift: 0.48,
-        pegRandomKick: 0.2,
-        sidewaysDamping: 0.24,
-        centerPull: 0.006,
-        maxSidewaysSpeed: 0.75,
-      };
-    }
-
-    if (rows === 10) {
-      return {
-        bounce: 0.31,
-        startDrift: 0.52,
-        pegRandomKick: 0.22,
-        sidewaysDamping: 0.3,
-        centerPull: 0.006,
-        maxSidewaysSpeed: 0.95,
-      };
-    }
-
-    if (rows === 12) {
-      return {
-        bounce: 0.34,
-        startDrift: 0.58,
-        pegRandomKick: 0.24,
-        sidewaysDamping: 0.4,
-        centerPull: 0.006,
-        maxSidewaysSpeed: 1.1,
-      };
-    }
-
-    return {
-      bounce: BOUNCE,
-      startDrift: START_DRIFT,
-      pegRandomKick: PEG_RANDOM_KICK,
-      sidewaysDamping: SIDEWAYS_DAMPING,
-      centerPull: CENTER_PULL,
-      maxSidewaysSpeed: MAX_SIDEWAYS_SPEED,
-    };
-  }, [rows]);
   const betCoins = useMemo(() => dollarsToCents(bet), [bet]);
   const canDrop = !isDropping && balance >= betCoins;
 
-  const canvasWidth = 400;
-  const canvasHeight = 450;
-  const topPadding = 40;
-  const bucketHeight = 30;
+  const physicsProfile = useMemo(() => {
+    if (rows <= 8) {
+      return { startDrift: 0.95, randomKick: 0.1, steerBase: 0.00028, steerScale: 0.0019, restitution: 0.34 };
+    }
+    if (rows <= 12) {
+      return { startDrift: 0.8, randomKick: 0.08, steerBase: 0.00034, steerScale: 0.0022, restitution: 0.31 };
+    }
+    return { startDrift: 0.66, randomKick: 0.07, steerBase: 0.0004, steerScale: 0.0025, restitution: 0.28 };
+  }, [rows]);
+
+  const drawBoard = useCallback((ctx: CanvasRenderingContext2D, ball?: BallState) => {
+    ctx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+    ctx.fillStyle = '#0b1220';
+    ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+
+    const bg = ctx.createLinearGradient(0, 0, 0, BOARD_HEIGHT);
+    bg.addColorStop(0, 'rgba(16,24,39,0.65)');
+    bg.addColorStop(1, 'rgba(2,6,23,0.88)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+
+    for (let y = 0; y < BOARD_HEIGHT; y += 24) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(BOARD_WIDTH, y);
+      ctx.stroke();
+    }
+
+    const bucketWidth = BOARD_WIDTH / multipliers.length;
+    multipliers.forEach((multiplier, index) => {
+      const bucketX = index * bucketWidth;
+      const isActive = index === activeBucket;
+      const isHigh = multiplier >= 10;
+      const isPositive = multiplier >= 1 && multiplier < 10;
+
+      ctx.fillStyle = isHigh
+        ? 'rgba(251,113,133,0.28)'
+        : isPositive
+          ? 'rgba(16,185,129,0.22)'
+          : 'rgba(148,163,184,0.18)';
+      ctx.fillRect(bucketX + 1, BOARD_HEIGHT - BUCKET_HEIGHT, bucketWidth - 2, BUCKET_HEIGHT - 1);
+
+      if (isActive) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bucketX + 2, BOARD_HEIGHT - BUCKET_HEIGHT + 2, bucketWidth - 4, BUCKET_HEIGHT - 4);
+      }
+
+      ctx.font = '700 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isHigh ? '#fecdd3' : isPositive ? '#bbf7d0' : '#e2e8f0';
+      ctx.fillText(`${multiplier.toFixed(2)}x`, bucketX + bucketWidth / 2, BOARD_HEIGHT - BUCKET_HEIGHT / 2);
+    });
+
+    pegsRef.current.forEach((peg) => {
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, PEG_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = '#dbeafe';
+      ctx.globalAlpha = 0.86;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+
+    if (ball) {
+      const ballGradient = ctx.createRadialGradient(ball.x - 2, ball.y - 2, 0, ball.x, ball.y, BALL_RADIUS);
+      ballGradient.addColorStop(0, '#ffffff');
+      ballGradient.addColorStop(1, '#94a3b8');
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = ballGradient;
+      ctx.fill();
+
+      ctx.shadowColor = 'rgba(255,255,255,0.42)';
+      ctx.shadowBlur = 9;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.24)';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }, [activeBucket, multipliers]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const pegs: Array<{ id: number; x: number; y: number }> = [];
-    const pegSpacingY = (canvasHeight - topPadding - bucketHeight) / (rows + 1);
-    
-    for (let row = 0; row < rows; row++) {
+    const pegSpacingY = (BOARD_HEIGHT - TOP_PADDING - BUCKET_HEIGHT) / (rows + 1);
+    const pegs: Peg[] = [];
+    for (let row = 0; row < rows; row += 1) {
       const pegsInRow = row + 4;
-      const rowWidth = (pegsInRow - 1) * 40;
-      const startX = (canvasWidth - rowWidth) / 2;
-      
-      for (let col = 0; col < pegsInRow; col++) {
+      const rowWidth = (pegsInRow - 1) * 38;
+      const startX = (BOARD_WIDTH - rowWidth) / 2;
+      for (let col = 0; col < pegsInRow; col += 1) {
         pegs.push({
           id: pegs.length,
-          x: startX + col * 40,
-          y: topPadding + (row + 1) * pegSpacingY,
+          x: startX + col * 38,
+          y: TOP_PADDING + (row + 1) * pegSpacingY,
         });
       }
     }
-    
     pegsRef.current = pegs;
 
-    const buckets: Array<{ x: number; y: number; width: number }> = [];
-    const numBuckets = multipliers.length;
-    const bucketWidth = canvasWidth / numBuckets;
-    
-    for (let i = 0; i < numBuckets; i++) {
-      buckets.push({
-        x: i * bucketWidth,
-        y: canvasHeight - bucketHeight,
-        width: bucketWidth,
-      });
+    const bucketWidth = BOARD_WIDTH / multipliers.length;
+    bucketsRef.current = multipliers.map((_, index) => ({
+      x: index * bucketWidth,
+      y: BOARD_HEIGHT - BUCKET_HEIGHT,
+      width: bucketWidth,
+    }));
+
+    drawBoard(ctx);
+  }, [rows, multipliers, drawBoard]);
+
+  const stopCurrentAnimation = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = undefined;
     }
-    
-    bucketsRef.current = buckets;
-
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-    ctx.fillStyle = '#0f1923';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < canvasWidth; x += 25) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvasHeight);
-      ctx.stroke();
+    if (settleTimeoutRef.current) {
+      clearTimeout(settleTimeoutRef.current);
+      settleTimeoutRef.current = undefined;
     }
-    for (let y = 0; y < canvasHeight; y += 25) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvasWidth, y);
-      ctx.stroke();
+  }, []);
+
+  const settleResult = useCallback((cost: number, bucketIndex: number) => {
+    const multiplier = multipliers[bucketIndex];
+    const payout = Math.round(cost * multiplier);
+
+    addBalance(payout);
+    setLastResult({ multiplier, payout, bucket: bucketIndex });
+
+    if (payout > cost) {
+      confetti({ particleCount: 55, spread: 62, origin: { y: 0.72 } });
     }
 
-    pegs.forEach(peg => {
-      const gradient = ctx.createRadialGradient(peg.x - 1, peg.y - 1, 0, peg.x, peg.y, PEG_RADIUS);
-      gradient.addColorStop(0, '#ffffff');
-      gradient.addColorStop(1, '#888888');
-      
-      ctx.beginPath();
-      ctx.arc(peg.x, peg.y, PEG_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
-      
-      ctx.shadowColor = 'rgba(255,255,255,0.3)';
-      ctx.shadowBlur = 4;
-      ctx.beginPath();
-      ctx.arc(peg.x, peg.y, PEG_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    });
+    if (payout > cost * 2) {
+      logBetActivity({ gameKey: 'plinko', wager: cost, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier.toFixed(2)}x` });
+      recordBet(cost, payout, true);
+    } else if (payout > 0) {
+      logBetActivity({ gameKey: 'plinko', wager: cost, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier.toFixed(2)}x` });
+      recordBet(cost, payout, payout > cost);
+    } else {
+      logBetActivity({ gameKey: 'plinko', wager: cost, payout: 0, multiplier: 0, outcome: 'loss', detail: `Hit ${multiplier.toFixed(2)}x` });
+      recordBet(cost, 0, false);
+    }
 
-    multipliers.forEach((m, i) => {
-      const bucketX = i * bucketWidth;
-      const isHigh = m >= 10;
-      const isMid = m >= 1 && m < 10;
-      
-      let bgColor = 'rgba(255,255,255,0.1)';
-      let textColor = 'rgba(255,255,255,0.5)';
-      
-      if (isHigh) {
-        bgColor = 'rgba(239,68,68,0.3)';
-        textColor = '#ef4444';
-      } else if (isMid) {
-        bgColor = 'rgba(34,197,94,0.2)';
-        textColor = '#22c55e';
-      }
+    setDrops((prev) => prev + 1);
+    setIsDropping(false);
+    dropLockRef.current = false;
+    targetBucketRef.current = null;
+    targetXRef.current = null;
+    lastPegHitRef.current = null;
 
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(bucketX + 1, canvasHeight - bucketHeight, bucketWidth - 2, bucketHeight - 1);
-      
-      ctx.fillStyle = textColor;
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${m.toFixed(1)}x`, bucketX + bucketWidth / 2, canvasHeight - bucketHeight / 2);
-    });
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, canvasHeight - bucketHeight);
-    ctx.lineTo(canvasWidth, canvasHeight - bucketHeight);
-    ctx.stroke();
-
-  }, [rows, multipliers, canvasHeight]);
+    if (isAuto && autoCount > 1) {
+      setAutoCount((prev) => prev - 1);
+    } else if (isAuto) {
+      setIsAuto(false);
+    }
+  }, [addBalance, autoCount, isAuto, multipliers, recordBet]);
 
   const dropBall = useCallback(() => {
     if (!canDrop || dropLockRef.current) return;
@@ -325,58 +368,62 @@ export const PlinkoGame: React.FC = () => {
       return;
     }
 
+    const selectedBucket = samplePlinkoBucket(multipliers);
+    const bucketWidth = BOARD_WIDTH / multipliers.length;
+    const targetX = selectedBucket * bucketWidth + bucketWidth / 2;
+    targetBucketRef.current = selectedBucket;
+    targetXRef.current = targetX;
+
     setIsDropping(true);
+    setActiveBucket(selectedBucket);
     setLastResult(null);
-    setFinalPosition(null);
-    bucketHitRef.current = false;
 
-    const selectedBucket = Math.min(samplePlinkoBucket(multipliers), multipliers.length - 1);
-    const bucketWidth = canvasWidth / multipliers.length;
-    const targetBucketX = (selectedBucket + 0.5) * bucketWidth;
-
-    const startX = canvasWidth / 2 + (Math.random() - 0.5) * 90;
+    const startX = BOARD_WIDTH / 2 + (Math.random() - 0.5) * 96;
     ballRef.current = {
-      x: startX,
-      y: 20,
-      vx: (Math.random() - 0.5) * physicsProfile.startDrift * 1.9,
+      x: clamp(startX, BALL_RADIUS + 1, BOARD_WIDTH - BALL_RADIUS - 1),
+      y: 18,
+      vx: (Math.random() - 0.5) * physicsProfile.startDrift,
       vy: 0,
     };
 
+    stopCurrentAnimation();
+
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!ctx || !canvas) {
+    if (!ctx || !canvas || !ballRef.current) {
       addBalance(cost);
       setIsDropping(false);
+      setActiveBucket(null);
       dropLockRef.current = false;
       return;
     }
 
     const animate = (timestamp: number) => {
       const ball = ballRef.current;
-      if (!ball || bucketHitRef.current) return;
+      if (!ball) return;
 
-      ball.vy = Math.min(MAX_FALL_SPEED, ball.vy + GRAVITY);
+      ball.vy = Math.min(MAX_VY, ball.vy + GRAVITY);
 
-      const yProgress = clamp(ball.y / (canvasHeight - bucketHeight), 0, 1);
-      const steerStrength = 0.00035 + yProgress * 0.0022;
-      const targetPull = clamp((targetBucketX - ball.x) * steerStrength, -0.09, 0.09);
-      ball.vx += targetPull;
-      ball.vx += (Math.random() - 0.5) * 0.028;
-      ball.vx *= FRICTION;
-      ball.vx = clamp(ball.vx, -physicsProfile.maxSidewaysSpeed, physicsProfile.maxSidewaysSpeed);
+      const progressY = clamp(ball.y / (BOARD_HEIGHT - BUCKET_HEIGHT), 0, 1);
+      const steer = physicsProfile.steerBase + progressY * physicsProfile.steerScale;
+      const steerForce = clamp((targetX - ball.x) * steer, -0.1, 0.1);
+
+      ball.vx += steerForce + (Math.random() - 0.5) * physicsProfile.randomKick;
+      ball.vx *= FRICTION_X;
+      ball.vx = clamp(ball.vx, -MAX_VX, MAX_VX);
 
       ball.x += ball.vx;
       ball.y += ball.vy;
 
-      if (ball.x < BALL_RADIUS) {
+      if (ball.x <= BALL_RADIUS) {
         ball.x = BALL_RADIUS;
-        ball.vx = Math.abs(ball.vx) * 0.72;
-      } else if (ball.x > canvasWidth - BALL_RADIUS) {
-        ball.x = canvasWidth - BALL_RADIUS;
-        ball.vx = -Math.abs(ball.vx) * 0.72;
+        ball.vx = Math.abs(ball.vx) * WALL_BOUNCE;
+      } else if (ball.x >= BOARD_WIDTH - BALL_RADIUS) {
+        ball.x = BOARD_WIDTH - BALL_RADIUS;
+        ball.vx = -Math.abs(ball.vx) * WALL_BOUNCE;
       }
 
-      let nearest: { id: number; x: number; y: number; dist: number } | null = null;
+      let nearest: (Peg & { dist: number }) | null = null;
       for (const peg of pegsRef.current) {
         const dx = ball.x - peg.x;
         const dy = ball.y - peg.y;
@@ -387,174 +434,83 @@ export const PlinkoGame: React.FC = () => {
       }
 
       if (nearest) {
-        const recentlyHit = lastPegHitRef.current && lastPegHitRef.current.id === nearest.id && (timestamp - lastPegHitRef.current.at) < 55;
+        const recentlyHit =
+          lastPegHitRef.current &&
+          lastPegHitRef.current.id === nearest.id &&
+          timestamp - lastPegHitRef.current.at < 52;
+
         if (!recentlyHit) {
           lastPegHitRef.current = { id: nearest.id, at: timestamp };
 
           const dx = ball.x - nearest.x;
           const dy = ball.y - nearest.y;
           const dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
-          const normalX = dx / dist;
-          const normalY = dy / dist;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const tx = -ny;
+          const ty = nx;
 
           const overlap = BALL_RADIUS + PEG_RADIUS - dist + PEG_SEPARATION_EPSILON;
-          ball.x += normalX * overlap;
-          ball.y += normalY * overlap;
+          ball.x += nx * overlap;
+          ball.y += ny * overlap;
 
-          const approach = ball.vx * normalX + ball.vy * normalY;
-          if (approach < 0) {
-            const restitution = 0.22 + physicsProfile.bounce * 0.12;
-            ball.vx -= (1 + restitution) * approach * normalX;
-            ball.vy -= (1 + restitution) * approach * normalY;
+          const normalSpeed = ball.vx * nx + ball.vy * ny;
+          if (normalSpeed < 0) {
+            const restitution = physicsProfile.restitution;
+            ball.vx -= (1 + restitution) * normalSpeed * nx;
+            ball.vy -= (1 + restitution) * normalSpeed * ny;
           }
 
-          const tangentX = -normalY;
-          const tangentY = normalX;
-          const tangentSpeed = ball.vx * tangentX + ball.vy * tangentY;
-          const sideKick = (Math.random() - 0.5) * physicsProfile.pegRandomKick;
-          const directionalKick = tangentX * (0.075 + Math.random() * 0.11);
-          ball.vx += tangentX * (sideKick + tangentSpeed * 0.055) + directionalKick;
-          ball.vy = Math.max(0.45, (ball.vy + Math.abs(tangentSpeed) * 0.014) * 0.97);
-          ball.vx = clamp(ball.vx, -physicsProfile.maxSidewaysSpeed, physicsProfile.maxSidewaysSpeed);
-          ball.vy = Math.min(ball.vy, MAX_FALL_SPEED);
+          const tangentSpeed = ball.vx * tx + ball.vy * ty;
+          const sideKick = (Math.random() - 0.5) * 0.16;
+          ball.vx += tx * (sideKick + tangentSpeed * 0.06);
+          ball.vy = Math.max(0.36, ball.vy * 0.96 + Math.abs(tangentSpeed) * 0.014);
+          ball.vx = clamp(ball.vx, -MAX_VX, MAX_VX);
+          ball.vy = Math.min(ball.vy, MAX_VY);
         }
       }
 
-      if (ball.y > canvasHeight - bucketHeight - BALL_RADIUS && !bucketHitRef.current) {
-        bucketHitRef.current = true;
-        const bucketIndex = selectedBucket;
-        
-        setFinalPosition(bucketIndex);
-        
-        const multiplier = multipliers[bucketIndex];
-        const payout = Math.round(cost * multiplier);
+      drawBoard(ctx, ball);
 
-        setTimeout(() => {
-          addBalance(payout);
-          setLastResult({ multiplier, payout });
+      const settleLineY = BOARD_HEIGHT - BUCKET_HEIGHT - BALL_RADIUS;
+      if (ball.y >= settleLineY) {
+        const settleX = clamp(targetX + (Math.random() - 0.5) * 6, BALL_RADIUS + 1, BOARD_WIDTH - BALL_RADIUS - 1);
+        ball.x = settleX;
+        ball.y = settleLineY;
+        drawBoard(ctx, ball);
 
-          if (payout > cost) {
-            confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
-          }
-
-          if (payout > cost * 2) {
-            logBetActivity({ gameKey: 'plinko', wager: cost, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier}x` });
-            recordBet(cost, payout, true);
-          } else if (payout > 0) {
-            logBetActivity({ gameKey: 'plinko', wager: cost, payout, multiplier, outcome: 'win', detail: `Hit ${multiplier}x` });
-            recordBet(cost, payout, payout > cost);
-          } else {
-            logBetActivity({ gameKey: 'plinko', wager: cost, payout: 0, multiplier: 0, outcome: 'loss', detail: `Hit ${multiplier}x` });
-            recordBet(cost, 0, false);
-          }
-          
-          setDroppedBalls(prev => prev + 1);
-          setIsDropping(false);
-          dropLockRef.current = false;
-          
-          if (isAuto && autoCount > 1) {
-            setAutoCount(prev => prev - 1);
-          } else if (isAuto) {
-            setIsAuto(false);
-          }
-        }, 300);
-        
+        settleTimeoutRef.current = window.setTimeout(() => {
+          setActiveBucket(selectedBucket);
+          settleResult(cost, selectedBucket);
+        }, 210);
         return;
       }
 
-      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-      
-      ctx.fillStyle = '#0f1923';
-      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-      
-      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < canvasWidth; x += 25) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvasHeight);
-        ctx.stroke();
-      }
-      for (let y = 0; y < canvasHeight; y += 25) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvasWidth, y);
-        ctx.stroke();
-      }
-
-      pegsRef.current.forEach(peg => {
-        ctx.beginPath();
-        ctx.arc(peg.x, peg.y, PEG_RADIUS, 0, Math.PI * 2);
-        ctx.fillStyle = '#666666';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(peg.x - 1, peg.y - 1, PEG_RADIUS - 1, 0, Math.PI * 2);
-        ctx.fillStyle = '#999999';
-        ctx.fill();
-      });
-
-      multipliers.forEach((m, i) => {
-        const bucketX = i * (canvasWidth / multipliers.length);
-        const bucketWidth = canvasWidth / multipliers.length;
-        const isHigh = m >= 10;
-        const isMid = m >= 1 && m < 10;
-        
-        let bgColor = 'rgba(255,255,255,0.1)';
-        let textColor = 'rgba(255,255,255,0.5)';
-        
-        if (isHigh) {
-          bgColor = 'rgba(239,68,68,0.3)';
-          textColor = '#ef4444';
-        } else if (isMid) {
-          bgColor = 'rgba(34,197,94,0.2)';
-          textColor = '#22c55e';
-        }
-
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(bucketX + 1, canvasHeight - bucketHeight, bucketWidth - 2, bucketHeight - 1);
-        
-        ctx.fillStyle = textColor;
-        ctx.font = 'bold 10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${m.toFixed(1)}x`, bucketX + bucketWidth / 2, canvasHeight - bucketHeight / 2);
-      });
-
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
-      const ballGradient = ctx.createRadialGradient(ball.x - 2, ball.y - 2, 0, ball.x, ball.y, BALL_RADIUS);
-      ballGradient.addColorStop(0, '#ffffff');
-      ballGradient.addColorStop(1, '#cccccc');
-      ctx.fillStyle = ballGradient;
-      ctx.fill();
-      
-      ctx.shadowColor = 'rgba(255,255,255,0.5)';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      setCurrentBallPos({ x: ball.x, y: ball.y });
-      
-      animationRef.current = requestAnimationFrame(animate);
+      rafRef.current = requestAnimationFrame(animate);
     };
 
-    animationRef.current = requestAnimationFrame(animate);
-  }, [canDrop, betCoins, subtractBalance, addBalance, multipliers, isAuto, autoCount, recordBet, canvasWidth, canvasHeight, physicsProfile, rows]);
+    rafRef.current = requestAnimationFrame(animate);
+  }, [
+    addBalance,
+    betCoins,
+    canDrop,
+    drawBoard,
+    multipliers,
+    physicsProfile,
+    settleResult,
+    stopCurrentAnimation,
+    subtractBalance,
+  ]);
 
   useEffect(() => {
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      stopCurrentAnimation();
     };
-  }, []);
+  }, [stopCurrentAnimation]);
 
   useEffect(() => {
     if (isAuto && autoCount > 0 && !isDropping) {
-      const timer = setTimeout(dropBall, 500);
+      const timer = window.setTimeout(dropBall, 420);
       return () => clearTimeout(timer);
     }
   }, [isAuto, autoCount, isDropping, dropBall]);
@@ -567,102 +523,75 @@ export const PlinkoGame: React.FC = () => {
   const toggleAuto = () => {
     if (isAuto) {
       setIsAuto(false);
-    } else {
-      setIsAuto(true);
-      setAutoCount(10);
+      return;
     }
-  };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const syncProvablyFairData = () => {
-      setPfClientSeed(localStorage.getItem(CLIENT_SEED_STORAGE_KEY) || 'N/A');
-      setPfNonce(Number(localStorage.getItem(CLIENT_NONCE_STORAGE_KEY) || 1));
-    };
-
-    syncProvablyFairData();
-    window.addEventListener('pasus:bet-recorded', syncProvablyFairData as EventListener);
-    window.addEventListener('storage', syncProvablyFairData as EventListener);
-    return () => {
-      window.removeEventListener('pasus:bet-recorded', syncProvablyFairData as EventListener);
-      window.removeEventListener('storage', syncProvablyFairData as EventListener);
-    };
-  }, []);
-
-  const getMultiplierColor = (m: number) => {
-    if (m >= 100) return 'text-red-400';
-    if (m >= 10) return 'text-yellow-400';
-    if (m >= 1) return 'text-green-400';
-    return 'text-white/40';
-  };
-
-  const getRiskColor = (r: RiskLevel) => {
-    switch (r) {
-      case 'low': return 'text-green-400';
-      case 'medium': return 'text-yellow-400';
-      case 'high': return 'text-red-400';
-    }
+    setAutoCount(10);
+    setIsAuto(true);
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 space-y-4">
-        <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-5">
-          <div className="space-y-4">
+    <div className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-5">
+      <div className="space-y-4 lg:col-span-2 xl:col-span-1">
+        <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+          <div className="mb-4 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200/70">Plinko Control</div>
+
+          <div className="space-y-3">
             <div>
-              <label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-              <div className="text-xl font-black text-[#00FF88] mb-2">${bet.toFixed(2)}</div>
+              <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-white/45">Bet Amount</div>
+              <div className="mb-2 text-2xl font-black text-white">${bet.toFixed(2)}</div>
               <input
                 type="number"
-                value={bet}
-                onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))}
                 min="0.01"
                 step="0.01"
+                value={bet}
+                onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value))) }
                 disabled={isAuto}
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#00FF88]/50 disabled:opacity-50"
+                className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-300/60 disabled:opacity-60"
               />
-              <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isAuto} pcts={[25, 50, 75, 100]} />
+              <QuickBetButtons
+                balance={centsToDollars(balance)}
+                bet={bet}
+                onSetBet={setBet}
+                disabled={isAuto}
+                pcts={[25, 50, 75, 100]}
+              />
             </div>
 
             <div>
-              <label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Rows</label>
-              <div className="grid grid-cols-5 gap-1">
-                {ROW_COUNTS.map((r) => (
+              <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-white/45">Rows</div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {ROW_COUNTS.map((value) => (
                   <button
-                    key={r}
-                    onClick={() => setRows(r)}
+                    key={value}
                     disabled={isAuto}
+                    onClick={() => setRows(value)}
                     className={cn(
-                      'py-2 rounded-lg text-xs font-black transition-all',
-                      rows === r 
-                        ? 'bg-[#00FF88] text-black' 
-                        : 'bg-white/5 text-white/40 hover:text-white'
+                      'rounded-lg py-2 text-xs font-black transition-all',
+                      rows === value ? 'bg-cyan-300 text-slate-950' : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white'
                     )}
                   >
-                    {r}
+                    {value}
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Risk</label>
-              <div className="grid grid-cols-3 gap-1">
-                {(['low', 'medium', 'high'] as RiskLevel[]).map((r) => (
+              <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-white/45">Risk</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(['low', 'medium', 'high'] as RiskLevel[]).map((value) => (
                   <button
-                    key={r}
-                    onClick={() => setRisk(r)}
+                    key={value}
                     disabled={isAuto}
+                    onClick={() => setRisk(value)}
                     className={cn(
-                      'py-2 rounded-lg text-[10px] font-black uppercase transition-all',
-                      risk === r 
-                        ? getRiskColor(r) + ' bg-white/10 border' 
-                        : 'bg-white/5 text-white/40 hover:text-white border border-transparent'
+                      'rounded-lg border px-2 py-2 text-[10px] font-black uppercase tracking-[0.14em] transition-all',
+                      risk === value
+                        ? 'border-white/40 bg-white/12 ' + getRiskColor(value)
+                        : 'border-transparent bg-white/5 text-white/50 hover:text-white'
                     )}
-                    style={{ borderColor: risk === r ? (r === 'low' ? '#4ade80' : r === 'medium' ? '#facc15' : '#f87171') : 'transparent' }}
                   >
-                    {r}
+                    {value}
                   </button>
                 ))}
               </div>
@@ -672,13 +601,13 @@ export const PlinkoGame: React.FC = () => {
               onClick={toggleAuto}
               disabled={isDropping}
               className={cn(
-                'w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2',
-                isAuto 
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/50' 
-                  : 'bg-white/10 text-white/60 border border-white/10 hover:bg-white/20'
+                'flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-xs font-black uppercase tracking-[0.16em] transition-all',
+                isAuto
+                  ? 'border-rose-400/45 bg-rose-500/20 text-rose-200'
+                  : 'border-white/10 bg-white/8 text-white/70 hover:bg-white/12'
               )}
             >
-              <RotateCcw size={16} className={isAuto ? 'animate-spin' : ''} />
+              <RotateCcw size={14} className={isAuto ? 'animate-spin' : ''} />
               {isAuto ? `Auto (${autoCount})` : 'Auto Play'}
             </button>
 
@@ -686,161 +615,116 @@ export const PlinkoGame: React.FC = () => {
               onClick={dropBall}
               disabled={!canDrop}
               className={cn(
-                'w-full py-4 rounded-xl font-black text-lg uppercase tracking-wider transition-all flex items-center justify-center gap-2',
+                'flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-black uppercase tracking-[0.15em] transition-all',
                 isDropping
-                  ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                  : 'bg-[#00FF88] hover:bg-[#00FF88]/90 text-black shadow-lg shadow-[#00FF88]/30',
-                !canDrop && 'opacity-50'
+                  ? 'bg-amber-400/20 text-amber-200'
+                  : 'bg-cyan-300 text-slate-900 hover:bg-cyan-200',
+                !canDrop && 'cursor-not-allowed opacity-50'
               )}
             >
-              <Play size={20} fill="currentColor" />
-              {isDropping ? 'Dropping...' : 'Drop Ball'}
+              <Play size={18} fill="currentColor" />
+              {isDropping ? 'Dropping' : 'Drop Ball'}
             </button>
           </div>
         </div>
 
-        <GameStatsBar stats={[
-          { label: 'Drops', value: String(stats.totalBets) },
-          { label: 'Wins', value: String(stats.totalWins) },
-          { label: 'Profit', value: formatCents(stats.totalPayout - stats.totalWagered) },
-        ]} />
+        <GameStatsBar
+          stats={[
+            { label: 'Drops', value: String(drops || stats.totalBets) },
+            { label: 'Wins', value: String(stats.totalWins) },
+            { label: 'Profit', value: formatCents(stats.totalPayout - stats.totalWagered) },
+          ]}
+        />
 
-        <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-4">
-          <div className="text-[10px] uppercase tracking-widest text-white/40 mb-3">Payouts</div>
-          <div className="grid gap-1 max-h-32 overflow-y-auto">
-            {multipliers.map((m, i) => (
-              <div 
-                key={i} 
+        <div className="rounded-2xl border border-white/10 bg-[#111827] p-3">
+          <div className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/45">Payout Grid</div>
+          <div className="grid max-h-36 grid-cols-3 gap-1 overflow-y-auto pr-1">
+            {multipliers.map((multiplier, index) => (
+              <div
+                key={`${multiplier}-${index}`}
                 className={cn(
-                  'text-center py-1 px-2 rounded text-[10px] font-black',
-                  m >= 10 ? 'bg-red-500/20 text-red-400' :
-                  m >= 1 ? 'bg-green-500/10 text-green-400' :
-                  'bg-white/5 text-white/40'
+                  'rounded-md border px-1.5 py-1 text-center text-[10px] font-black',
+                  getMultiplierTone(multiplier),
+                  activeBucket === index && 'ring-1 ring-white/60'
                 )}
               >
-                {m.toFixed(1)}x
+                {multiplier.toFixed(2)}x
               </div>
             ))}
           </div>
         </div>
-
-        <div className="bg-[#1a1d23] border border-white/5 rounded-2xl p-4 space-y-3">
-          <div className="text-[10px] uppercase tracking-widest text-white/40">Provably Fair</div>
-          <div className="space-y-2 text-[11px]">
-            <div className="rounded-lg bg-black/30 border border-white/10 px-3 py-2">
-              <div className="text-white/35 uppercase tracking-[0.16em] text-[9px]">Client Seed</div>
-              <div className="text-white/80 font-mono truncate">{pfClientSeed || 'N/A'}</div>
-            </div>
-            <div className="rounded-lg bg-black/30 border border-white/10 px-3 py-2">
-              <div className="text-white/35 uppercase tracking-[0.16em] text-[9px]">Nonce</div>
-              <div className="text-white font-black">{pfNonce}</div>
-            </div>
-          </div>
-          <a
-            href="/provably-fair"
-            className="block w-full text-center rounded-xl bg-white/10 hover:bg-white/15 text-white/80 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all"
-          >
-            Open Verifier
-          </a>
-        </div>
       </div>
 
-      <div className="lg:col-span-4">
-        <div className="relative bg-gradient-to-b from-[#1a1d23] to-[#0a0a0a] border border-white/10 rounded-3xl p-6 overflow-hidden">
-          <div className="absolute inset-0 opacity-5" style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
-            `,
-            backgroundSize: '25px 25px'
-          }} />
+      <div className="lg:col-span-3 xl:col-span-4">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#020617] p-5">
+          <div
+            className="absolute inset-0 opacity-[0.08]"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 20% 10%, #38bdf8 0%, transparent 28%), radial-gradient(circle at 80% 20%, #818cf8 0%, transparent 30%)',
+            }}
+          />
+
+          <div className="relative z-10 mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/70">Renewed Plinko</div>
+              <div className="mt-1 text-3xl font-black uppercase tracking-tight text-white">Free Fall Engine</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-2 text-right">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/45">Mode</div>
+              <div className={cn('text-sm font-black uppercase', getRiskColor(risk))}>{risk} / {rows} rows</div>
+            </div>
+          </div>
 
           <AnimatePresence>
             {lastResult && (
               <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                className="absolute top-4 left-1/2 -translate-x-1/2 z-30"
+                initial={{ opacity: 0, y: -10, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.96 }}
+                className="absolute left-1/2 top-4 z-20 -translate-x-1/2"
               >
                 <div className={cn(
-                  'px-8 py-4 rounded-2xl border backdrop-blur-md',
-                  lastResult.payout > betCoins 
-                    ? 'bg-green-500/20 border-green-500/50 shadow-lg shadow-green-500/30' 
-                    : 'bg-red-500/20 border-red-500/50'
+                  'rounded-2xl border px-6 py-3 text-center backdrop-blur-md',
+                  lastResult.payout > betCoins
+                    ? 'border-emerald-300/55 bg-emerald-500/18'
+                    : 'border-rose-300/55 bg-rose-500/18'
                 )}>
-                  <div className="text-center">
-                    <div className={cn('text-3xl font-black', getMultiplierColor(lastResult.multiplier))}>
-                      {lastResult.multiplier.toFixed(1)}x
-                    </div>
-                    <div className="text-lg font-black text-white mt-1">
-                      {lastResult.payout > betCoins ? '+' : '-'}{formatCents(Math.abs(lastResult.payout))}
-                    </div>
+                  <div className="text-2xl font-black text-white">{lastResult.multiplier.toFixed(2)}x</div>
+                  <div className="text-sm font-black text-white/85">
+                    {lastResult.payout > betCoins ? '+' : '-'}{formatCents(Math.abs(lastResult.payout))}
                   </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="relative z-10 text-center mb-4">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-black">PLINKO</div>
-            <div className="text-3xl font-black italic text-white mt-1">
-              <span className="text-blue-400">DROP</span>
-              <span className="text-white/60"> </span>
-              <span className="text-green-400">MULTIPLIERS</span>
-            </div>
-          </div>
-
-          <div className="flex justify-center gap-4 mb-4">
-            {(['low', 'medium', 'high'] as RiskLevel[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRisk(r)}
-                disabled={isAuto}
-                className={cn(
-                  'px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all',
-                  risk === r 
-                    ? getRiskColor(r) + ' bg-white/10 border' 
-                    : 'text-white/30 border border-transparent'
-                )}
-                style={{ borderColor: risk === r ? (r === 'low' ? '#4ade80' : r === 'medium' ? '#facc15' : '#f87171') : 'transparent' }}
-              >
-                {r}
-              </button>
-            ))}
-            <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider text-white/40">
-              {rows} rows
-            </span>
-          </div>
-
-          <div className="flex justify-center">
+          <div className="relative z-10 flex justify-center">
             <canvas
               ref={canvasRef}
-              width={canvasWidth}
-              height={canvasHeight}
-              className="rounded-2xl border border-white/10"
+              width={BOARD_WIDTH}
+              height={BOARD_HEIGHT}
+              className="rounded-2xl border border-white/15"
             />
           </div>
 
-          <div className="flex justify-center items-center gap-6 mt-4">
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-widest text-white/30">Max Win</div>
-              <div className="text-2xl font-black text-red-400">{Math.max(...multipliers).toFixed(1)}x</div>
+          <div className="relative z-10 mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">Max</div>
+              <div className="text-xl font-black text-rose-200">{Math.max(...multipliers).toFixed(2)}x</div>
             </div>
-            <div className="w-px h-10 bg-white/10" />
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-widest text-white/30">Min Win</div>
-              <div className="text-2xl font-black text-white/40">{Math.min(...multipliers).toFixed(1)}x</div>
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">Min</div>
+              <div className="text-xl font-black text-slate-200">{Math.min(...multipliers).toFixed(2)}x</div>
             </div>
-            <div className="w-px h-10 bg-white/10" />
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-widest text-white/30">Balls</div>
-              <div className="text-2xl font-black text-blue-400">{droppedBalls}</div>
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">Balance</div>
+              <div className="text-xl font-black text-cyan-200">{formatCents(balance)}</div>
             </div>
           </div>
 
-          <div className="absolute bottom-4 right-4 text-[10px] text-white/20">
-            Press SPACE to drop
+          <div className="relative z-10 mt-3 text-right text-[10px] uppercase tracking-[0.15em] text-white/35">
+            Space to drop
           </div>
         </div>
       </div>
