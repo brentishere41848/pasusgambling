@@ -474,8 +474,7 @@ export const PlinkoGame: React.FC = () => {
 
       const settleLineY = BOARD_HEIGHT - BUCKET_HEIGHT - BALL_RADIUS;
       if (ball.y >= settleLineY) {
-        const settleX = clamp(targetX + (Math.random() - 0.5) * 6, BALL_RADIUS + 1, BOARD_WIDTH - BALL_RADIUS - 1);
-        ball.x = settleX;
+        ball.x = clamp(ball.x, BALL_RADIUS + 1, BOARD_WIDTH - BALL_RADIUS - 1);
         ball.y = settleLineY;
         drawBoard(ctx, ball);
 
