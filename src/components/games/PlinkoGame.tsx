@@ -42,14 +42,14 @@ const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
 const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    low: [1.35, 1.05, 0.78, 0.56, 0.34, 0.56, 0.78, 1.05, 1.35],
-    medium: [2.2, 1.3, 0.72, 0.42, 0.2, 0.42, 0.72, 1.3, 2.2],
-    high: [4.5, 1.9, 0.8, 0.35, 0.12, 0.35, 0.8, 1.9, 4.5],
+    low: [1.2, 0.96, 0.7, 0.5, 0.3, 0.5, 0.7, 0.96, 1.2],
+    medium: [1.75, 1.08, 0.62, 0.36, 0.18, 0.36, 0.62, 1.08, 1.75],
+    high: [3.2, 1.5, 0.62, 0.28, 0.1, 0.28, 0.62, 1.5, 3.2],
   },
   10: {
-    low: [1.7, 1.15, 0.82, 0.6, 0.44, 0.3, 0.44, 0.6, 0.82, 1.15, 1.7],
-    medium: [3.1, 1.6, 0.86, 0.5, 0.3, 0.16, 0.3, 0.5, 0.86, 1.6, 3.1],
-    high: [6.8, 2.4, 1.05, 0.52, 0.24, 0.09, 0.24, 0.52, 1.05, 2.4, 6.8],
+    low: [1.45, 1.02, 0.72, 0.52, 0.38, 0.24, 0.38, 0.52, 0.72, 1.02, 1.45],
+    medium: [2.4, 1.3, 0.72, 0.42, 0.25, 0.13, 0.25, 0.42, 0.72, 1.3, 2.4],
+    high: [5.2, 2, 0.9, 0.42, 0.2, 0.08, 0.2, 0.42, 0.9, 2, 5.2],
   },
   12: {
     low: [2.3, 1.4, 0.9, 0.66, 0.48, 0.35, 0.24, 0.35, 0.48, 0.66, 0.9, 1.4, 2.3],
@@ -83,8 +83,11 @@ const MAX_VY = 5;
 const WALL_BOUNCE = 0.72;
 const PEG_SEPARATION_EPSILON = 0.5;
 
-const LOSS_CHANCE = 0.8;
-const WIN_CHANCE = 0.195;
+const OUTCOME_CHANCE_BY_ROWS: Record<number, { loss: number; win: number; bigwin: number }> = {
+  8: { loss: 0.86, win: 0.138, bigwin: 0.002 },
+  10: { loss: 0.84, win: 0.157, bigwin: 0.003 },
+};
+const DEFAULT_OUTCOME_CHANCE = { loss: 0.8, win: 0.195, bigwin: 0.005 };
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -111,16 +114,17 @@ function pickCenterWeightedIndex(indices: number[], totalBuckets: number) {
   return weighted[weighted.length - 1].index;
 }
 
-function pickOutcomeBand(): OutcomeBand {
+function pickOutcomeBand(rows: number): OutcomeBand {
+  const chances = OUTCOME_CHANCE_BY_ROWS[rows] || DEFAULT_OUTCOME_CHANCE;
   const roll = Math.random();
-  if (roll < LOSS_CHANCE) return 'loss';
-  if (roll < LOSS_CHANCE + WIN_CHANCE) return 'win';
+  if (roll < chances.loss) return 'loss';
+  if (roll < chances.loss + chances.win) return 'win';
   return 'bigwin';
 }
 
-function samplePlinkoBucket(multipliers: number[]) {
+function samplePlinkoBucket(rows: number, multipliers: number[]) {
   const maxMultiplier = Math.max(...multipliers);
-  const outcomeBand = pickOutcomeBand();
+  const outcomeBand = pickOutcomeBand(rows);
 
   const lossBuckets = multipliers
     .map((multiplier, index) => ({ multiplier, index }))
@@ -195,10 +199,13 @@ export const PlinkoGame: React.FC = () => {
 
   const physicsProfile = useMemo(() => {
     if (rows <= 8) {
-      return { startDrift: 0.95, randomKick: 0.1, steerBase: 0.00028, steerScale: 0.0019, restitution: 0.34 };
+      return { startDrift: 0.62, randomKick: 0.05, steerBase: 0.0005, steerScale: 0.003, restitution: 0.28 };
+    }
+    if (rows <= 10) {
+      return { startDrift: 0.66, randomKick: 0.06, steerBase: 0.00045, steerScale: 0.0028, restitution: 0.29 };
     }
     if (rows <= 12) {
-      return { startDrift: 0.8, randomKick: 0.08, steerBase: 0.00034, steerScale: 0.0022, restitution: 0.31 };
+      return { startDrift: 0.72, randomKick: 0.07, steerBase: 0.00036, steerScale: 0.0024, restitution: 0.3 };
     }
     return { startDrift: 0.66, randomKick: 0.07, steerBase: 0.0004, steerScale: 0.0025, restitution: 0.28 };
   }, [rows]);
@@ -368,7 +375,7 @@ export const PlinkoGame: React.FC = () => {
       return;
     }
 
-    const selectedBucket = samplePlinkoBucket(multipliers);
+    const selectedBucket = samplePlinkoBucket(rows, multipliers);
     const bucketWidth = BOARD_WIDTH / multipliers.length;
     const targetX = selectedBucket * bucketWidth + bucketWidth / 2;
     targetBucketRef.current = selectedBucket;
@@ -505,6 +512,7 @@ export const PlinkoGame: React.FC = () => {
     settleResult,
     stopCurrentAnimation,
     subtractBalance,
+    rows,
   ]);
 
   useEffect(() => {
