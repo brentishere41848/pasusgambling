@@ -1774,8 +1774,11 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
 
   useEffect(() => {
     if (!isOpen) {
+      setIsSubmitting(false);
       return;
     }
+
+    setIsSubmitting(false);
 
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
@@ -1844,6 +1847,8 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
         setVerificationEmail(String(err.email || email.trim()));
         setVerificationCode('');
         setError(err.message || 'Email verification required.');
+      } else if (err?.name === 'AbortError' || String(err?.message || '').toLowerCase().includes('timeout')) {
+        setError('Request timed out. Please check your connection and try again.');
       } else {
         setError(err instanceof Error ? err.message : 'Authentication failed.');
       }

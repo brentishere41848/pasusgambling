@@ -19,8 +19,31 @@ export function apiUrl(path: string) {
 }
 
 export function apiFetch(input: string, init?: RequestInit) {
+  const timeoutMs = Number(import.meta.env.VITE_API_TIMEOUT_MS || 15000);
+  const controller = new AbortController();
+  const upstreamSignal = init?.signal;
+
+  if (upstreamSignal) {
+    if (upstreamSignal.aborted) {
+      controller.abort((upstreamSignal as AbortSignal & { reason?: unknown }).reason);
+    } else {
+      upstreamSignal.addEventListener(
+        'abort',
+        () => controller.abort((upstreamSignal as AbortSignal & { reason?: unknown }).reason),
+        { once: true }
+      );
+    }
+  }
+
+  const timeoutId = window.setTimeout(() => {
+    controller.abort(new Error('Request timeout'));
+  }, Math.max(1000, timeoutMs));
+
   return fetch(apiUrl(input), {
     credentials: 'include',
     ...init,
+    signal: controller.signal,
+  }).finally(() => {
+    window.clearTimeout(timeoutId);
   });
 }
