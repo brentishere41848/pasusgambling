@@ -42,14 +42,14 @@ const ROW_COUNTS = [8, 10, 12, 14, 16] as const;
 
 const MULTIPLIERS: Record<number, Record<RiskLevel, number[]>> = {
   8: {
-    low: [1.1, 0.9, 0.64, 0.46, 0.28, 0.46, 0.64, 0.9, 1.1],
-    medium: [1.5, 0.98, 0.55, 0.32, 0.16, 0.32, 0.55, 0.98, 1.5],
-    high: [2.4, 1.18, 0.5, 0.24, 0.08, 0.24, 0.5, 1.18, 2.4],
+    low: [1.04, 0.84, 0.6, 0.43, 0.26, 0.43, 0.6, 0.84, 1.04],
+    medium: [1.26, 0.88, 0.5, 0.28, 0.14, 0.28, 0.5, 0.88, 1.26],
+    high: [1.85, 1.02, 0.46, 0.2, 0.06, 0.2, 0.46, 1.02, 1.85],
   },
   10: {
-    low: [1.45, 1.02, 0.72, 0.52, 0.38, 0.24, 0.38, 0.52, 0.72, 1.02, 1.45],
-    medium: [2.4, 1.3, 0.72, 0.42, 0.25, 0.13, 0.25, 0.42, 0.72, 1.3, 2.4],
-    high: [5.2, 2, 0.9, 0.42, 0.2, 0.08, 0.2, 0.42, 0.9, 2, 5.2],
+    low: [1.3, 0.96, 0.68, 0.48, 0.34, 0.22, 0.34, 0.48, 0.68, 0.96, 1.3],
+    medium: [1.95, 1.12, 0.64, 0.36, 0.21, 0.11, 0.21, 0.36, 0.64, 1.12, 1.95],
+    high: [3.8, 1.58, 0.76, 0.34, 0.16, 0.06, 0.16, 0.34, 0.76, 1.58, 3.8],
   },
   12: {
     low: [2.3, 1.4, 0.9, 0.66, 0.48, 0.35, 0.24, 0.35, 0.48, 0.66, 0.9, 1.4, 2.3],
@@ -219,15 +219,15 @@ export const PlinkoGame: React.FC = () => {
 
   const physicsProfile = useMemo(() => {
     if (rows <= 8) {
-      return { startDrift: 0.46, randomKick: 0.035, steerBase: 0.00058, steerScale: 0.0034, restitution: 0.24 };
+      return { startDrift: 0.38, randomKick: 0.028, steerBase: 0.00068, steerScale: 0.004, restitution: 0.22, maxVx: 1.28, edgePull: 0.0022 };
     }
     if (rows <= 10) {
-      return { startDrift: 0.66, randomKick: 0.06, steerBase: 0.00045, steerScale: 0.0028, restitution: 0.29 };
+      return { startDrift: 0.5, randomKick: 0.04, steerBase: 0.00058, steerScale: 0.0034, restitution: 0.25, maxVx: 1.45, edgePull: 0.0015 };
     }
     if (rows <= 12) {
-      return { startDrift: 0.72, randomKick: 0.07, steerBase: 0.00036, steerScale: 0.0024, restitution: 0.3 };
+      return { startDrift: 0.72, randomKick: 0.07, steerBase: 0.00036, steerScale: 0.0024, restitution: 0.3, maxVx: MAX_VX, edgePull: 0 };
     }
-    return { startDrift: 0.66, randomKick: 0.07, steerBase: 0.0004, steerScale: 0.0025, restitution: 0.28 };
+    return { startDrift: 0.66, randomKick: 0.07, steerBase: 0.0004, steerScale: 0.0025, restitution: 0.28, maxVx: MAX_VX, edgePull: 0 };
   }, [rows]);
 
   const drawBoard = useCallback((ctx: CanvasRenderingContext2D, ball?: BallState) => {
@@ -437,8 +437,20 @@ export const PlinkoGame: React.FC = () => {
       const steerForce = clamp((targetX - ball.x) * steer, -0.1, 0.1);
 
       ball.vx += steerForce + (Math.random() - 0.5) * physicsProfile.randomKick;
+
+      if (physicsProfile.edgePull > 0) {
+        const boardCenter = BOARD_WIDTH / 2;
+        const centerDistanceRatio = Math.abs(ball.x - boardCenter) / boardCenter;
+        if (centerDistanceRatio > 0.5) {
+          ball.vx += (boardCenter - ball.x) * physicsProfile.edgePull;
+        }
+        if (centerDistanceRatio > 0.72) {
+          ball.vx *= 0.9;
+        }
+      }
+
       ball.vx *= FRICTION_X;
-      ball.vx = clamp(ball.vx, -MAX_VX, MAX_VX);
+      ball.vx = clamp(ball.vx, -physicsProfile.maxVx, physicsProfile.maxVx);
 
       ball.x += ball.vx;
       ball.y += ball.vy;
@@ -493,7 +505,7 @@ export const PlinkoGame: React.FC = () => {
           const sideKick = (Math.random() - 0.5) * 0.16;
           ball.vx += tx * (sideKick + tangentSpeed * 0.06);
           ball.vy = Math.max(0.36, ball.vy * 0.96 + Math.abs(tangentSpeed) * 0.014);
-          ball.vx = clamp(ball.vx, -MAX_VX, MAX_VX);
+          ball.vx = clamp(ball.vx, -physicsProfile.maxVx, physicsProfile.maxVx);
           ball.vy = Math.min(ball.vy, MAX_VY);
         }
       }
