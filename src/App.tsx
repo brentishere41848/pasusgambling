@@ -1770,15 +1770,40 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [isRegister, setIsRegister] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const withTimeout = useCallback(async <T,>(promise: Promise<T>, timeoutMs = 15000) => {
+    let timer: number | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = window.setTimeout(() => {
+            reject(new Error('Request timed out. Please try again.'));
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
       setIsSubmitting(false);
+      setRequiresTotp(false);
+      setTotpCode('');
+      setError('');
+      setNotice('');
       return;
     }
 
     setIsSubmitting(false);
+    setError('');
+    setNotice('');
 
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
@@ -1795,7 +1820,7 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
 
     const watchdog = window.setTimeout(() => {
       setIsSubmitting(false);
-      setError((prev) => prev || 'Login request stalled. Please try again.');
+      setError((prev) => prev || 'Request timed out. Please try again.');
     }, 20000);
 
     return () => window.clearTimeout(watchdog);
@@ -1806,6 +1831,7 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNotice('');
 
     if (requiresEmailVerification) {
       if (!verificationEmail.trim() || !verificationCode.trim()) {
@@ -1815,9 +1841,11 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
 
       try {
         setIsSubmitting(true);
-        await verifyEmail(verificationEmail.trim(), verificationCode.trim());
+        await withTimeout(verifyEmail(verificationEmail.trim(), verificationCode.trim()));
         setVerificationCode('');
         setRequiresEmailVerification(false);
+        setRequiresTotp(false);
+        setTotpCode('');
         onClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Email verification failed.');
@@ -1840,13 +1868,13 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
     try {
       setIsSubmitting(true);
       if (isRegister) {
-        await register(username.trim(), email.trim(), password, affiliateCode.trim(), emailOptIn);
+        await withTimeout(register(username.trim(), email.trim(), password, affiliateCode.trim(), emailOptIn));
         setVerificationEmail(email.trim());
         setVerificationCode('');
         setRequiresEmailVerification(true);
-        setError('Check your email for the verification code.');
+        setNotice('Verification code sent. Check your email to continue.');
       } else {
-        await login(username.trim(), password, requiresTotp ? totpCode.trim() : undefined);
+        await withTimeout(login(username.trim(), password, requiresTotp ? totpCode.trim() : undefined));
         setTotpCode('');
         setRequiresTotp(false);
         onClose();
@@ -1860,8 +1888,6 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
         setVerificationEmail(String(err.email || email.trim()));
         setVerificationCode('');
         setError(err.message || 'Email verification required.');
-      } else if (err?.name === 'AbortError' || String(err?.message || '').toLowerCase().includes('timeout')) {
-        setError('Request timed out. Please check your connection and try again.');
       } else {
         setError(err instanceof Error ? err.message : 'Authentication failed.');
       }
@@ -1884,205 +1910,239 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
         animate={{ scale: 1, opacity: 1, y: 0 }}
         className="relative w-full sm:max-w-md bg-[#1a1d23] border border-white/10 rounded-none sm:rounded-3xl overflow-hidden shadow-2xl sm:max-h-[90vh] h-full sm:h-auto"
       >
-        <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto max-h-full sm:max-h-none custom-scrollbar">
-          <div className="text-center space-y-2">
-            <h2 className="text-3xl font-black italic uppercase tracking-tighter">
-              {requiresEmailVerification ? 'Verify Email' : isRegister ? 'Join Pasus' : 'Welcome Back'}
-            </h2>
-            <p className="text-white/40 text-sm font-medium">
-              {requiresEmailVerification
-                ? 'Enter the code sent to your email to continue'
-                : isRegister ? 'Create your account to start winning' : 'Enter your details to access your account'}
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-300">
-                {error}
+        <div className="relative">
+          <div className="absolute inset-0 opacity-40" style={{ background: 'radial-gradient(90% 65% at 20% 0%, rgba(34,211,238,0.18), transparent 60%), radial-gradient(90% 70% at 90% 12%, rgba(16,185,129,0.16), transparent 64%)' }} />
+          <div className="relative z-10 p-6 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto max-h-full sm:max-h-none custom-scrollbar">
+            <div className="space-y-4">
+              <div className="inline-flex rounded-full border border-cyan-200/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                {requiresEmailVerification ? 'Email Verification' : isRegister ? 'Create Account' : 'Sign In'}
               </div>
-            )}
+              <div>
+                <h2 className="text-3xl font-black uppercase tracking-tight text-white">
+                  {requiresEmailVerification ? 'Verify Your Email' : isRegister ? 'Create Your Pasus Account' : 'Welcome Back'}
+                </h2>
+                <p className="mt-2 text-sm text-white/55">
+                  {requiresEmailVerification
+                    ? 'Enter the 6-digit code sent to your inbox.'
+                    : isRegister
+                      ? 'Set up your profile and start playing.'
+                      : 'Sign in to continue where you left off.'}
+                </p>
+              </div>
+            </div>
 
-            {!requiresEmailVerification ? (
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Username</label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
-                  <input 
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
-                    placeholder="Enter username"
-                    required
-                  />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="rounded-2xl border border-rose-400/30 bg-rose-500/15 px-4 py-3 text-xs font-bold text-rose-200">
+                  {error}
                 </div>
-              </div>
-            ) : null}
+              )}
 
-            {isRegister && !requiresEmailVerification && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
-                  <input 
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
-                    placeholder="Enter email"
-                    required={isRegister}
-                  />
+              {!error && notice && (
+                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-3 text-xs font-bold text-emerald-200">
+                  {notice}
                 </div>
-              </div>
-            )}
+              )}
 
-            {requiresEmailVerification ? (
-              <>
+              {!requiresEmailVerification && (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Email</label>
+                  <label className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Username</label>
                   <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" size={18} />
                     <input
-                      type="email"
-                      value={verificationEmail}
-                      onChange={(e) => setVerificationEmail(e.target.value)}
-                      className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
-                      placeholder="Enter email"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-black/35 pl-12 pr-6 py-3.5 text-sm font-bold text-white placeholder:text-white/25 focus:outline-none focus:border-cyan-300/45"
+                      placeholder="Username"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
+              )}
 
+              {isRegister && !requiresEmailVerification && (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Verification Code</label>
+                  <label className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Email</label>
                   <div className="relative">
-                    <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" size={18} />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-black/35 pl-12 pr-6 py-3.5 text-sm font-bold text-white placeholder:text-white/25 focus:outline-none focus:border-cyan-300/45"
+                      placeholder="you@example.com"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {requiresEmailVerification && (
+                <>
+                  <div className="space-y-2">
+                    <label className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" size={18} />
+                      <input
+                        type="email"
+                        value={verificationEmail}
+                        onChange={(e) => setVerificationEmail(e.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-black/35 pl-12 pr-6 py-3.5 text-sm font-bold text-white placeholder:text-white/25 focus:outline-none focus:border-cyan-300/45"
+                        placeholder="you@example.com"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Verification Code</label>
+                    <div className="relative">
+                      <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" size={18} />
+                      <input
+                        type="text"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        className="w-full rounded-2xl border border-white/10 bg-black/35 pl-12 pr-6 py-3.5 text-center text-sm font-black tracking-[0.3em] text-white placeholder:text-white/25 focus:outline-none focus:border-cyan-300/45"
+                        placeholder="000000"
+                        maxLength={6}
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!verificationEmail.trim()) {
+                        setError('Enter your email first.');
+                        return;
+                      }
+                      try {
+                        setError('');
+                        setNotice('');
+                        setIsSubmitting(true);
+                        await withTimeout(resendVerification(verificationEmail.trim()));
+                        setNotice('A new code has been sent to your email.');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to resend verification code.');
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white/75 transition-all hover:bg-white/10 disabled:opacity-50"
+                    disabled={isSubmitting}
+                  >
+                    Resend Code
+                  </button>
+                </>
+              )}
+
+              {!requiresEmailVerification && isRegister && (
+                <div className="space-y-2">
+                  <label className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Affiliate Code (Optional)</label>
+                  <div className="relative">
+                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" size={18} />
                     <input
                       type="text"
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold tracking-[0.3em] text-center focus:outline-none focus:border-[#00FF88]/50 transition-all"
+                      value={affiliateCode}
+                      onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
+                      className="w-full rounded-2xl border border-white/10 bg-black/35 pl-12 pr-6 py-3.5 text-sm font-bold text-white placeholder:text-white/25 focus:outline-none focus:border-cyan-300/45"
+                      placeholder="Enter code"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!requiresEmailVerification && (
+                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={emailOptIn}
+                    onChange={(e) => setEmailOptIn(e.target.checked)}
+                    className="h-4 w-4 rounded border-white/25 bg-black/40 text-cyan-300 focus:ring-cyan-300"
+                    disabled={isSubmitting}
+                  />
+                  <div>
+                    <div className="text-xs font-semibold text-white">Promotional emails</div>
+                    <div className="text-[10px] text-white/45">Get event updates and bonus drops.</div>
+                  </div>
+                </label>
+              )}
+
+              {!requiresEmailVerification && (
+                <div className="space-y-2">
+                  <label className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" size={18} />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-black/35 pl-12 pr-6 py-3.5 text-sm font-bold text-white placeholder:text-white/25 focus:outline-none focus:border-cyan-300/45"
+                      placeholder="Password"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {requiresTotp && !requiresEmailVerification && (
+                <div className="space-y-2">
+                  <label className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">2FA Code</label>
+                  <div className="relative">
+                    <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" size={18} />
+                    <input
+                      type="text"
+                      value={totpCode}
+                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full rounded-2xl border border-white/10 bg-black/35 pl-12 pr-6 py-3.5 text-center text-sm font-black tracking-[0.3em] text-white placeholder:text-white/25 focus:outline-none focus:border-cyan-300/45"
                       placeholder="000000"
                       maxLength={6}
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
+              )}
 
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      setIsSubmitting(true);
-                      setError('');
-                      await resendVerification(verificationEmail.trim());
-                      setError('Verification code resent.');
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : 'Failed to resend verification code.');
-                    } finally {
-                      setIsSubmitting(false);
-                    }
-                  }}
-                  className="w-full rounded-2xl border border-white/10 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white/70"
-                >
-                  Resend Code
-                </button>
-              </>
-            ) : null}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full rounded-2xl bg-gradient-to-r from-cyan-300 to-emerald-300 py-3.5 text-sm font-black uppercase tracking-[0.16em] text-slate-900 transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmitting ? 'Please wait...' : requiresEmailVerification ? 'Verify Email' : isRegister ? 'Create Account' : 'Sign In'}
+              </button>
+            </form>
 
-            {isRegister && !requiresEmailVerification && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Affiliate Code</label>
-                <div className="relative">
-                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
-                  <input
-                    type="text"
-                    value={affiliateCode}
-                    onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
-                    placeholder="Optional affiliate code"
-                  />
-                </div>
-              </div>
-            )}
-
-            {!requiresEmailVerification ? (
-            <label className="flex items-center gap-3 cursor-pointer py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-              <input
-                type="checkbox"
-                checked={emailOptIn}
-                onChange={(e) => setEmailOptIn(e.target.checked)}
-                className="w-5 h-5 rounded border-white/20 bg-black/40 text-[#00FF88] focus:ring-[#00FF88] focus:ring-offset-0"
-              />
-              <div>
-                <span className="text-sm text-white">Receive promotional emails</span>
-                <div className="text-[10px] text-white/40">Get updates and special offers via email</div>
-              </div>
-            </label>
-            ) : null}
-
-            {!requiresEmailVerification ? (
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
-                <input 
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold focus:outline-none focus:border-[#00FF88]/50 transition-all"
-                  placeholder="Enter password"
-                  required
-                />
-              </div>
+            <div className="text-center">
+              <button
+                onClick={() => {
+                  if (requiresEmailVerification) {
+                    setRequiresEmailVerification(false);
+                    setVerificationCode('');
+                    setNotice('');
+                    setError('');
+                    return;
+                  }
+                  setIsRegister(!isRegister);
+                  setRequiresTotp(false);
+                  setTotpCode('');
+                  setError('');
+                  setNotice('');
+                }}
+                className="text-xs font-bold text-white/45 transition-colors hover:text-white"
+                disabled={isSubmitting}
+              >
+                {requiresEmailVerification ? 'Back to Sign In' : isRegister ? 'Already have an account? Sign In' : "Don't have an account? Create one"}
+              </button>
             </div>
-            ) : null}
-
-            {requiresTotp && !requiresEmailVerification && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">2FA Code</label>
-                <div className="relative">
-                  <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
-                  <input 
-                    type="text"
-                    value={totpCode}
-                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold tracking-[0.3em] text-center focus:outline-none focus:border-[#00FF88]/50 transition-all"
-                    placeholder="000000"
-                    maxLength={6}
-                    required
-                  />
-                </div>
-              </div>
-            )}
-
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-4 bg-[#00FF88] text-black rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-[#00FF88]/90 transition-all shadow-lg shadow-[#00FF88]/10 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSubmitting ? 'Please wait...' : (requiresEmailVerification ? 'Verify Email' : isRegister ? 'Create Account' : 'Sign In')}
-            </button>
-          </form>
-
-          <div className="text-center">
-            <button 
-              onClick={() => {
-                if (requiresEmailVerification) {
-                  setRequiresEmailVerification(false);
-                  setVerificationCode('');
-                  return;
-                }
-                setIsRegister(!isRegister);
-                setError('');
-                setRequiresTotp(false);
-                setTotpCode('');
-              }}
-              className="text-xs font-bold text-white/40 hover:text-white transition-colors"
-            >
-              {requiresEmailVerification ? 'Back to login' : isRegister ? 'Already have an account? Sign In' : "Don't have an account? Register"}
-            </button>
           </div>
         </div>
       </motion.div>
