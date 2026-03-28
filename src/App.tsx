@@ -700,6 +700,8 @@ const Sidebar = ({
   onOpenPF,
   onToggleChat,
   chatOpen,
+  isCollapsed,
+  onToggleCollapse,
   isOpen,
   onClose,
 }: {
@@ -711,6 +713,8 @@ const Sidebar = ({
   onOpenPF: () => void,
   onToggleChat?: () => void,
   chatOpen?: boolean,
+  isCollapsed?: boolean,
+  onToggleCollapse?: () => void,
   isOpen?: boolean,
   onClose?: () => void,
 }) => {
@@ -732,7 +736,10 @@ const Sidebar = ({
   ];
 
   const sidebar = (
-    <div className="w-[272px] shrink-0 flex flex-col h-full bg-[linear-gradient(175deg,#0b111b_0%,#0d1624_56%,#0b121e_100%)] backdrop-blur-xl border-r border-white/10 relative overflow-hidden shadow-[inset_-1px_0_0_rgba(255,255,255,0.05)]">
+    <div className={cn(
+      'shrink-0 flex flex-col h-full bg-[linear-gradient(175deg,#0b111b_0%,#0d1624_56%,#0b121e_100%)] backdrop-blur-xl border-r border-white/10 relative overflow-hidden shadow-[inset_-1px_0_0_rgba(255,255,255,0.05)] transition-all duration-300',
+      isCollapsed ? 'w-[88px]' : 'w-[272px]'
+    )}>
       {/* Animated background gradient */}
       <div className="absolute inset-0 opacity-30">
         <div className="absolute top-0 left-0 w-32 h-32 bg-[#00FF88]/10 rounded-full blur-[60px]" />
@@ -740,12 +747,13 @@ const Sidebar = ({
       </div>
       
       {/* Logo */}
-      <div className="relative px-5 pt-6 pb-5 border-b border-white/10">
+      <div className={cn('relative pt-6 pb-5 border-b border-white/10', isCollapsed ? 'px-3' : 'px-5')}>
         <motion.button 
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onHome} 
-          className="flex items-center gap-3 group w-full"
+          className={cn('flex items-center group w-full', isCollapsed ? 'justify-center' : 'gap-3')}
+          title="Home"
         >
           <motion.div 
             whileHover={{ rotate: 5, scale: 1.05 }}
@@ -753,14 +761,25 @@ const Sidebar = ({
           >
             <img src="/assets/icon.png" alt="Pasus" className="w-full h-full object-cover" />
           </motion.div>
-          <div className="flex flex-col">
-            <span className="text-xl font-black uppercase italic tracking-tight text-white group-hover:text-[#00FF88] transition-colors">Pasus</span>
-            <span className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-medium">Casino</span>
-          </div>
+          {!isCollapsed ? (
+            <div className="flex flex-col">
+              <span className="text-xl font-black uppercase italic tracking-tight text-white group-hover:text-[#00FF88] transition-colors">Pasus</span>
+              <span className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-medium">Casino</span>
+            </div>
+          ) : null}
         </motion.button>
+        {onToggleCollapse ? (
+          <button
+            onClick={onToggleCollapse}
+            className="absolute top-4 right-3 rounded-xl border border-white/10 bg-white/5 p-1.5 text-white/55 hover:text-white hover:bg-white/10 transition-all"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        ) : null}
       </div>
 
-      <nav className="relative flex-1 overflow-y-auto custom-scrollbar px-3 py-4 space-y-3">
+      <nav className={cn('relative flex-1 overflow-y-auto custom-scrollbar py-4 space-y-3', isCollapsed ? 'px-2' : 'px-3')}>
         {/* Main Navigation */}
         <div className="space-y-1 rounded-2xl border border-white/8 bg-black/15 p-2">
           {navItems.map((item, i) => (
@@ -772,11 +791,13 @@ const Sidebar = ({
               whileHover={{ x: 4 }}
               onClick={() => handleNav(() => onOpenView(item.view))}
               className={cn(
-                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all relative group overflow-hidden',
+                'w-full flex items-center rounded-xl text-sm font-medium transition-all relative group overflow-hidden',
+                isCollapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3',
                 item.active 
                   ? 'bg-gradient-to-r from-[#00FF88]/18 to-transparent text-[#8fffd0] border border-[#00FF88]/20 shadow-[0_0_20px_rgba(0,255,136,0.08)]' 
                   : 'text-white/60 hover:text-white hover:bg-white/6 border border-transparent'
               )}
+              title={item.label}
             >
               {item.active && (
                 <motion.div
@@ -793,7 +814,7 @@ const Sidebar = ({
               >
                 <item.icon size={18} className={item.active ? 'text-[#00FF88]' : 'text-white/40 group-hover:text-white'} />
               </motion.div>
-              <span className={cn('font-medium', item.active && 'font-semibold')}>{item.label}</span>
+              {!isCollapsed ? <span className={cn('font-medium', item.active && 'font-semibold')}>{item.label}</span> : null}
               {item.active && (
                 <motion.div 
                   layoutId="navGlow"
@@ -809,13 +830,14 @@ const Sidebar = ({
           <motion.button
             whileHover={{ x: 4 }}
             onClick={onOpenPF}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/50 hover:text-white hover:bg-white/5 transition-all group"
+            className={cn('w-full flex items-center rounded-xl text-sm font-medium text-white/50 hover:text-white hover:bg-white/5 transition-all group', isCollapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3')}
+            title="Provably Fair"
           >
             <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10">
               <ShieldCheck size={18} className="text-white/40 group-hover:text-white" />
             </div>
-            <span>Provably Fair</span>
-            <ChevronRight size={14} className="ml-auto text-white/20 group-hover:text-white/40" />
+            {!isCollapsed ? <span>Provably Fair</span> : null}
+            {!isCollapsed ? <ChevronRight size={14} className="ml-auto text-white/20 group-hover:text-white/40" /> : null}
           </motion.button>
 
           {(user?.role === 'owner' || user?.role === 'moderator') && (
@@ -823,11 +845,13 @@ const Sidebar = ({
               whileHover={{ x: 4 }}
               onClick={() => handleNav(() => onOpenView('admin'))}
               className={cn(
-                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all group',
+                'w-full flex items-center rounded-xl text-sm font-medium transition-all group',
+                isCollapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3',
                 currentView === 'admin' 
                   ? 'bg-gradient-to-r from-purple-500/15 to-transparent text-purple-400' 
                   : 'text-white/50 hover:text-white hover:bg-white/5'
               )}
+              title={user?.role === 'moderator' ? 'Staff Panel' : 'Admin Panel'}
             >
               <div className={cn(
                 'p-1.5 rounded-lg',
@@ -835,15 +859,15 @@ const Sidebar = ({
               )}>
                 <Shield size={18} className={currentView === 'admin' ? 'text-purple-400' : 'text-white/40 group-hover:text-white'} />
               </div>
-              <span className={currentView === 'admin' ? 'font-semibold' : ''}>{user?.role === 'moderator' ? 'Staff Panel' : 'Admin Panel'}</span>
+              {!isCollapsed ? <span className={currentView === 'admin' ? 'font-semibold' : ''}>{user?.role === 'moderator' ? 'Staff Panel' : 'Admin Panel'}</span> : null}
             </motion.button>
           )}
         </div>
 
         {/* Divider */}
-        <div className="flex items-center gap-3 px-4 py-2">
+        <div className={cn('flex items-center gap-3 px-4 py-2', isCollapsed && 'justify-center')}>
           <div className="h-px flex-1 bg-white/5" />
-          <span className="text-[9px] uppercase tracking-widest text-white/15 font-bold">Games</span>
+          {!isCollapsed ? <span className="text-[9px] uppercase tracking-widest text-white/15 font-bold">Games</span> : null}
           <div className="h-px flex-1 bg-white/5" />
         </div>
 
@@ -852,20 +876,20 @@ const Sidebar = ({
           <motion.button 
             whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
             onClick={() => setIsOriginalsExpanded(!isOriginalsExpanded)}
-            className="w-full flex items-center justify-between px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.15em] text-white/30 hover:text-white/50 transition-colors"
+            className={cn('w-full flex items-center py-2.5 text-[11px] font-black uppercase tracking-[0.15em] text-white/30 hover:text-white/50 transition-colors', isCollapsed ? 'justify-center px-1' : 'justify-between px-4')}
+            title="Originals"
           >
-            <div className="flex items-center gap-2">
+            <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'gap-2')}>
               <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#00FF88]/20 to-[#00FF88]/5 flex items-center justify-center">
                 <LayoutGrid size={12} className="text-[#00FF88]" />
               </div>
-              <span>Originals</span>
+              {!isCollapsed ? <span>Originals</span> : null}
             </div>
-            <motion.div
-              animate={{ rotate: isOriginalsExpanded ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ChevronDown size={12} />
-            </motion.div>
+            {!isCollapsed ? (
+              <motion.div animate={{ rotate: isOriginalsExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={12} />
+              </motion.div>
+            ) : null}
           </motion.button>
           <AnimatePresence>
             {isOriginalsExpanded && (
@@ -876,7 +900,7 @@ const Sidebar = ({
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="space-y-0.5 pl-3 pr-2 mt-1">
+                <div className={cn('space-y-0.5 mt-1', isCollapsed ? 'px-1' : 'pl-3 pr-2')}>
                   {GAMES.map((game, i) => {
                     const GameIcon = typeof game.icon === 'string' ? null : game.icon;
                     const disabled = CLIENT_SIDE_UNAVAILABLE_GAMES.has(game.id);
@@ -890,11 +914,13 @@ const Sidebar = ({
                         onClick={() => !disabled && handleNav(() => onSelectGame(game.id))}
                         disabled={disabled}
                         className={cn(
-                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all group relative disabled:opacity-45 disabled:cursor-not-allowed',
+                          'w-full flex items-center rounded-lg text-xs font-medium transition-all group relative disabled:opacity-45 disabled:cursor-not-allowed',
+                          isCollapsed ? 'justify-center px-1 py-2.5' : 'gap-3 px-3 py-2.5',
                           activeGame === game.id 
                             ? 'bg-white/10 text-white' 
                             : 'text-white/40 hover:text-white'
                         )}
+                        title={game.name}
                       >
                         {activeGame === game.id && (
                           <motion.div 
@@ -907,12 +933,12 @@ const Sidebar = ({
                             <GameIcon size={12} className={game.color} />
                           </div>
                         )}
-                        <span className="truncate">{game.name}</span>
-                        {disabled ? (
+                        {!isCollapsed ? <span className="truncate">{game.name}</span> : null}
+                        {!isCollapsed && disabled ? (
                           <span className="ml-auto px-1.5 py-0.5 text-[7px] font-black uppercase bg-red-500/20 text-red-300 rounded">
                             OFFLINE
                           </span>
-                        ) : game.featured ? (
+                        ) : !isCollapsed && game.featured ? (
                           <motion.span 
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
@@ -935,20 +961,20 @@ const Sidebar = ({
           <motion.button 
             whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
             onClick={() => setIsTableExpanded(!isTableExpanded)}
-            className="w-full flex items-center justify-between px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.15em] text-white/30 hover:text-white/50 transition-colors"
+            className={cn('w-full flex items-center py-2.5 text-[11px] font-black uppercase tracking-[0.15em] text-white/30 hover:text-white/50 transition-colors', isCollapsed ? 'justify-center px-1' : 'justify-between px-4')}
+            title="Table Games"
           >
-            <div className="flex items-center gap-2">
+            <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'gap-2')}>
               <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-500/5 flex items-center justify-center">
                 <Disc size={12} className="text-blue-400" />
               </div>
-              <span>Table Games</span>
+              {!isCollapsed ? <span>Table Games</span> : null}
             </div>
-            <motion.div
-              animate={{ rotate: isTableExpanded ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ChevronDown size={12} />
-            </motion.div>
+            {!isCollapsed ? (
+              <motion.div animate={{ rotate: isTableExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={12} />
+              </motion.div>
+            ) : null}
           </motion.button>
           <AnimatePresence>
             {isTableExpanded && (
@@ -959,7 +985,7 @@ const Sidebar = ({
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="space-y-0.5 pl-3 pr-2 mt-1">
+                <div className={cn('space-y-0.5 mt-1', isCollapsed ? 'px-1' : 'pl-3 pr-2')}>
                   {GAMES.filter(g => g.image?.startsWith('http')).map((game, i) => {
                     const GameIcon = typeof game.icon === 'string' ? null : game.icon;
                     return (
@@ -971,18 +997,20 @@ const Sidebar = ({
                         whileHover={{ x: 6, backgroundColor: 'rgba(255,255,255,0.05)' }}
                         onClick={() => handleNav(() => onSelectGame(game.id))}
                         className={cn(
-                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all',
+                          'w-full flex items-center rounded-lg text-xs font-medium transition-all',
+                          isCollapsed ? 'justify-center px-1 py-2.5' : 'gap-3 px-3 py-2.5',
                           activeGame === game.id 
                             ? 'bg-white/10 text-white' 
                             : 'text-white/40 hover:text-white'
                         )}
+                        title={game.name}
                       >
                         {GameIcon && (
                           <div className={cn('p-1 rounded-md bg-white/5', game.color.split(' ')[0])}>
                             <GameIcon size={12} className={game.color} />
                           </div>
                         )}
-                        <span className="truncate">{game.name}</span>
+                        {!isCollapsed ? <span className="truncate">{game.name}</span> : null}
                       </motion.button>
                     );
                   })}
@@ -994,27 +1022,28 @@ const Sidebar = ({
 
         {/* Social Section */}
         <div className="rounded-2xl border border-white/8 bg-black/15 p-2">
-          <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-white/20 flex items-center gap-2">
+          <div className={cn('py-2 text-[10px] font-black uppercase tracking-[0.15em] text-white/20 flex items-center', isCollapsed ? 'justify-center px-1' : 'gap-2 px-4')}>
             <UsersRound size={10} />
-            <span>Social</span>
+            {!isCollapsed ? <span>Social</span> : null}
           </div>
-          <div className="space-y-0.5 pl-3 pr-2 mt-1">
+          <div className={cn('space-y-0.5 mt-1', isCollapsed ? 'px-1' : 'pl-3 pr-2')}>
             <motion.button
               whileHover={{ x: 6, backgroundColor: 'rgba(255,255,255,0.05)' }}
               onClick={() => handleNav(() => onOpenView('friends'))}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-white/40 hover:text-white transition-all"
+              className={cn('w-full flex items-center rounded-lg text-xs font-medium text-white/40 hover:text-white transition-all', isCollapsed ? 'justify-center px-1 py-2.5' : 'gap-3 px-3 py-2.5')}
+              title="Friends"
             >
               <div className="p-1.5 rounded-lg bg-white/5">
                 <UserPlus size={12} className="text-white/40" />
               </div>
-              <span>Friends</span>
-              <motion.span 
+              {!isCollapsed ? <span>Friends</span> : null}
+              {!isCollapsed ? <motion.span 
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 className="ml-auto px-2 py-0.5 text-[8px] font-black uppercase bg-amber-500/20 text-amber-400 rounded"
               >
                 SOON
-              </motion.span>
+              </motion.span> : null}
             </motion.button>
           </div>
         </div>
@@ -1023,18 +1052,20 @@ const Sidebar = ({
           <button
             onClick={() => handleNav(onToggleChat)}
             className={cn(
-              'w-full rounded-2xl border px-4 py-3 text-left transition-all',
+              'w-full rounded-2xl border transition-all',
+              isCollapsed ? 'px-2 py-3 text-center' : 'px-4 py-3 text-left',
               chatOpen
                 ? 'border-[#00FF88]/25 bg-[#00FF88]/10 text-[#9affd7]'
                 : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
             )}
+            title={chatOpen ? 'Disable chat panel' : 'Enable chat panel'}
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className={cn('flex items-center', isCollapsed ? 'justify-center w-full' : 'gap-2')}>
                 <MessageSquare size={14} />
-                <span className="text-[10px] font-black uppercase tracking-[0.18em]">Chat Panel</span>
+                {!isCollapsed ? <span className="text-[10px] font-black uppercase tracking-[0.18em]">Chat Panel</span> : null}
               </div>
-              <span className="text-[9px] font-black uppercase tracking-[0.16em]">{chatOpen ? 'On' : 'Off'}</span>
+              {!isCollapsed ? <span className="text-[9px] font-black uppercase tracking-[0.16em]">{chatOpen ? 'On' : 'Off'}</span> : null}
             </div>
           </button>
         ) : null}
@@ -1042,11 +1073,17 @@ const Sidebar = ({
 
       {/* Footer */}
       <div className="relative p-4 border-t border-white/10">
-        <div className="flex items-center justify-center gap-2 text-[9px] text-white/20 uppercase tracking-widest">
-          <span>© 2025 Pasus</span>
-          <span className="w-1 h-1 rounded-full bg-white/10" />
-          <span>v1.0</span>
-        </div>
+        {!isCollapsed ? (
+          <div className="flex items-center justify-center gap-2 text-[9px] text-white/20 uppercase tracking-widest">
+            <span>© 2025 Pasus</span>
+            <span className="w-1 h-1 rounded-full bg-white/10" />
+            <span>v1.0</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center">
+            <div className="h-2 w-2 rounded-full bg-[#00FF88]/55" />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -8423,6 +8460,7 @@ const AppContent = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isDailyBonusOpen, setIsDailyBonusOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem('pasus_sidebar_collapsed') === 'true');
   const [isRightRailOpen, setIsRightRailOpen] = useState(false);
   const [currentView, setCurrentView] = useState<MainView>(initialRoute.view);
   const [chatOpen, setChatOpen] = useState(() => {
@@ -8468,6 +8506,10 @@ const AppContent = () => {
   useEffect(() => {
     localStorage.setItem(CHAT_PREFERENCE_KEY, chatOpen ? 'true' : 'false');
   }, [chatOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('pasus_sidebar_collapsed', isSidebarCollapsed ? 'true' : 'false');
+  }, [isSidebarCollapsed]);
 
   useEffect(() => {
     const shouldSuppressWalletNoise = (input: unknown) => {
@@ -8612,7 +8654,7 @@ const AppContent = () => {
   const CurrentGame = activeGame ? GAMES.find(g => g.id === activeGame)?.component : null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(0,255,136,0.08),transparent_22%),radial-gradient(circle_at_top_right,rgba(67,97,238,0.14),transparent_28%),linear-gradient(180deg,#182028_0%,#141b24_100%)] text-white font-sans selection:bg-[#00FF88] selection:text-black">
+    <div className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_8%_6%,rgba(39,236,255,0.16),transparent_24%),radial-gradient(circle_at_88%_12%,rgba(120,104,255,0.18),transparent_27%),radial-gradient(circle_at_50%_100%,rgba(0,255,136,0.1),transparent_30%),linear-gradient(180deg,#0b111b_0%,#0f1623_48%,#0a101a_100%)] text-white font-sans selection:bg-[#00FF88] selection:text-black">
       <Sidebar 
         activeGame={activeGame} 
         currentView={currentView}
@@ -8622,6 +8664,8 @@ const AppContent = () => {
         onOpenPF={() => setIsPFOpen(true)}
         onToggleChat={toggleChat}
         chatOpen={chatOpen}
+        isCollapsed={isDesktopViewport ? isSidebarCollapsed : false}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
@@ -8645,7 +8689,7 @@ const AppContent = () => {
         />
 
         <div
-          className="fixed inset-0 pointer-events-none z-[-2] opacity-[0.85]"
+          className="fixed inset-0 pointer-events-none z-[-2] opacity-[0.75]"
           style={{
             backgroundImage: `
               radial-gradient(circle at 12% 18%, rgba(255,255,255,0.95) 0 1px, transparent 1.5px),
@@ -8663,7 +8707,7 @@ const AppContent = () => {
           }}
         />
         <div
-          className="fixed inset-0 pointer-events-none z-[-1] opacity-[0.22]"
+          className="fixed inset-0 pointer-events-none z-[-1] opacity-[0.28]"
           style={{
             backgroundImage: `
               radial-gradient(circle at 18% 30%, rgba(255,255,255,0.9) 0 1.2px, transparent 1.8px),

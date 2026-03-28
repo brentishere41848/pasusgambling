@@ -68,7 +68,8 @@ export function QuickBetButtons({
 }) {
   const dollars = balance;
   return (
-    <div className="flex gap-1.5 mt-2">
+    <div className="mt-2 rounded-xl border border-white/10 bg-black/20 p-1.5">
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${pcts.length}, minmax(0, 1fr))` }}>
       {pcts.map((p) => {
         const amount = Number(Math.max(MIN_BET, (dollars * p) / 100).toFixed(2));
         return (
@@ -76,12 +77,13 @@ export function QuickBetButtons({
             key={p}
             onClick={() => onSetBet(Math.max(MIN_BET, amount))}
             disabled={disabled || dollars < MIN_BET}
-            className="flex-1 rounded-lg bg-white/5 px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-white/50 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/60 hover:text-white hover:bg-white/12 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             {p}%
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -116,7 +118,7 @@ export function MobileBetControls({
   };
 
   return (
-    <div className="mt-3 grid grid-cols-4 gap-2 sm:hidden">
+    <div className="mt-3 grid grid-cols-4 gap-2 sm:hidden rounded-2xl border border-white/10 bg-black/20 p-2">
       {[
         ['min', 'Min'],
         ['half', '1/2'],
@@ -127,7 +129,7 @@ export function MobileBetControls({
           key={mode}
           onClick={() => apply(mode as 'min' | 'half' | 'double' | 'max')}
           disabled={disabled || balance < 1}
-          className="rounded-xl bg-white/5 px-2 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-30"
+          className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/65 hover:bg-white/10 hover:text-white disabled:opacity-30"
         >
           {label}
         </button>
@@ -154,7 +156,7 @@ export function AutoStrategyPanel({
   disabled?: boolean;
 }) {
   return (
-    <div className="space-y-3 rounded-2xl border border-white/5 bg-black/30 p-3">
+    <div className="space-y-3 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.01))] p-3">
       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Auto Strategy</div>
       <div className="grid grid-cols-2 gap-2">
         {([
@@ -169,7 +171,7 @@ export function AutoStrategyPanel({
             disabled={disabled}
             className={
               `rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
-                preset === value ? 'bg-[#00FF88]/15 text-[#00FF88] border border-[#00FF88]/30' : 'bg-white/5 text-white/45'
+                preset === value ? 'bg-[#00FF88]/15 text-[#00FF88] border border-[#00FF88]/35' : 'bg-white/5 text-white/55 border border-white/8'
               }`
             }
           >
@@ -180,11 +182,11 @@ export function AutoStrategyPanel({
       <div className="grid grid-cols-2 gap-2">
         <div>
           <div className="mb-1 text-[10px] uppercase tracking-[0.16em] text-white/25">On Win %</div>
-          <input type="number" value={onWinPercent} min="0" step="5" disabled={disabled} onChange={(e) => onWinPercentChange(Math.max(0, Number(e.target.value) || 0))} className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-xs text-white focus:outline-none" />
+          <input type="number" value={onWinPercent} min="0" step="5" disabled={disabled} onChange={(e) => onWinPercentChange(Math.max(0, Number(e.target.value) || 0))} className="w-full rounded-xl border border-white/12 bg-black/50 px-3 py-2 text-xs text-white focus:outline-none" />
         </div>
         <div>
           <div className="mb-1 text-[10px] uppercase tracking-[0.16em] text-white/25">On Loss %</div>
-          <input type="number" value={onLossPercent} min="0" step="5" disabled={disabled} onChange={(e) => onLossPercentChange(Math.max(0, Number(e.target.value) || 0))} className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-xs text-white focus:outline-none" />
+          <input type="number" value={onLossPercent} min="0" step="5" disabled={disabled} onChange={(e) => onLossPercentChange(Math.max(0, Number(e.target.value) || 0))} className="w-full rounded-xl border border-white/12 bg-black/50 px-3 py-2 text-xs text-white focus:outline-none" />
         </div>
       </div>
     </div>
@@ -195,7 +197,7 @@ export function GameStatsBar({ stats }: { stats: { label: string; value: string 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       {stats.map((s) => (
-        <div key={s.label} className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+        <div key={s.label} className="rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] px-3 py-2 shadow-[0_8px_22px_rgba(0,0,0,0.2)]">
           <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 font-bold">{s.label}</div>
           <div className="text-sm font-black text-white mt-0.5 truncate">{s.value}</div>
         </div>
