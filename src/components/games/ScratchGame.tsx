@@ -106,7 +106,7 @@ export const ScratchGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-[280px_1fr] gap-6 p-4 max-w-5xl mx-auto">
-      <div className="bg-[#141821] border border-white/5 rounded-2xl p-5 space-y-4">
+      <div className="bg-[linear-gradient(180deg,#201a2a_0%,#171320_100%)] border border-purple-300/20 rounded-3xl p-5 space-y-4 shadow-[0_20px_65px_rgba(0,0,0,0.35)]">
         <div className="text-xs font-black uppercase tracking-widest text-white/40">Prize Table</div>
         <div className="space-y-2">
           {PRIZES.map(p => (
@@ -147,7 +147,7 @@ export const ScratchGame: React.FC = () => {
           <button
             onClick={startGame}
             disabled={balance < TIERS[tierIdx].cost}
-            className="w-full bg-[#00FF88] hover:bg-[#00FF88]/90 disabled:opacity-40 text-black font-black py-4 rounded-xl text-xs uppercase tracking-widest transition-all"
+            className="w-full bg-gradient-to-r from-purple-300 to-pink-300 hover:opacity-95 disabled:opacity-40 text-slate-900 font-black py-4 rounded-xl text-xs uppercase tracking-widest transition-all"
           >
             Buy Card
           </button>
@@ -185,7 +185,7 @@ export const ScratchGame: React.FC = () => {
         )}
       </div>
 
-      <div className="bg-[#0f1115] border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[420px]">
+      <div className="bg-[linear-gradient(180deg,#181225_0%,#0f0c18_100%)] border border-purple-300/20 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[420px] shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
         {phase === 'idle' ? (
           <div className="text-center">
             <CreditCard size={64} className="text-white/8 mx-auto mb-4" />

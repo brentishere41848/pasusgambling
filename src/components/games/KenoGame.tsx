@@ -94,14 +94,13 @@ export const KenoGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+      <div className="lg:col-span-1 bg-[linear-gradient(180deg,#162224_0%,#0f1718_100%)] border border-teal-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_20px_65px_rgba(0,0,0,0.35)]">
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDrawing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDrawing} className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-teal-300/60" />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isDrawing} />
             <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isDrawing} />
-            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isDrawing} />
           </div>
 
           <div>
@@ -137,7 +136,7 @@ export const KenoGame: React.FC = () => {
           <button
             onClick={draw}
             disabled={isDrawing || selected.length !== pickCount || balance < betCents}
-            className="w-full rounded-xl bg-[#00FF88] px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-black disabled:opacity-40"
+            className="w-full rounded-xl bg-gradient-to-r from-teal-300 to-cyan-300 px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-slate-900 disabled:opacity-40"
           >
             {isDrawing ? (
               <span className="inline-flex items-center gap-2"><RotateCcw size={16} className="animate-spin" /> Drawing</span>
@@ -155,7 +154,7 @@ export const KenoGame: React.FC = () => {
         ]} />
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-8 space-y-6">
+      <div className="lg:col-span-3 bg-[linear-gradient(180deg,#0f1d1f_0%,#0b1415_100%)] border border-teal-300/20 rounded-3xl p-8 space-y-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
         <div className="grid grid-cols-5 md:grid-cols-8 gap-3">
           {GRID.map((value) => {
             const isSelected = selected.includes(value);

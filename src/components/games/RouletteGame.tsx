@@ -224,7 +224,7 @@ export const RouletteGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-[1.1fr_0.9fr] gap-6 p-4 max-w-7xl mx-auto">
-      <div className="bg-[#11161d] border border-white/10 rounded-3xl p-5 space-y-5">
+      <div className="bg-[linear-gradient(180deg,#1c1010_0%,#120c0c_100%)] border border-rose-300/20 rounded-3xl p-5 space-y-5 shadow-[0_20px_70px_rgba(0,0,0,0.38)]">
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.22em] text-[#00FF88] font-black">Roulette Table</div>
@@ -343,7 +343,7 @@ export const RouletteGame: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-[#0f1115] border border-white/5 rounded-3xl p-6 flex flex-col gap-5">
+      <div className="bg-[linear-gradient(180deg,#1a1110_0%,#0f0b0b_100%)] border border-rose-300/20 rounded-3xl p-6 flex flex-col gap-5 shadow-[0_20px_70px_rgba(0,0,0,0.38)]">
         <div className="relative min-h-[380px] rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_center,_rgba(90,62,36,0.35)_0%,_rgba(9,8,6,0.95)_70%)] overflow-hidden flex items-center justify-center">
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
             <div className="w-6 h-10 rounded-b-full bg-white shadow-xl" />
@@ -389,10 +389,9 @@ export const RouletteGame: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isSpinning || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isSpinning || isAuto} className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-rose-300/60" />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isSpinning || isAuto} />
             <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isSpinning || isAuto} />
-            <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isSpinning || isAuto} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">

@@ -124,13 +124,12 @@ export const BaccaratGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#11161d] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+      <div className="lg:col-span-1 bg-[linear-gradient(180deg,#1a1d2f_0%,#131827_100%)] border border-blue-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_20px_65px_rgba(0,0,0,0.35)]">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-          <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDealing} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+          <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isDealing} className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-300/60" />
           <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isDealing} />
           <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isDealing} />
-          <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isDealing} />
         </div>
 
         <div className="grid grid-cols-1 gap-2">
@@ -139,7 +138,7 @@ export const BaccaratGame: React.FC = () => {
           <BetButton type="tie" label="Tie" accent="bg-[#00FF88]/30" />
         </div>
 
-        <button onClick={deal} disabled={isDealing || balance < betCents} className="rounded-xl bg-[#00FF88] text-black py-4 font-black flex items-center justify-center gap-2 disabled:opacity-40">
+        <button onClick={deal} disabled={isDealing || balance < betCents} className="rounded-xl bg-gradient-to-r from-blue-300 to-cyan-300 text-slate-900 py-4 font-black flex items-center justify-center gap-2 disabled:opacity-40">
           <Play size={18} fill="currentColor" /> DEAL
         </button>
 
@@ -156,7 +155,7 @@ export const BaccaratGame: React.FC = () => {
         </div>
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center gap-8 min-h-[520px]">
+      <div className="lg:col-span-3 bg-[linear-gradient(180deg,#101628_0%,#0a101e_100%)] border border-blue-300/20 rounded-3xl p-10 flex flex-col items-center justify-center gap-8 min-h-[520px] shadow-[0_20px_70px_rgba(0,0,0,0.38)]">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
           <div className="rounded-[28px] border border-blue-500/30 bg-blue-500/10 p-6">
             <div className="text-[10px] uppercase tracking-[0.2em] text-blue-200 font-black">Player</div>

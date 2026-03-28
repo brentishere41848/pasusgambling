@@ -141,18 +141,18 @@ export const LimboGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+      <div className="lg:col-span-1 bg-[linear-gradient(180deg,#15112c_0%,#0f0c1d_100%)] border border-violet-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_20px_65px_rgba(0,0,0,0.35)]">
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isRolling || isAuto} className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-300/60" />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
             <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isRolling || isAuto} />
           </div>
 
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Target Multiplier</label>
-            <input type="number" step="0.01" min={MIN_TARGET} max={MAX_TARGET} value={target} onChange={(e) => setTarget(clampTarget(Number(e.target.value)))} disabled={isRolling || isAuto} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+            <input type="number" step="0.01" min={MIN_TARGET} max={MAX_TARGET} value={target} onChange={(e) => setTarget(clampTarget(Number(e.target.value)))} disabled={isRolling || isAuto} className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-300/60" />
             <div className="mt-2 text-[11px] text-white/30">Custom target supported up to {MAX_TARGET.toFixed(0)}x.</div>
           </div>
 
@@ -187,7 +187,7 @@ export const LimboGame: React.FC = () => {
             />
           ) : null}
 
-          <button onClick={isAuto ? toggleAuto : runRound} disabled={(balance < betCents && !isAuto) || isRolling} className={cn('w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50', isAuto ? 'bg-red-500 text-white' : 'bg-[#00FF88] text-black')}>
+          <button onClick={isAuto ? toggleAuto : runRound} disabled={(balance < betCents && !isAuto) || isRolling} className={cn('w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50', isAuto ? 'bg-red-500 text-white' : 'bg-gradient-to-r from-violet-300 to-fuchsia-300 text-slate-900')}>
             {isAuto ? <><Timer size={18} />STOP AUTO</> : <><Play size={18} fill="currentColor" />START LIMBO</>}
           </button>
           <div className="text-[9px] text-center text-white/20 uppercase tracking-widest">Space: Bet &nbsp;|&nbsp; Esc: Stop &nbsp;|&nbsp; A: Auto</div>
@@ -206,7 +206,7 @@ export const LimboGame: React.FC = () => {
         ]} />
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center gap-8 min-h-[560px]">
+      <div className="lg:col-span-3 bg-[linear-gradient(180deg,#120f23_0%,#0b0a14_100%)] border border-violet-300/20 rounded-3xl p-10 flex flex-col items-center justify-center gap-8 min-h-[560px] shadow-[0_20px_70px_rgba(0,0,0,0.38)]">
         <div className="text-[10px] uppercase tracking-[0.28em] text-white/25 font-black">Beat the target</div>
         <motion.div
           animate={{ scale: isRolling ? [1, 1.04, 1] : 1, opacity: isRolling ? [0.8, 1, 0.9, 1] : 1 }}

@@ -155,7 +155,7 @@ export const CoinflipGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+      <div className="lg:col-span-1 bg-[linear-gradient(180deg,#201817_0%,#14100f_100%)] border border-amber-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
         <div className="space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
@@ -166,7 +166,7 @@ export const CoinflipGame: React.FC = () => {
               min="0.01"
               step="0.01"
               disabled={isFlipping || showGamble} 
-              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-[#00FF88]/50" 
+                className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white font-mono text-xl focus:outline-none focus:border-amber-300/60" 
             />
             <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isFlipping || showGamble} />
             <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isFlipping || showGamble} />
@@ -210,7 +210,7 @@ export const CoinflipGame: React.FC = () => {
                 disabled={(balance < betCents) || isFlipping} 
               className={cn(
                 'w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50',
-                'bg-[#00FF88] hover:bg-[#00FF88]/90 text-black'
+                'bg-gradient-to-r from-amber-300 to-yellow-200 hover:opacity-95 text-slate-900'
               )}
             >
               <Play size={18} fill="currentColor" />
@@ -266,7 +266,7 @@ export const CoinflipGame: React.FC = () => {
         ]} />
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center gap-8 min-h-[620px]">
+      <div className="lg:col-span-3 bg-[linear-gradient(180deg,#19120f_0%,#110d0a_100%)] border border-amber-300/20 rounded-3xl p-10 flex flex-col items-center justify-center gap-8 min-h-[620px] shadow-[0_20px_75px_rgba(0,0,0,0.4)]">
         {showGamble && pendingWin > 0 && (
           <motion.div 
             initial={{ scale: 0.8, opacity: 0 }}

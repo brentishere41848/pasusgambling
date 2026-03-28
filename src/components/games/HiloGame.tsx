@@ -170,13 +170,12 @@ export const HiloGame: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 p-4 max-w-6xl mx-auto">
-      <div className="lg:col-span-1 bg-[#11161d] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+      <div className="lg:col-span-1 bg-[linear-gradient(180deg,#1a1829_0%,#12111d_100%)] border border-indigo-300/20 rounded-3xl p-6 flex flex-col gap-4 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Bet Amount</label>
-          <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isResolving || isActiveRun} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00FF88]/50" />
+          <input type="number" value={bet} onChange={(e) => setBet(Math.max(MIN_BET, Number(e.target.value)))} min="0.01" step="0.01" disabled={isResolving || isActiveRun} className="w-full bg-black/45 border border-white/12 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-300/60" />
           <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isResolving || isActiveRun} />
           <MobileBetControls balance={balance} bet={bet} onSetBet={setBet} disabled={isResolving || isActiveRun} />
-          <QuickBetButtons balance={centsToDollars(balance)} bet={bet} onSetBet={setBet} disabled={isResolving || isActiveRun} />
         </div>
 
         <div>
@@ -243,7 +242,7 @@ export const HiloGame: React.FC = () => {
         </div>
       </div>
 
-      <div className="lg:col-span-3 bg-black border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center gap-8 min-h-[520px]">
+      <div className="lg:col-span-3 bg-[linear-gradient(180deg,#12192c_0%,#0a1020_100%)] border border-indigo-300/20 rounded-3xl p-10 flex flex-col items-center justify-center gap-8 min-h-[520px] shadow-[0_20px_70px_rgba(0,0,0,0.38)]">
         <div className="text-[10px] uppercase tracking-[0.28em] text-white/20">HiLo Table</div>
         <div className="flex items-center gap-6 md:gap-10">
           {previousCard ? (

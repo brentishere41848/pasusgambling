@@ -561,7 +561,7 @@ export const WheelGame: React.FC = () => {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4">
-      <div className="relative overflow-hidden rounded-[34px] border border-[#7e5a21]/55 bg-[radial-gradient(circle_at_top,rgba(36,58,102,0.92),rgba(11,14,22,0.98)_44%,rgba(4,6,10,1)_100%)] p-6 shadow-[0_0_80px_rgba(0,0,0,0.45)] md:p-8">
+      <div className="relative overflow-hidden rounded-[34px] border border-[#b98a3a]/55 bg-[radial-gradient(circle_at_top,rgba(42,64,108,0.94),rgba(11,14,22,0.98)_44%,rgba(4,6,10,1)_100%)] p-6 shadow-[0_0_90px_rgba(0,0,0,0.52)] md:p-8">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(255,231,150,0.1),transparent_22%),radial-gradient(circle_at_50%_62%,rgba(75,150,255,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]" />
         <div className="absolute inset-0 opacity-70" style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(76,138,255,0.18) 0 12%, transparent 12.5%), radial-gradient(circle at 50% 50%, rgba(255,213,90,0.09) 0 29%, transparent 29.5%), radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 0 43%, transparent 43.5%)' }} />
         <div
@@ -679,7 +679,7 @@ export const WheelGame: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
         <div className="rounded-[30px] border border-[#7e5a21]/55 bg-[linear-gradient(180deg,rgba(17,19,27,0.98),rgba(11,13,19,0.96))] p-5 shadow-[0_0_40px_rgba(0,0,0,0.35)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-end">
             <div className="space-y-3">

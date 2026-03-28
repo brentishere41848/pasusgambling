@@ -84,7 +84,7 @@ export const JackpotGame: React.FC = () => {
       </div>
 
       {/* Pool */}
-      <div className="rounded-3xl border border-amber-500/15 bg-gradient-to-br from-amber-500/10 to-transparent p-6 text-center">
+      <div className="rounded-3xl border border-amber-300/25 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.22),transparent_48%),linear-gradient(180deg,#2a1d0e_0%,#161008_100%)] p-6 text-center shadow-[0_20px_65px_rgba(0,0,0,0.35)]">
         <div className="text-[10px] uppercase tracking-[0.3em] text-amber-400/60 font-black mb-2">Total Pot</div>
         <div className="text-5xl font-black text-white tracking-tight">{formatMoney(round?.totalPool || 0)}</div>
         <div className="flex items-center justify-center gap-2 mt-3">
@@ -97,7 +97,7 @@ export const JackpotGame: React.FC = () => {
       </div>
 
       {/* Bet */}
-      <div className="bg-[#111] border border-white/10 rounded-2xl p-5 space-y-4">
+      <div className="bg-[linear-gradient(180deg,#1f1810_0%,#13100a_100%)] border border-amber-300/20 rounded-3xl p-5 space-y-4 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
         <div>
           <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Your Bet</label>
           <div className="relative">
@@ -108,7 +108,7 @@ export const JackpotGame: React.FC = () => {
               onChange={(e) => setAmount(e.target.value)}
               min="0.01"
               step="0.01"
-              className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-xl font-mono text-white focus:outline-none focus:border-amber-500/30"
+                className="w-full bg-black/45 border border-white/12 rounded-xl pl-8 pr-4 py-3 text-xl font-mono text-white focus:outline-none focus:border-amber-300/60"
             />
           </div>
           <div className="text-[10px] text-white/25 mt-1">Min bet: $0.01</div>
@@ -147,7 +147,7 @@ export const JackpotGame: React.FC = () => {
         <button
           onClick={join}
           disabled={!user || joining || timeLeft <= 0}
-          className="w-full rounded-2xl bg-amber-400 hover:bg-amber-300 text-black py-4 text-sm font-black uppercase tracking-[0.2em] disabled:opacity-40 transition-all"
+          className="w-full rounded-2xl bg-gradient-to-r from-amber-300 to-yellow-200 hover:opacity-95 text-slate-900 py-4 text-sm font-black uppercase tracking-[0.2em] disabled:opacity-40 transition-all"
         >
           {!user ? 'Sign In to Play' : joining ? 'Joining...' : `Enter with ${formatMoney(Math.round(Number(amount || 0) * 100))}`}
         </button>
@@ -185,7 +185,7 @@ export const JackpotGame: React.FC = () => {
       </div>
 
       {/* How it works */}
-      <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 space-y-2">
+      <div className="rounded-2xl border border-amber-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] p-4 space-y-2">
         <div className="text-[10px] uppercase tracking-widest text-white/30 font-black">How it works</div>
         <div className="text-[11px] text-white/40 space-y-1">
           <p>1. Enter any amount (min $0.01). Each $1.00 = 1 ticket.</p>
