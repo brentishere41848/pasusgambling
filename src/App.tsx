@@ -28,7 +28,6 @@ import {
   Disc,
   CreditCard,
   RotateCcw,
-  Plus,
   Minus,
   ArrowUpRight,
   ArrowDownLeft,
@@ -82,7 +81,6 @@ const BlackjackGame = lazy(() => import('./components/games/BlackjackGame').then
 const HiloGame = lazy(() => import('./components/games/HiloGame').then((m) => ({ default: m.HiloGame })));
 const BaccaratGame = lazy(() => import('./components/games/BaccaratGame').then((m) => ({ default: m.BaccaratGame })));
 const WheelGame = lazy(() => import('./components/games/WheelGame').then((m) => ({ default: m.WheelGame })));
-const PlinkoGame = lazy(() => import('./components/games/PlinkoGame').then((m) => ({ default: m.PlinkoGame })));
 const RouletteGame = lazy(() => import('./components/games/RouletteGame').then((m) => ({ default: m.RouletteGame })));
 const LimboGame = lazy(() => import('./components/games/LimboGame').then((m) => ({ default: m.LimboGame })));
 const KenoGame = lazy(() => import('./components/games/KenoGame').then((m) => ({ default: m.KenoGame })));
@@ -239,17 +237,6 @@ const GAMES = [
     component: BaccaratGame,
     featured: false,
     image: '/assets/blackjack_hero.png'
-  },
-  {
-    id: 'plinko',
-    name: 'Plinko',
-    description: 'Drop balls through pegs and chase the high multiplier buckets.',
-    icon: Plus,
-    color: 'text-sky-300',
-    bg: 'bg-sky-300/10',
-    component: PlinkoGame,
-    featured: true,
-    image: '/assets/hero.png'
   },
   {
     id: 'roulette',
