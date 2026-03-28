@@ -8730,34 +8730,38 @@ const AppContent = () => {
                 exit={{ opacity: 0, scale: 1.02 }}
                 className="p-6 lg:p-10"
               >
-                <div className="max-w-6xl mx-auto mb-6 flex items-center justify-between">
+                <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <button 
                       onClick={openDashboard}
-                      className="w-10 h-10 rounded-xl bg-[#1a1d23] border border-white/5 flex items-center justify-center hover:bg-white/5 transition-colors"
+                      className="w-10 h-10 rounded-xl bg-[#182131] border border-white/10 flex items-center justify-center hover:bg-[#1f2a3d] transition-colors"
                     >
                       <ChevronRight className="rotate-180 text-white/40" size={20} />
                     </button>
                     <div>
-                      <h2 className="text-xl font-black italic uppercase tracking-tighter">
+                      <h2 className="text-2xl font-black uppercase tracking-tight">
                         {GAMES.find(g => g.id === activeGame)?.name}
                       </h2>
-                      <div className="text-[10px] text-white/20 uppercase tracking-[0.2em] font-bold">Original Game</div>
+                      <div className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-bold">Premium Mode</div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="w-10 h-10 rounded-xl bg-[#1a1d23] border border-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors">
+                    <button className="w-10 h-10 rounded-xl bg-[#182131] border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors">
                       <Star size={18} />
                     </button>
-                    <button className="w-10 h-10 rounded-xl bg-[#1a1d23] border border-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors">
+                    <button className="w-10 h-10 rounded-xl bg-[#182131] border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors">
                       <Settings size={18} />
                     </button>
                   </div>
                 </div>
                 {CurrentGame ? (
-                  <Suspense fallback={lazyFallback}>
-                    <CurrentGame />
-                  </Suspense>
+                  <div className="mx-auto max-w-7xl rounded-[34px] border border-white/12 bg-[linear-gradient(180deg,rgba(14,22,35,0.92),rgba(9,15,24,0.96))] p-2 shadow-[0_25px_90px_rgba(0,0,0,0.35)]">
+                    <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(89,210,255,0.12),transparent_28%),radial-gradient(circle_at_bottom,rgba(0,255,136,0.08),transparent_30%),linear-gradient(180deg,#0b1220_0%,#0a101a_100%)]">
+                      <Suspense fallback={lazyFallback}>
+                        <CurrentGame />
+                      </Suspense>
+                    </div>
+                  </div>
                 ) : null}
               </motion.div>
             ) : currentView === 'profile' ? (
