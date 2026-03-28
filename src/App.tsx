@@ -732,7 +732,7 @@ const Sidebar = ({
   ];
 
   const sidebar = (
-    <div className="w-[260px] shrink-0 flex flex-col h-full bg-gradient-to-b from-[#0a0f1a] via-[#0d1220] to-[#080c14] backdrop-blur-xl border-r border-white/5 relative overflow-hidden">
+    <div className="w-[272px] shrink-0 flex flex-col h-full bg-[linear-gradient(175deg,#0b111b_0%,#0d1624_56%,#0b121e_100%)] backdrop-blur-xl border-r border-white/10 relative overflow-hidden shadow-[inset_-1px_0_0_rgba(255,255,255,0.05)]">
       {/* Animated background gradient */}
       <div className="absolute inset-0 opacity-30">
         <div className="absolute top-0 left-0 w-32 h-32 bg-[#00FF88]/10 rounded-full blur-[60px]" />
@@ -740,7 +740,7 @@ const Sidebar = ({
       </div>
       
       {/* Logo */}
-      <div className="relative px-5 pt-6 pb-5 border-b border-white/5">
+      <div className="relative px-5 pt-6 pb-5 border-b border-white/10">
         <motion.button 
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -760,9 +760,9 @@ const Sidebar = ({
         </motion.button>
       </div>
 
-      <nav className="relative flex-1 overflow-y-auto custom-scrollbar px-3 py-4 space-y-1">
+      <nav className="relative flex-1 overflow-y-auto custom-scrollbar px-3 py-4 space-y-3">
         {/* Main Navigation */}
-        <div className="space-y-1 mb-6">
+        <div className="space-y-1 rounded-2xl border border-white/8 bg-black/15 p-2">
           {navItems.map((item, i) => (
             <motion.button
               key={item.label}
@@ -774,8 +774,8 @@ const Sidebar = ({
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all relative group overflow-hidden',
                 item.active 
-                  ? 'bg-gradient-to-r from-[#00FF88]/15 to-transparent text-[#00FF88]' 
-                  : 'text-white/50 hover:text-white hover:bg-white/5'
+                  ? 'bg-gradient-to-r from-[#00FF88]/18 to-transparent text-[#8fffd0] border border-[#00FF88]/20 shadow-[0_0_20px_rgba(0,255,136,0.08)]' 
+                  : 'text-white/60 hover:text-white hover:bg-white/6 border border-transparent'
               )}
             >
               {item.active && (
@@ -931,7 +931,7 @@ const Sidebar = ({
         </div>
 
         {/* Table Games Section */}
-        <div className="pt-1 pb-1">
+        <div className="rounded-2xl border border-white/8 bg-black/15 p-2">
           <motion.button 
             whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
             onClick={() => setIsTableExpanded(!isTableExpanded)}
@@ -993,7 +993,7 @@ const Sidebar = ({
         </div>
 
         {/* Social Section */}
-        <div className="pt-4 pb-1">
+        <div className="rounded-2xl border border-white/8 bg-black/15 p-2">
           <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-white/20 flex items-center gap-2">
             <UsersRound size={10} />
             <span>Social</span>
@@ -1018,10 +1018,30 @@ const Sidebar = ({
             </motion.button>
           </div>
         </div>
+
+        {onToggleChat ? (
+          <button
+            onClick={() => handleNav(onToggleChat)}
+            className={cn(
+              'w-full rounded-2xl border px-4 py-3 text-left transition-all',
+              chatOpen
+                ? 'border-[#00FF88]/25 bg-[#00FF88]/10 text-[#9affd7]'
+                : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare size={14} />
+                <span className="text-[10px] font-black uppercase tracking-[0.18em]">Chat Panel</span>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-[0.16em]">{chatOpen ? 'On' : 'Off'}</span>
+            </div>
+          </button>
+        ) : null}
       </nav>
 
       {/* Footer */}
-      <div className="relative p-4 border-t border-white/5">
+      <div className="relative p-4 border-t border-white/10">
         <div className="flex items-center justify-center gap-2 text-[9px] text-white/20 uppercase tracking-widest">
           <span>© 2025 Pasus</span>
           <span className="w-1 h-1 rounded-full bg-white/10" />
@@ -1039,8 +1059,8 @@ const Sidebar = ({
       {isOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="h-full">
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="h-full w-[min(90vw,300px)]">
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0d1522]">
               <span className="text-sm font-black uppercase tracking-widest text-white/60">Menu</span>
               <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-white/40">
                 <X size={18} />

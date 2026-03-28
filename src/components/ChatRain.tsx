@@ -454,14 +454,14 @@ export const ChatRain: React.FC<{
       </AnimatePresence>
 
       <aside className={cn(
-        'w-[min(100vw,360px)] xl:w-[340px] shrink-0 border-l border-white/5 bg-[#0a0f1a]/95 backdrop-blur-xl flex-col relative overflow-hidden',
+        'w-[min(100vw,380px)] xl:w-[356px] shrink-0 border-l border-white/10 bg-[linear-gradient(180deg,#0b1422_0%,#0a101b_55%,#090f19_100%)] backdrop-blur-xl flex-col relative overflow-hidden shadow-[-18px_0_55px_rgba(0,0,0,0.28)]',
         isMobileOpen
           ? 'fixed right-0 top-0 bottom-0 z-50 xl:hidden flex h-dvh'
           : isOpen
             ? 'hidden xl:flex h-screen sticky top-0'
             : 'hidden'
       )}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#0a0f1a]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#0d1727]">
           <span className="text-sm font-black uppercase tracking-widest text-white/60">Chat & Rain</span>
           <div className="flex items-center gap-2">
             {onClose && (
@@ -499,9 +499,9 @@ export const ChatRain: React.FC<{
         )}
 
         {/* Rain Cards */}
-        <div className="p-4 space-y-3 border-b border-white/5">
+        <div className="p-4 space-y-3 border-b border-white/10 bg-black/10">
           {/* Hourly Rain */}
-          <div className="rounded-2xl border border-[#00FF88]/15 bg-[linear-gradient(180deg,rgba(0,255,136,0.08),rgba(255,255,255,0.02))] p-4">
+            <div className="rounded-2xl border border-[#00FF88]/20 bg-[linear-gradient(180deg,rgba(0,255,136,0.11),rgba(255,255,255,0.02))] p-4 shadow-[0_10px_25px_rgba(0,255,136,0.08)]">
             <div className="flex items-center justify-between mb-2">
               <div className="text-[9px] uppercase tracking-[0.25em] text-[#00FF88] font-black">Hourly Rain</div>
               <Droplets size={16} className="text-[#00FF88]/50" />
@@ -534,7 +534,7 @@ export const ChatRain: React.FC<{
 
           {/* Custom Rain */}
           {customRain ? (
-            <div className="rounded-2xl border border-sky-400/15 bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(255,255,255,0.02))] p-4">
+            <div className="rounded-2xl border border-sky-400/20 bg-[linear-gradient(180deg,rgba(56,189,248,0.12),rgba(255,255,255,0.02))] p-4 shadow-[0_10px_25px_rgba(56,189,248,0.07)]">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-[9px] uppercase tracking-[0.2em] text-sky-300 font-black">Custom Rain</div>
@@ -567,7 +567,7 @@ export const ChatRain: React.FC<{
             <button
               onClick={() => setCustomRainDraft({ amount: '5' })}
               disabled={!isAuthenticated || isSubmitting}
-              className="w-full rounded-2xl border border-dashed border-white/10 bg-white/[0.02] py-3 text-[10px] text-white/30 font-black uppercase tracking-[0.2em] hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+              className="w-full rounded-2xl border border-dashed border-white/15 bg-white/[0.04] py-3 text-[10px] text-white/40 font-black uppercase tracking-[0.2em] hover:bg-white/[0.07] transition-colors disabled:opacity-40"
             >
               + Create Custom Rain
             </button>
@@ -576,7 +576,7 @@ export const ChatRain: React.FC<{
 
         {/* Chat */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-black/15">
             <div className="flex items-center gap-2">
               <div className="text-sm font-black uppercase tracking-[0.15em]">Chat</div>
               <div className="flex items-center gap-1 text-[10px] text-white/25">
@@ -594,7 +594,7 @@ export const ChatRain: React.FC<{
 
           {/* Broadcasts */}
           {activeBroadcasts.length > 0 && (
-            <div className="px-4 py-3 border-b border-white/5 space-y-2">
+            <div className="px-4 py-3 border-b border-white/10 space-y-2 bg-black/10">
               {activeBroadcasts.map((b) => (
                 <div key={b.id} className={cn(
                   'rounded-xl px-3 py-2 text-xs border',
@@ -640,7 +640,7 @@ export const ChatRain: React.FC<{
               const dist = target.scrollHeight - target.scrollTop - target.clientHeight;
               setShouldAutoScroll(dist < 32);
             }}
-            className="flex-1 overflow-y-auto custom-scrollbar px-4 py-3 space-y-3"
+            className="flex-1 overflow-y-auto custom-scrollbar px-4 py-3 space-y-3 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.03),transparent_42%)]"
           >
             {isLoading && messages.length === 0 && (
               <div className="text-center text-[11px] text-white/30 py-8">Loading...</div>
@@ -649,7 +649,7 @@ export const ChatRain: React.FC<{
               <div className="text-center text-[11px] text-white/30 py-8">No messages yet. Be the first!</div>
             )}
             {messages.map((msg) => (
-              <div key={msg.id} className="flex gap-2 items-start">
+              <div key={msg.id} className="flex gap-2 items-start rounded-xl border border-white/6 bg-white/[0.02] p-2.5">
                 {msg.avatarUrl ? (
                   <img src={msg.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover mt-0.5 shrink-0" />
                 ) : (
@@ -695,7 +695,7 @@ export const ChatRain: React.FC<{
           </div>
 
           {/* Input */}
-          <div className="p-3 border-t border-white/5">
+          <div className="p-3 border-t border-white/10 bg-black/20">
             {tipDraft ? (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
