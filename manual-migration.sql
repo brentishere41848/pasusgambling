@@ -1,5 +1,12 @@
 BEGIN;
 
+DO $$
+BEGIN
+  IF to_regclass('public.users') IS NULL THEN
+    RAISE EXCEPTION 'manual-migration.sql is incremental only. Use database-full-schema.sql for a fresh PostgreSQL database.';
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS user_notifications (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
